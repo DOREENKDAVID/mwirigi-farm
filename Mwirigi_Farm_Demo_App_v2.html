@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mwirigi Farm — Management System v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --g50:#EAF3DE;--g100:#C0DD97;--g400:#639922;--g600:#3B6D11;--g800:#27500A;
+  --a50:#FAEEDA;--a400:#EF9F27;--a600:#854F0B;--a800:#633806;
+  --t50:#E1F5EE;--t400:#1D9E75;--t600:#0F6E56;--t800:#085041;
+  --r50:#FCEBEB;--r400:#E24B4A;--r800:#501313;
+  --b50:#E6F1FB;--b400:#378ADD;--b600:#185FA5;
+  --bg:#f5f4f0;--surface:#fff;--surface2:#f0efe9;
+  --txt:#1a1a18;--txt2:#666660;--txt3:#aaa;
+  --bdr:rgba(0,0,0,0.08);--bdr2:rgba(0,0,0,0.16);
+  --sidebar:224px;--top:56px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+
+/* ── LOGIN ── */
+#login-screen{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:2000}
+.lbox{width:380px;padding:40px;border:0.5px solid var(--bdr2);border-radius:16px}
+.llogo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+.licon{width:44px;height:44px;border-radius:10px;background:var(--g50);display:flex;align-items:center;justify-content:center;font-size:22px}
+.ltitle{font-size:17px;font-weight:700;color:var(--g800)}
+.lsub{font-size:11px;color:var(--txt2);margin-top:2px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px}
+.rpill{padding:9px 10px;border-radius:8px;border:0.5px solid var(--bdr2);background:var(--surface2);cursor:pointer;text-align:center;transition:all 0.12s}
+.rpill:hover{border-color:var(--g400)}
+.rpill.active{background:var(--g50);border-color:var(--g600)}
+.rpill-title{font-size:12px;font-weight:700;color:var(--g800)}
+.rpill-name{font-size:10px;color:var(--txt2);margin-top:2px}
+.lfield{margin-bottom:14px}
+.lfield label{display:block;font-size:11px;color:var(--txt2);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+.lfield input{width:100%;padding:9px 12px;border:0.5px solid var(--bdr2);border-radius:8px;font-size:14px;font-family:inherit;outline:none;color:var(--txt)}
+.lfield input:focus{border-color:var(--g400);box-shadow:0 0 0 3px rgba(99,153,34,0.1)}
+.lbtn{width:100%;padding:10px;background:var(--g600);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+.lbtn:hover{background:var(--g800)}
+.access-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:10px;margin-top:4px}
+.ap-full{background:var(--g50);color:var(--g800)}
+.ap-unit{background:var(--b50);color:var(--b600)}
+.ap-ops{background:var(--t50);color:var(--t800)}
+
+/* ── SHELL ── */
+#app{display:none}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar);background:var(--g800);display:flex;flex-direction:column;z-index:100}
+.sb-hdr{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:10px;min-height:var(--top)}
+.sb-logo{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.sb-name{font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden}
+.sb-sub{font-size:10px;color:rgba(255,255,255,0.4)}
+.nav-section{padding:10px 8px 4px;font-size:10px;font-weight:700;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.08em}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;margin:1px 6px;transition:background 0.1s}
+.nav-item:hover{background:rgba(255,255,255,0.09)}
+.nav-item.active{background:rgba(255,255,255,0.17)}
+.nav-icon{width:27px;height:27px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:rgba(255,255,255,0.07)}
+.nav-item.active .nav-icon{background:rgba(255,255,255,0.18)}
+.nav-label{font-size:12px;color:rgba(255,255,255,0.8);white-space:nowrap}
+.nav-item.active .nav-label{color:#fff;font-weight:600}
+.nav-badge{margin-left:auto;background:var(--r400);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;flex-shrink:0}
+.nav-lock{margin-left:auto;font-size:11px;opacity:0.35}
+.sb-footer{margin-top:auto;padding:10px 6px;border-top:1px solid rgba(255,255,255,0.07)}
+.user-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.user-row:hover{background:rgba(255,255,255,0.09)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--g400);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.uname{font-size:12px;color:rgba(255,255,255,0.85);font-weight:500}
+.urole{font-size:10px;color:rgba(255,255,255,0.35)}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sidebar)}
+.topbar{height:var(--top);background:var(--surface);border-bottom:0.5px solid var(--bdr2);display:flex;align-items:center;padding:0 24px;gap:14px;position:sticky;top:0;z-index:50}
+.tb-title{font-size:15px;font-weight:600;flex:1}
+.tb-date{font-size:12px;color:var(--txt2)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--g400);animation:pulse 1.5s infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.live-tag{display:flex;align-items:center;gap:5px;background:var(--g50);color:var(--g800);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.tb-btn{padding:6px 14px;border-radius:20px;border:0.5px solid var(--bdr2);background:transparent;font-size:12px;cursor:pointer;color:var(--txt2);font-family:inherit}
+.tb-btn:hover{background:var(--g50);border-color:var(--g400);color:var(--g800)}
+.tb-btn.on{background:var(--a50);border-color:var(--a400);color:var(--a800)}
+.page{padding:24px;display:none}
+.page.active{display:block}
+
+/* ── LOCKED PAGE ── */
+.locked-page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:14px;color:var(--txt2);text-align:center}
+.lock-icon{font-size:40px;opacity:0.25}
+.lock-msg{font-size:15px;font-weight:600;color:var(--txt2)}
+.lock-sub{font-size:13px;color:var(--txt3);max-width:280px;line-height:1.6}
+
+/* ── COMPONENTS ── */
+.grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.kpi{background:var(--surface2);border-radius:10px;padding:14px 16px}
+.kpi-lbl{font-size:11px;color:var(--txt2);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px}
+.kpi-val{font-size:24px;font-weight:700;color:var(--g800);line-height:1}
+.kpi-sub{font-size:11px;color:var(--txt3);margin-top:5px}
+.trend{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;margin-top:6px}
+.tr-a{background:var(--a50);color:var(--a800)}
+.tr-g{background:var(--g50);color:var(--g800)}
+.tr-r{background:var(--r50);color:var(--r800)}
+.card{background:var(--surface);border:0.5px solid var(--bdr);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:0.06em}
+.pbar-row{margin-bottom:13px}
+.pbar-top{display:flex;justify-content:space-between;margin-bottom:5px}
+.pbar-lbl{font-size:13px;font-weight:500}
+.pbar-pct{font-size:12px;color:var(--txt2)}
+.pbar{height:7px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.pfill{height:100%;border-radius:4px;transition:width 0.6s}
+.pf-g{background:var(--g400)}.pf-a{background:var(--a400)}.pf-t{background:var(--t400)}.pf-r{background:var(--r400)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;color:var(--txt2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid var(--bdr2);white-space:nowrap}
+td{padding:9px 12px;border-bottom:0.5px solid var(--bdr);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.tag-g{background:var(--g50);color:var(--g800)}.tag-a{background:var(--a50);color:var(--a800)}
+.tag-t{background:var(--t50);color:var(--t800)}.tag-r{background:var(--r50);color:var(--r800)}
+.tag-b{background:var(--b50);color:var(--b600)}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px}
+.dot-g{background:var(--g400)}.dot-a{background:var(--a400)}.dot-r{background:var(--r400)}.dot-gray{background:#bbb}
+.alert-card{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;margin-bottom:6px}
+.alert-g{background:var(--g50)}.alert-a{background:var(--a50)}.alert-r{background:var(--r50)}
+.alert-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert-title{font-size:12px;font-weight:700}
+.alert-sub{font-size:11px;color:var(--txt2)}
+.dismiss{margin-left:auto;font-size:10px;color:var(--txt3);padding:2px 6px;border-radius:4px;border:0.5px solid var(--bdr);background:transparent;cursor:pointer;font-family:inherit;flex-shrink:0}
+.unit-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.unit-ico{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.unit-name{font-size:17px;font-weight:700;color:var(--g800)}
+.unit-desc{font-size:12px;color:var(--txt2)}
+
+/* ── FORMS ── */
+.form-row{display:grid;gap:12px;margin-bottom:12px}
+.fr2{grid-template-columns:1fr 1fr}.fr3{grid-template-columns:1fr 1fr 1fr}
+.fg label{display:block;font-size:11px;font-weight:600;color:var(--txt2);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em}
+.fg input,.fg select,.fg textarea{width:100%;padding:8px 10px;border:0.5px solid var(--bdr2);border-radius:8px;font-size:13px;font-family:inherit;outline:none;background:var(--surface);color:var(--txt)}
+.fg input:focus,.fg select:focus{border-color:var(--g400);box-shadow:0 0 0 3px rgba(99,153,34,0.1)}
+.btn-p{padding:9px 20px;background:var(--g600);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-p:hover{background:var(--g800)}
+.btn-s{padding:9px 16px;background:transparent;color:var(--txt2);border:0.5px solid var(--bdr2);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit}
+.btn-s:hover{background:var(--surface2)}
+.btn-export{padding:7px 14px;background:transparent;color:var(--b600);border:0.5px solid var(--b400);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px}
+.btn-export:hover{background:var(--b50)}
+.form-actions{display:flex;gap:8px;margin-top:16px}
+.add-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border:0.5px dashed var(--bdr2);border-radius:8px;background:transparent;font-size:12px;color:var(--txt2);cursor:pointer;font-family:inherit}
+.add-btn:hover{border-color:var(--g400);color:var(--g800);background:var(--g50)}
+.section-banner{background:var(--g800);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;margin-bottom:14px}
+
+/* ── MODAL ── */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:500;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;width:520px;max-width:94vw;padding:24px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:3px;color:var(--g800)}
+.modal-sub{font-size:12px;color:var(--txt2);margin-bottom:20px}
+
+/* ── TOAST ── */
+#toasts{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;color:#fff;max-width:290px;display:flex;align-items:center;gap:8px;animation:tIn 0.25s ease}
+.ts{background:var(--g600)}.tw{background:var(--a600)}.ti{background:var(--t600)}.te{background:var(--r400)}
+@keyframes tIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── STAFF MODULE ── */
+.staff-card{background:var(--surface);border:0.5px solid var(--bdr);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.staff-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.staff-name{font-size:13px;font-weight:600}
+.staff-role{font-size:11px;color:var(--txt2)}
+.staff-status{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.attend-btn{padding:4px 10px;border-radius:6px;border:0.5px solid var(--bdr2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.ab-in{background:var(--g50);color:var(--g800);border-color:var(--g400)}
+.ab-out{background:var(--r50);color:var(--r800);border-color:var(--r400)}
+.ab-late{background:var(--a50);color:var(--a800);border-color:var(--a400)}
+
+/* ── REPORTS ── */
+.report-card{background:var(--surface);border:0.5px solid var(--bdr);border-radius:12px;padding:18px 20px;cursor:pointer;transition:border-color 0.15s}
+.report-card:hover{border-color:var(--g400)}
+.rc-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
+.rc-title{font-size:14px;font-weight:600;color:var(--g800);margin-bottom:4px}
+.rc-desc{font-size:12px;color:var(--txt2);line-height:1.5}
+.rc-formats{display:flex;gap:5px;margin-top:10px}
+.fmt-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--surface2);color:var(--txt2)}
+
+/* ── MISC ── */
+.page-hdr{margin-bottom:20px}
+.page-title{font-size:18px;font-weight:700;color:var(--g800)}
+.page-sub{font-size:12px;color:var(--txt2);margin-top:3px}
+.divider{border:none;border-top:0.5px solid var(--bdr);margin:20px 0}
+@media(max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="login-screen">
+  <div class="lbox">
+    <div class="llogo">
+      <div class="licon">🌿</div>
+      <div><div class="ltitle">Mwirigi Farm</div><div class="lsub">Integrated Farm Management System v2.0</div></div>
+    </div>
+    <p style="font-size:11px;color:var(--txt2);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Sign in as</p>
+    <div class="role-grid" id="role-grid">
+      <div class="rpill active" onclick="pickRole(this,'CEO','Dr. Mwirigi','full')">
+        <div class="rpill-title">CEO</div>
+        <div class="rpill-name">Dr. Mwirigi</div>
+        <div class="access-pill ap-full">Full access</div>
+      </div>
+      <div class="rpill" onclick="pickRole(this,'Farm Vet','Dr. Omondi','vet')">
+        <div class="rpill-title">Farm Vet</div>
+        <div class="rpill-name">Dr. Omondi</div>
+        <div class="access-pill ap-ops">Health + all units</div>
+      </div>
+      <div class="rpill" onclick="pickRole(this,'Dairy Manager','J. Kamau','dairy')">
+        <div class="rpill-title">Dairy Manager</div>
+        <div class="rpill-name">J. Kamau</div>
+        <div class="access-pill ap-unit">Dairy unit only</div>
+      </div>
+      <div class="rpill" onclick="pickRole(this,'Piggery Manager','S. Wanjiku','piggery')">
+        <div class="rpill-title">Piggery Manager</div>
+        <div class="rpill-name">S. Wanjiku</div>
+        <div class="access-pill ap-unit">Piggery unit only</div>
+      </div>
+      <div class="rpill" onclick="pickRole(this,'Layers Manager','P. Njoroge','layers')">
+        <div class="rpill-title">Layers Manager</div>
+        <div class="rpill-name">P. Njoroge</div>
+        <div class="access-pill ap-unit">Layers unit only</div>
+      </div>
+      <div class="rpill" onclick="pickRole(this,'Feed Manager','M. Githinji','feeds')">
+        <div class="rpill-title">Feed Manager</div>
+        <div class="rpill-name">M. Githinji</div>
+        <div class="access-pill ap-ops">Feeds + Ngushish</div>
+      </div>
+    </div>
+    <div class="lfield">
+      <label>PIN</label>
+      <input type="password" id="lpin" placeholder="Enter any PIN (demo)" maxlength="4"/>
+    </div>
+    <button class="lbtn" onclick="doLogin()">Sign In →</button>
+    <p style="font-size:11px;color:var(--txt3);text-align:center;margin-top:12px">Demo — any 4-digit PIN works</p>
+  </div>
+</div>
+
+<!-- ═══════════════ APP ═══════════════ -->
+<div id="app">
+  <nav class="sidebar" id="sidebar">
+    <div class="sb-hdr">
+      <div class="sb-logo">🌿</div>
+      <div><div class="sb-name">Mwirigi Farm</div><div class="sb-sub">Farm Management System</div></div>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding-bottom:8px" id="nav-body"></div>
+    <div class="sb-footer">
+      <div class="user-row" onclick="doLogout()">
+        <div class="avatar" id="u-av">DM</div>
+        <div><div class="uname" id="u-nm">Dr. Mwirigi</div><div class="urole" id="u-rl">CEO</div></div>
+        <span style="margin-left:auto;font-size:11px;color:rgba(255,255,255,0.3)">↩</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="tb-title" id="tb-title">CEO Overview</div>
+      <div class="tb-date" id="tb-date"></div>
+      <div class="live-tag"><div class="live-dot"></div>Live</div>
+      <button class="tb-btn" id="sim-btn" onclick="toggleSim()">▶ Simulate</button>
+    </div>
+
+    <!-- ── OVERVIEW ── -->
+    <div class="page active" id="page-overview">
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Milk today</div><div class="kpi-val" id="k-milk">847 L</div><div class="kpi-sub">Target: 2,000 L/day</div><div class="trend tr-a">42% of target</div></div>
+        <div class="kpi"><div class="kpi-lbl">Egg crates</div><div class="kpi-val" id="k-eggs">271</div><div class="kpi-sub">Target: 700/day</div><div class="trend tr-a">39% of target</div></div>
+        <div class="kpi"><div class="kpi-lbl">Piglets MTD</div><div class="kpi-val" id="k-pigs">53</div><div class="kpi-sub">Target: 100/month</div><div class="trend tr-a">53% of target</div></div>
+        <div class="kpi"><div class="kpi-lbl">Active alerts</div><div class="kpi-val" id="k-alerts" style="color:var(--r400)">3</div><div class="kpi-sub">Require attention</div><div class="trend tr-r">⚠ Action needed</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">5-year goals</span></div>
+          <div class="pbar-row"><div class="pbar-top"><span class="pbar-lbl">Milk production</span><span class="pbar-pct" id="gp1">847 L / 2,000 L — 42%</span></div><div class="pbar"><div class="pfill pf-a" id="gb1" style="width:42%"></div></div></div>
+          <div class="pbar-row"><div class="pbar-top"><span class="pbar-lbl">Egg crates</span><span class="pbar-pct">271 / 700 — 39%</span></div><div class="pbar"><div class="pfill pf-a" style="width:39%"></div></div></div>
+          <div class="pbar-row"><div class="pbar-top"><span class="pbar-lbl">Piglets / month</span><span class="pbar-pct">53 / 100 — 53%</span></div><div class="pbar"><div class="pfill pf-t" style="width:53%"></div></div></div>
+          <div class="pbar-row"><div class="pbar-top"><span class="pbar-lbl">Layers flock</span><span class="pbar-pct">8,000 / 20,000 — 40%</span></div><div class="pbar"><div class="pfill pf-r" style="width:40%"></div></div></div>
+          <div class="pbar-row"><div class="pbar-top"><span class="pbar-lbl">Feedlot throughput</span><span class="pbar-pct">12 bulls — 24%</span></div><div class="pbar"><div class="pfill pf-g" style="width:24%"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Active alerts</span></div>
+          <div id="alerts-panel">
+            <div class="alert-card alert-r" id="al1"><div class="alert-icon">⚠️</div><div><div class="alert-title">Cow #MW-047 — milk drop 40%</div><div class="alert-sub">3 consecutive sessions below average</div></div><button class="dismiss" onclick="dimAlert('al1')">✕</button></div>
+            <div class="alert-card alert-a" id="al2"><div class="alert-icon">💉</div><div><div class="alert-title">FMD vaccines due — 18 dairy animals</div><div class="alert-sub">Schedule within 7 days</div></div><button class="dismiss" onclick="dimAlert('al2')">✕</button></div>
+            <div class="alert-card alert-a" id="al3"><div class="alert-icon">🐷</div><div><div class="alert-title">Sow #PIG-012 — farrowing in 3–5 days</div><div class="alert-sub">Prepare farrowing pen</div></div><button class="dismiss" onclick="dimAlert('al3')">✕</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">7-day milk trend</span></div>
+        <div style="position:relative;height:170px"><canvas id="cMilk7"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Unit performance snapshot</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Unit</th><th>Manager</th><th>Key metric</th><th>Today</th><th>7-day avg</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Dairy</strong></td><td>J. Kamau</td><td>Milk litres</td><td id="ov-milk">847 L</td><td>831 L</td><td><span class="tag tag-a">42% of target</span></td></tr>
+            <tr><td><strong>Layers</strong></td><td>P. Njoroge</td><td>Egg crates</td><td>271</td><td>265</td><td><span class="tag tag-a">39% of target</span></td></tr>
+            <tr><td><strong>Piggery</strong></td><td>S. Wanjiku</td><td>Piglets MTD</td><td>—</td><td>53/mo</td><td><span class="tag tag-t">53% of target</span></td></tr>
+            <tr><td><strong>Feedlot</strong></td><td>T. Mwaura</td><td>Bulls on feed</td><td>12</td><td>—</td><td><span class="tag tag-g">New unit</span></td></tr>
+            <tr><td><strong>Ngushish</strong></td><td>A. Wangari</td><td>Produce dispatched</td><td>420 kg</td><td>390 kg</td><td><span class="tag tag-t">On track</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── DAIRY ── -->
+    <div class="page" id="page-dairy">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--g50)">🐄</div>
+        <div><div class="unit-name">Dairy Unit</div><div class="unit-desc">200 cows · Target 2,000 L/day</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-milk')">+ Log Milk</button>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Total herd</div><div class="kpi-val">200</div><div class="kpi-sub">Registered cows</div></div>
+        <div class="kpi"><div class="kpi-lbl">Milking today</div><div class="kpi-val">52</div><div class="kpi-sub">Active lactation</div></div>
+        <div class="kpi"><div class="kpi-lbl">Litres today</div><div class="kpi-val" id="d-total">847 L</div><div class="kpi-sub">AM: 487 · PM: 360</div></div>
+        <div class="kpi"><div class="kpi-lbl">Avg per cow</div><div class="kpi-val" id="d-avg">16.3 L</div><div class="kpi-sub">Per milking cow</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Cow records</span><button class="add-btn" onclick="openM('m-cow')">+ Register cow</button></div>
+          <div class="tbl-wrap"><table id="cow-tbl">
+            <thead><tr><th>Tag</th><th>Breed</th><th>Status</th><th>Today (L)</th><th>7d avg</th></tr></thead>
+            <tbody>
+              <tr><td><span class="tag tag-g">MW-001</span></td><td>Friesian</td><td><span class="dot dot-g"></span>Milking</td><td>22</td><td>21.4</td></tr>
+              <tr><td><span class="tag tag-g">MW-002</span></td><td>Ayrshire</td><td><span class="dot dot-g"></span>Milking</td><td>18</td><td>18.8</td></tr>
+              <tr><td><span class="tag tag-g">MW-015</span></td><td>Friesian</td><td><span class="dot dot-a"></span>Dry off</td><td>0</td><td>0</td></tr>
+              <tr><td><span class="tag tag-g">MW-031</span></td><td>Jersey</td><td><span class="dot dot-g"></span>Milking</td><td>14</td><td>15.1</td></tr>
+              <tr><td><span class="tag tag-g">MW-047</span></td><td>Friesian</td><td><span class="dot dot-r"></span>⚠ Sick</td><td>9</td><td>16.2</td></tr>
+              <tr><td><span class="tag tag-g">MW-082</span></td><td>Ayrshire</td><td><span class="dot dot-a"></span>Pregnant</td><td>0</td><td>0</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Daily milk — 7 days</span></div>
+          <div style="position:relative;height:200px"><canvas id="cDairy"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Reproduction tracker</span><button class="add-btn" onclick="openM('m-repro')">+ Log AI / Calving</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Tag</th><th>Last AI date</th><th>Pregnancy</th><th>Expected calving</th><th>Calves (lifetime)</th></tr></thead>
+          <tbody id="repro-body">
+            <tr><td><span class="tag tag-g">MW-012</span></td><td>12 Jan 2025</td><td><span class="tag tag-t">Confirmed</span></td><td>22 Oct 2025</td><td>3</td></tr>
+            <tr><td><span class="tag tag-g">MW-035</span></td><td>5 Feb 2025</td><td><span class="tag tag-a">Pending</span></td><td>—</td><td>2</td></tr>
+            <tr><td><span class="tag tag-g">MW-082</span></td><td>28 Nov 2024</td><td><span class="tag tag-t">Confirmed</span></td><td>2 Sep 2025</td><td>4</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── PIGGERY ── -->
+    <div class="page" id="page-piggery">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--a50)">🐷</div>
+        <div><div class="unit-name">Piggery Unit</div><div class="unit-desc">Target: 100 piglets/month to Farmers Choice</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-pig')">+ Log Farrowing</button>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Total pigs</div><div class="kpi-val">148</div><div class="kpi-sub">All categories</div></div>
+        <div class="kpi"><div class="kpi-lbl">Sows</div><div class="kpi-val">24</div><div class="kpi-sub">Breeding females</div></div>
+        <div class="kpi"><div class="kpi-lbl">Piglets MTD</div><div class="kpi-val" id="p-total">53</div><div class="kpi-sub">53% of 100 target</div></div>
+        <div class="kpi"><div class="kpi-lbl">Farrowing due</div><div class="kpi-val">3</div><div class="kpi-sub">Next 14 days</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Sow register</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Tag</th><th>Status</th><th>Litter #</th><th>Last farrowed</th><th>Due date</th></tr></thead>
+            <tbody>
+              <tr><td>PIG-001</td><td><span class="tag tag-t">Lactating</span></td><td>4</td><td>12 Mar 2025</td><td>—</td></tr>
+              <tr><td>PIG-004</td><td><span class="tag tag-a">Gestating</span></td><td>3</td><td>Oct 2024</td><td>18 Apr 2025</td></tr>
+              <tr><td>PIG-007</td><td><span class="tag tag-a">Gestating</span></td><td>2</td><td>Nov 2024</td><td>22 Apr 2025</td></tr>
+              <tr><td>PIG-012</td><td><span class="tag tag-r">Farrowing soon</span></td><td>5</td><td>Sep 2024</td><td>10 Apr 2025</td></tr>
+              <tr><td>PIG-018</td><td><span class="tag tag-g">Weaned</span></td><td>1</td><td>Feb 2025</td><td>—</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Monthly piglet offtake</span></div>
+          <div style="position:relative;height:200px"><canvas id="cPig"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LAYERS ── -->
+    <div class="page" id="page-layers">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--a50)">🥚</div>
+        <div><div class="unit-name">Layers Unit</div><div class="unit-desc">Target: 700 crates/day · 20,000 birds</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-eggs')">+ Log Eggs</button>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Total layers</div><div class="kpi-val">~8,000</div><div class="kpi-sub">Short 12,000 birds</div></div>
+        <div class="kpi"><div class="kpi-lbl">Crates today</div><div class="kpi-val" id="e-total">271</div><div class="kpi-sub">39% of 700 target</div></div>
+        <div class="kpi"><div class="kpi-lbl">Laying rate</div><div class="kpi-val">81%</div><div class="kpi-sub">Birds in lay</div></div>
+        <div class="kpi"><div class="kpi-lbl">Mortality today</div><div class="kpi-val">4</div><div class="kpi-sub">0.05% — acceptable</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">By house</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>House</th><th>Birds</th><th>Crates</th><th>Laying %</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>House A</td><td>2,100</td><td>72</td><td>82%</td><td><span class="tag tag-g">Good</span></td></tr>
+              <tr><td>House B</td><td>2,050</td><td>68</td><td>79%</td><td><span class="tag tag-g">Good</span></td></tr>
+              <tr><td>House C</td><td>1,980</td><td>71</td><td>86%</td><td><span class="tag tag-t">Excellent</span></td></tr>
+              <tr><td>House D</td><td>1,870</td><td>60</td><td>77%</td><td><span class="tag tag-a">Monitor</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">7-day production</span></div>
+          <div style="position:relative;height:200px"><canvas id="cEggs"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FEEDLOT ── -->
+    <div class="page" id="page-feedlot">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--t50)">🐂</div>
+        <div><div class="unit-name">Feedlot &amp; Doopers</div><div class="unit-desc">Bulls: 50 / 2 months target</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-bull')">+ Add Bull</button>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Bulls on feed</div><div class="kpi-val">12</div><div class="kpi-sub">Building up</div></div>
+        <div class="kpi"><div class="kpi-lbl">Avg days on feed</div><div class="kpi-val">47</div><div class="kpi-sub">Target: dispose at 60d</div></div>
+        <div class="kpi"><div class="kpi-lbl">Doopers flock</div><div class="kpi-val">84</div><div class="kpi-sub">Ewes, rams, lambs</div></div>
+        <div class="kpi"><div class="kpi-lbl">Lambs this month</div><div class="kpi-val">11</div><div class="kpi-sub">Live births</div></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Bull feedlot register</span></div>
+        <div class="tbl-wrap"><table id="bull-tbl">
+          <thead><tr><th>Tag</th><th>Breed</th><th>Entry date</th><th>Entry wt</th><th>Current wt</th><th>ADG</th><th>Days</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>BL-001</td><td>Boran</td><td>18 Feb 2025</td><td>280 kg</td><td>332 kg</td><td>1.04</td><td>47</td><td><span class="tag tag-a">13 days left</span></td></tr>
+            <tr><td>BL-002</td><td>Boran</td><td>18 Feb 2025</td><td>265 kg</td><td>313 kg</td><td>0.96</td><td>47</td><td><span class="tag tag-a">13 days left</span></td></tr>
+            <tr><td>BL-005</td><td>Sahiwal</td><td>1 Mar 2025</td><td>290 kg</td><td>325 kg</td><td>1.03</td><td>36</td><td><span class="tag tag-g">On feed</span></td></tr>
+            <tr><td>BL-009</td><td>Friesian X</td><td>10 Mar 2025</td><td>270 kg</td><td>298 kg</td><td>1.04</td><td>27</td><td><span class="tag tag-g">On feed</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── FEEDS ── -->
+    <div class="page" id="page-feeds">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--g50)">🌾</div>
+        <div><div class="unit-name">Feeds Management</div><div class="unit-desc">Factory · Silage · Napier · Distribution</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-feed')">+ Log Delivery</button>
+      </div>
+      <div class="grid-3">
+        <div class="kpi"><div class="kpi-lbl">Dairy meal stock</div><div class="kpi-val">4.2 T</div><div class="kpi-sub">~8 days remaining</div></div>
+        <div class="kpi"><div class="kpi-lbl">Silage pit level</div><div class="kpi-val" style="color:var(--r400)">18%</div><div class="kpi-sub">Replenish soon</div></div>
+        <div class="kpi"><div class="kpi-lbl">Factory output today</div><div class="kpi-val">820 kg</div><div class="kpi-sub">Batches produced</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Raw material inventory</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Material</th><th>Stock (kg)</th><th>Reorder</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Maize germ</td><td>3,200</td><td>1,000 kg</td><td><span class="tag tag-g">Adequate</span></td></tr>
+              <tr><td>Soya cake</td><td>850</td><td>1,000 kg</td><td><span class="tag tag-a">Low</span></td></tr>
+              <tr><td>Wheat bran</td><td>2,100</td><td>800 kg</td><td><span class="tag tag-g">Adequate</span></td></tr>
+              <tr><td>Mineral premix</td><td>120</td><td>200 kg</td><td><span class="tag tag-r">Critical</span></td></tr>
+              <tr><td>Limestone</td><td>450</td><td>150 kg</td><td><span class="tag tag-g">Adequate</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Daily distribution</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Unit</th><th>Dairy meal</th><th>Silage</th><th>Napier</th></tr></thead>
+            <tbody>
+              <tr><td>Dairy (52)</td><td>468 kg</td><td>1,560 kg</td><td>780 kg</td></tr>
+              <tr><td>Calves</td><td>45 kg</td><td>—</td><td>—</td></tr>
+              <tr><td>Doopers</td><td>—</td><td>—</td><td>420 kg</td></tr>
+              <tr><td>Feedlot</td><td>96 kg</td><td>240 kg</td><td>—</td></tr>
+              <tr><td>Piggery</td><td>220 kg</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HEALTH ── -->
+    <div class="page" id="page-health">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--t50)">💉</div>
+        <div><div class="unit-name">Health &amp; Vaccination</div><div class="unit-desc">All units · Farm vet oversight</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-vacc')">+ Log Vaccine</button>
+      </div>
+      <div class="grid-3">
+        <div class="kpi"><div class="kpi-lbl">Vaccines due (7d)</div><div class="kpi-val" style="color:var(--a600)">18</div><div class="kpi-sub">Animals requiring vaccination</div></div>
+        <div class="kpi"><div class="kpi-lbl">Under treatment</div><div class="kpi-val">3</div><div class="kpi-sub">Dairy: 2 · Piggery: 1</div></div>
+        <div class="kpi"><div class="kpi-lbl">Compliance rate</div><div class="kpi-val" style="color:var(--g600)">94%</div><div class="kpi-sub">Schedule adherence</div></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Vaccination schedule</span></div>
+        <div class="tbl-wrap"><table id="vacc-tbl">
+          <thead><tr><th>Vaccine</th><th>Unit</th><th>Animals</th><th>Last done</th><th>Next due</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>FMD</td><td>Dairy</td><td>200</td><td>Oct 2024</td><td>14 Apr 2025</td><td><span class="tag tag-a">Due soon</span></td></tr>
+            <tr><td>Lumpy Skin Disease</td><td>Dairy</td><td>200</td><td>Jan 2025</td><td>Jul 2025</td><td><span class="tag tag-g">Done</span></td></tr>
+            <tr><td>Brucellosis</td><td>Dairy</td><td>200</td><td>Mar 2025</td><td>Sep 2025</td><td><span class="tag tag-g">Done</span></td></tr>
+            <tr><td>ASFV monitoring</td><td>Piggery</td><td>148</td><td>Feb 2025</td><td>May 2025</td><td><span class="tag tag-g">Done</span></td></tr>
+            <tr><td>Newcastle Disease</td><td>Layers</td><td>All</td><td>Mar 2025</td><td>Jun 2025</td><td><span class="tag tag-g">Done</span></td></tr>
+            <tr><td>Gumboro (IBD)</td><td>Layers</td><td>House D</td><td>Feb 2025</td><td>10 Apr 2025</td><td><span class="tag tag-r">Overdue</span></td></tr>
+            <tr><td>PPR</td><td>Doopers</td><td>84</td><td>Nov 2024</td><td>May 2025</td><td><span class="tag tag-g">Done</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Active treatments</span><button class="add-btn" onclick="openM('m-treat')">+ Add treatment</button></div>
+        <div class="tbl-wrap"><table id="treat-tbl">
+          <thead><tr><th>Tag</th><th>Unit</th><th>Diagnosis</th><th>Treatment</th><th>Start</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag tag-g">MW-047</span></td><td>Dairy</td><td>Mastitis (suspected)</td><td>Amoxicillin intramammary</td><td>5 Apr 2025</td><td><span class="tag tag-a">Day 2</span></td></tr>
+            <tr><td><span class="tag tag-g">MW-133</span></td><td>Dairy</td><td>Foot rot</td><td>Oxytetracycline + hoof trim</td><td>3 Apr 2025</td><td><span class="tag tag-t">Improving</span></td></tr>
+            <tr><td>PIG-031</td><td>Piggery</td><td>Respiratory</td><td>Tylosin in feed</td><td>4 Apr 2025</td><td><span class="tag tag-a">Day 3</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── NGUSHISH ── -->
+    <div class="page" id="page-ngushish">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--g50)">🥕</div>
+        <div><div class="unit-name">Ngushish Farm</div><div class="unit-desc">Horticulture · Irrigation · Fodder supply</div></div>
+        <button class="btn-p" style="margin-left:auto" onclick="openM('m-crop')">+ Add Crop</button>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Active crops</div><div class="kpi-val">7</div><div class="kpi-sub">In field</div></div>
+        <div class="kpi"><div class="kpi-lbl">Irrigated area</div><div class="kpi-val">14 ac</div><div class="kpi-sub">Under production</div></div>
+        <div class="kpi"><div class="kpi-lbl">Produce dispatched</div><div class="kpi-val">420 kg</div><div class="kpi-sub">Today</div></div>
+        <div class="kpi"><div class="kpi-lbl">Revenue today</div><div class="kpi-val">KSh 8,400</div><div class="kpi-sub">Market + stopover</div></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Crop register</span></div>
+        <div class="tbl-wrap"><table id="crop-tbl">
+          <thead><tr><th>Crop</th><th>Acreage</th><th>Planted</th><th>Harvest</th><th>Status</th><th>Destination</th></tr></thead>
+          <tbody>
+            <tr><td>Napier grass</td><td>4.0 ac</td><td>Perennial</td><td>Monthly</td><td><span class="tag tag-g">Active</span></td><td>Main farm feeds</td></tr>
+            <tr><td>Maize</td><td>3.0 ac</td><td>Jan 2025</td><td>May 2025</td><td><span class="tag tag-t">Tasseling</span></td><td>Silage / factory</td></tr>
+            <tr><td>Cabbages</td><td>1.5 ac</td><td>Feb 2025</td><td>Apr 2025</td><td><span class="tag tag-a">Maturing</span></td><td>Stopover shop</td></tr>
+            <tr><td>Carrots</td><td>1.0 ac</td><td>Feb 2025</td><td>May 2025</td><td><span class="tag tag-g">Growing</span></td><td>Stopover shop</td></tr>
+            <tr><td>Potatoes</td><td>2.5 ac</td><td>Dec 2024</td><td>Apr 2025</td><td><span class="tag tag-t">Ready soon</span></td><td>Stopover shop</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ── FINANCE ── -->
+    <div class="page" id="page-finance">
+      <div class="unit-hdr">
+        <div class="unit-ico" style="background:var(--g50)">💰</div>
+        <div><div class="unit-name">Financial Dashboard</div><div class="unit-desc">CEO level · All units consolidated</div></div>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Revenue MTD</div><div class="kpi-val">KSh 1.24M</div><div class="kpi-sub">All units</div></div>
+        <div class="kpi"><div class="kpi-lbl">Expenses MTD</div><div class="kpi-val">KSh 870K</div><div class="kpi-sub">Feeds, labour, health</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--g600)">KSh 370K</div><div class="kpi-lbl">Net profit</div><div class="kpi-sub">30% margin</div></div>
+        <div class="kpi"><div class="kpi-lbl">Best unit</div><div class="kpi-val">Dairy</div><div class="kpi-sub">48% of revenue</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Revenue by unit</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;font-size:11px;color:var(--txt2)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3B6D11"></span>Dairy 48%</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#1D9E75"></span>Layers 24%</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#EF9F27"></span>Piggery 16%</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#639922"></span>Ngushish 7%</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#854F0B"></span>Other 5%</span>
+          </div>
+          <div style="position:relative;height:200px"><canvas id="cRev"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Unit P&amp;L summary</span></div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Unit</th><th>Revenue</th><th>Expenses</th><th>Profit</th></tr></thead>
+            <tbody>
+              <tr><td>Dairy</td><td>595K</td><td>310K</td><td style="color:var(--g600);font-weight:700">+285K</td></tr>
+              <tr><td>Layers</td><td>298K</td><td>180K</td><td style="color:var(--g600);font-weight:700">+118K</td></tr>
+              <tr><td>Piggery</td><td>195K</td><td>130K</td><td style="color:var(--g600);font-weight:700">+65K</td></tr>
+              <tr><td>Ngushish</td><td>92K</td><td>68K</td><td style="color:var(--g600);font-weight:700">+24K</td></tr>
+              <tr><td>Feedlot</td><td>42K</td><td>62K</td><td style="color:var(--r400);font-weight:700">-20K</td></tr>
+              <tr><td>Doopers</td><td>18K</td><td>24K</td><td style="color:var(--r400);font-weight:700">-6K</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- ── STAFF / LABOUR MODULE (NEW) ── -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="page" id="page-staff">
+      <div class="page-hdr">
+        <div class="page-title">Staff &amp; Labour</div>
+        <div class="page-sub">Attendance tracking · Task assignments · Payroll summary</div>
+      </div>
+      <div class="grid-4">
+        <div class="kpi"><div class="kpi-lbl">Total staff</div><div class="kpi-val">23</div><div class="kpi-sub">All units</div></div>
+        <div class="kpi"><div class="kpi-lbl">Present today</div><div class="kpi-val" id="s-present" style="color:var(--g600)">19</div><div class="kpi-sub">83% attendance</div></div>
+        <div class="kpi"><div class="kpi-lbl">Absent</div><div class="kpi-val" id="s-absent" style="color:var(--r400)">4</div><div class="kpi-sub">Of expected 23</div></div>
+        <div class="kpi"><div class="kpi-lbl">Monthly payroll</div><div class="kpi-val">KSh 418K</div><div class="kpi-sub">April 2025 estimate</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Attendance — today</span>
+            <button class="btn-p" style="padding:6px 14px;font-size:12px" onclick="openM('m-staff')">+ Add Staff</button>
+          </div>
+          <div id="staff-list" style="display:flex;flex-direction:column;gap:8px">
+            <!-- dynamically built -->
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-title">Task assignments — today</span><button class="add-btn" onclick="openM('m-task')">+ Assign task</button></div>
+          <div class="tbl-wrap"><table id="task-tbl">
+            <thead><tr><th>Assigned to</th><th>Unit</th><th>Task</th><th>Priority</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>J. Kamau</td><td>Dairy</td><td>AM milking session</td><td><span class="tag tag-r">High</span></td><td><span class="tag tag-g">Done</span></td></tr>
+              <tr><td>M. Ochieng</td><td>Dairy</td><td>PM milking session</td><td><span class="tag tag-r">High</span></td><td><span class="tag tag-a">Pending</span></td></tr>
+              <tr><td>S. Wanjiku</td><td>Piggery</td><td>Check PIG-012 farrowing pen</td><td><span class="tag tag-r">High</span></td><td><span class="tag tag-a">In progress</span></td></tr>
+              <tr><td>P. Njoroge</td><td>Layers</td><td>Egg collection — all houses</td><td><span class="tag tag-a">Medium</span></td><td><span class="tag tag-g">Done</span></td></tr>
+              <tr><td>A. Wangari</td><td>Ngushish</td><td>Irrigation — maize field</td><td><span class="tag tag-a">Medium</span></td><td><span class="tag tag-t">Done</span></td></tr>
+              <tr><td>M. Githinji</td><td>Feeds</td><td>Order mineral premix (critical stock)</td><td><span class="tag tag-r">High</span></td><td><span class="tag tag-a">Pending</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Payroll summary — April 2025</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Name</th><th>Role</th><th>Unit</th><th>Days worked</th><th>Daily rate</th><th>Gross pay (KSh)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>J. Kamau</td><td>Dairy Manager</td><td>Dairy</td><td>22</td><td>2,000</td><td><strong>44,000</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+            <tr><td>Dr. Omondi</td><td>Farm Vet</td><td>All units</td><td>22</td><td>3,500</td><td><strong>77,000</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+            <tr><td>S. Wanjiku</td><td>Piggery Manager</td><td>Piggery</td><td>21</td><td>1,800</td><td><strong>37,800</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+            <tr><td>P. Njoroge</td><td>Layers Manager</td><td>Layers</td><td>22</td><td>1,800</td><td><strong>39,600</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+            <tr><td>M. Githinji</td><td>Feed Manager</td><td>Feeds</td><td>22</td><td>1,800</td><td><strong>39,600</strong></td><td><span class="tag tag-g">Paid</span></td></tr>
+            <tr><td>A. Wangari</td><td>Horticulture Mgr</td><td>Ngushish</td><td>20</td><td>1,800</td><td><strong>36,000</strong></td><td><span class="tag tag-g">Paid</span></td></tr>
+            <tr><td>M. Ochieng</td><td>Dairy Worker</td><td>Dairy</td><td>22</td><td>900</td><td><strong>19,800</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+            <tr><td>7 other workers</td><td>Various</td><td>Various</td><td>avg 21</td><td>avg 900</td><td><strong>~124,200</strong></td><td><span class="tag tag-a">Pending</span></td></tr>
+          </tbody>
+        </table></div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+          <button class="btn-p" onclick="approvePayroll()">Approve &amp; Process Payroll</button>
+          <button class="btn-export" onclick="exportCSV('payroll')">⬇ Export CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- ── REPORTS MODULE (NEW) ── -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="page" id="page-reports">
+      <div class="page-hdr">
+        <div class="page-title">Reports &amp; Exports</div>
+        <div class="page-sub">Generate and download farm data reports in CSV or printable format</div>
+      </div>
+
+      <div class="section-banner">Daily &amp; Production Reports</div>
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="report-card" onclick="generateReport('daily-ceo')">
+          <div class="rc-icon" style="background:var(--g50)">📋</div>
+          <div class="rc-title">Daily CEO Report</div>
+          <div class="rc-desc">All units summary: milk litres, egg crates, feed stock, active alerts — formatted for morning briefing</div>
+          <div class="rc-formats"><span class="fmt-pill">PDF Print</span><span class="fmt-pill">CSV</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('milk-records')">
+          <div class="rc-icon" style="background:var(--g50)">🐄</div>
+          <div class="rc-title">Milk Production Records</div>
+          <div class="rc-desc">Per-cow daily milk yield, 7-day averages, AM/PM sessions, lactation flags</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span><span class="fmt-pill">PDF Print</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('egg-records')">
+          <div class="rc-icon" style="background:var(--a50)">🥚</div>
+          <div class="rc-title">Egg Production Records</div>
+          <div class="rc-desc">Daily crate counts per house, laying rate, mortality, 30-day trend</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span><span class="fmt-pill">PDF Print</span></div>
+        </div>
+      </div>
+
+      <div class="section-banner">Health &amp; Animal Reports</div>
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="report-card" onclick="generateReport('vacc-schedule')">
+          <div class="rc-icon" style="background:var(--t50)">💉</div>
+          <div class="rc-title">Vaccination Schedule</div>
+          <div class="rc-desc">All units — vaccines done, due dates, overdue flags, compliance rate</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span><span class="fmt-pill">PDF Print</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('treatment-log')">
+          <div class="rc-icon" style="background:var(--r50)">🩺</div>
+          <div class="rc-title">Treatment Log</div>
+          <div class="rc-desc">All active and historic treatment records, diagnosis, drugs used, attending vet</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('repro-report')">
+          <div class="rc-icon" style="background:var(--g50)">🐮</div>
+          <div class="rc-title">Reproduction Report</div>
+          <div class="rc-desc">AI records, pregnancy confirmations, expected calving dates, calving history</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span><span class="fmt-pill">PDF Print</span></div>
+        </div>
+      </div>
+
+      <div class="section-banner">Financial Reports</div>
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="report-card" onclick="generateReport('unit-pl')">
+          <div class="rc-icon" style="background:var(--g50)">💰</div>
+          <div class="rc-title">Unit P&amp;L Summary</div>
+          <div class="rc-desc">Revenue, expenses and profit per unit — monthly and year-to-date</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span><span class="fmt-pill">PDF Print</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('payroll-report')">
+          <div class="rc-icon" style="background:var(--b50)">💳</div>
+          <div class="rc-title">Payroll Report</div>
+          <div class="rc-desc">Staff attendance, days worked, gross pay per employee — monthly summary</div>
+          <div class="rc-formats"><span class="fmt-pill">CSV</span></div>
+        </div>
+        <div class="report-card" onclick="generateReport('goals-report')">
+          <div class="rc-icon" style="background:var(--a50)">🎯</div>
+          <div class="rc-title">5-Year Goals Tracker</div>
+          <div class="rc-desc">Progress vs targets for milk, eggs, piglets, layers flock, feedlot — monthly trend</div>
+          <div class="rc-formats"><span class="fmt-pill">PDF Print</span></div>
+        </div>
+      </div>
+
+      <!-- PREVIEW AREA -->
+      <div class="card" id="report-preview" style="display:none">
+        <div class="card-hdr">
+          <span class="card-title" id="rp-title">Report preview</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-export" onclick="exportCSV('preview')">⬇ Export CSV</button>
+            <button class="btn-export" onclick="printReport()">🖨 Print / PDF</button>
+            <button class="btn-s" style="padding:6px 12px;font-size:12px" onclick="document.getElementById('report-preview').style.display='none'">Close</button>
+          </div>
+        </div>
+        <div id="rp-body"></div>
+      </div>
+    </div>
+
+  </div><!-- end main -->
+</div><!-- end app -->
+
+<!-- TOAST -->
+<div id="toasts"></div>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="m-milk"><div class="modal">
+  <div class="modal-title">Log Milk Session</div>
+  <div class="modal-sub">Enter today's milk yield</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Session</label><select id="mi-sess"><option>AM (Morning)</option><option>PM (Evening)</option></select></div>
+    <div class="fg"><label>Date</label><input type="date" id="mi-date"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Cow tag (or "All")</label><input type="text" id="mi-tag" placeholder="MW-001 or All"/></div>
+    <div class="fg"><label>Litres</label><input type="number" id="mi-L" placeholder="e.g. 22"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveMilk()">Save</button><button class="btn-s" onclick="closeM('m-milk')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-cow"><div class="modal">
+  <div class="modal-title">Register New Cow</div><div class="modal-sub">Add to dairy herd registry</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Tag</label><input type="text" id="cw-tag" placeholder="MW-201"/></div>
+    <div class="fg"><label>Breed</label><select id="cw-breed"><option>Friesian</option><option>Ayrshire</option><option>Jersey</option><option>Sahiwal</option><option>Crossbreed</option></select></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Date of birth</label><input type="date" id="cw-dob"/></div>
+    <div class="fg"><label>Status</label><select id="cw-status"><option>Milking</option><option>Dry off</option><option>Pregnant</option><option>Heifer</option></select></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveCow()">Register</button><button class="btn-s" onclick="closeM('m-cow')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-repro"><div class="modal">
+  <div class="modal-title">Log AI / Calving Record</div><div class="modal-sub">Record insemination or calving event</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Cow tag</label><input type="text" id="rp-tag" placeholder="MW-100"/></div>
+    <div class="fg"><label>Event type</label><select id="rp-type"><option>Artificial Insemination</option><option>Natural service</option><option>Calving</option><option>Pregnancy confirmed</option></select></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Date</label><input type="date" id="rp-date"/></div>
+    <div class="fg"><label>Semen / Bull</label><input type="text" id="rp-bull" placeholder="Semen code or bull tag"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveRepro()">Save</button><button class="btn-s" onclick="closeM('m-repro')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-pig"><div class="modal">
+  <div class="modal-title">Log Farrowing Record</div><div class="modal-sub">Record a new litter</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Sow tag</label><input type="text" id="pg-tag" placeholder="PIG-012"/></div>
+    <div class="fg"><label>Date farrowed</label><input type="date" id="pg-date"/></div>
+  </div>
+  <div class="form-row fr3">
+    <div class="fg"><label>Piglets born</label><input type="number" id="pg-born" placeholder="12"/></div>
+    <div class="fg"><label>Born alive</label><input type="number" id="pg-alive" placeholder="11"/></div>
+    <div class="fg"><label>Stillborn</label><input type="number" id="pg-still" placeholder="1"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="savePig()">Save</button><button class="btn-s" onclick="closeM('m-pig')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-eggs"><div class="modal">
+  <div class="modal-title">Log Egg Production</div><div class="modal-sub">Today's crate count per house</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Date</label><input type="date" id="eg-date"/></div>
+    <div class="fg"><label>Total crates</label><input type="number" id="eg-total" placeholder="271"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>House A</label><input type="number" id="eg-a" placeholder="72"/></div>
+    <div class="fg"><label>House B</label><input type="number" id="eg-b" placeholder="68"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>House C</label><input type="number" id="eg-c" placeholder="71"/></div>
+    <div class="fg"><label>House D</label><input type="number" id="eg-d" placeholder="60"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveEggs()">Save</button><button class="btn-s" onclick="closeM('m-eggs')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-vacc"><div class="modal">
+  <div class="modal-title">Log Vaccination</div><div class="modal-sub">Record a completed vaccination</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Vaccine name</label><input type="text" id="vc-name" placeholder="e.g. FMD"/></div>
+    <div class="fg"><label>Unit</label><select id="vc-unit"><option>Dairy</option><option>Piggery</option><option>Layers</option><option>Doopers</option><option>Feedlot</option></select></div>
+  </div>
+  <div class="form-row fr3">
+    <div class="fg"><label>Animals</label><input type="number" id="vc-count" placeholder="200"/></div>
+    <div class="fg"><label>Date done</label><input type="date" id="vc-date"/></div>
+    <div class="fg"><label>Next due</label><input type="date" id="vc-next"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveVacc()">Save</button><button class="btn-s" onclick="closeM('m-vacc')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-treat"><div class="modal">
+  <div class="modal-title">Add Treatment Record</div><div class="modal-sub">Log an animal under treatment</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Animal tag</label><input type="text" id="tr-tag" placeholder="MW-050"/></div>
+    <div class="fg"><label>Unit</label><select id="tr-unit"><option>Dairy</option><option>Piggery</option><option>Layers</option><option>Doopers</option></select></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Diagnosis</label><input type="text" id="tr-diag" placeholder="e.g. Mastitis"/></div>
+    <div class="fg"><label>Treatment</label><input type="text" id="tr-treat" placeholder="e.g. Amoxicillin"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Start date</label><input type="date" id="tr-date"/></div>
+    <div class="fg"><label>Attending vet</label><input type="text" id="tr-vet" value="Dr. Omondi"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveTreat()">Save</button><button class="btn-s" onclick="closeM('m-treat')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-bull"><div class="modal">
+  <div class="modal-title">Add Bull to Feedlot</div><div class="modal-sub">Register a new feedlot entry</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Tag</label><input type="text" id="bl-tag" placeholder="BL-013"/></div>
+    <div class="fg"><label>Breed</label><input type="text" id="bl-breed" placeholder="e.g. Boran"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Entry date</label><input type="date" id="bl-date"/></div>
+    <div class="fg"><label>Entry weight (kg)</label><input type="number" id="bl-wt" placeholder="275"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveBull()">Save</button><button class="btn-s" onclick="closeM('m-bull')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-feed"><div class="modal">
+  <div class="modal-title">Log Feed Delivery</div><div class="modal-sub">Record incoming feed stock</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Feed type</label><select id="fd-type"><option>Dairy meal</option><option>Maize germ</option><option>Soya cake</option><option>Wheat bran</option><option>Mineral premix</option></select></div>
+    <div class="fg"><label>Quantity (kg)</label><input type="number" id="fd-qty" placeholder="500"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Source</label><select id="fd-src"><option>On-site factory</option><option>External supplier</option><option>Ngushish Farm</option></select></div>
+    <div class="fg"><label>Cost (KSh)</label><input type="number" id="fd-cost" placeholder="12000"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveFeed()">Save</button><button class="btn-s" onclick="closeM('m-feed')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-crop"><div class="modal">
+  <div class="modal-title">Add Crop — Ngushish</div><div class="modal-sub">Log a new crop or planting batch</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Crop</label><input type="text" id="cr-name" placeholder="e.g. Cabbages"/></div>
+    <div class="fg"><label>Acreage</label><input type="text" id="cr-acres" placeholder="1.5 ac"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Date planted</label><input type="date" id="cr-plant"/></div>
+    <div class="fg"><label>Expected harvest</label><input type="date" id="cr-harv"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Status</label><select id="cr-stat"><option>Planted</option><option>Growing</option><option>Maturing</option><option>Ready soon</option><option>Active</option></select></div>
+    <div class="fg"><label>Destination</label><select id="cr-dest"><option>Main farm feeds</option><option>Stopover shop</option><option>Silage / factory</option><option>Market</option></select></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveCrop()">Save</button><button class="btn-s" onclick="closeM('m-crop')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-staff"><div class="modal">
+  <div class="modal-title">Add Staff Member</div><div class="modal-sub">Register a new employee</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Full name</label><input type="text" id="st-name" placeholder="e.g. James Mwangi"/></div>
+    <div class="fg"><label>Role</label><input type="text" id="st-role" placeholder="e.g. Dairy Worker"/></div>
+  </div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Unit</label><select id="st-unit"><option>Dairy</option><option>Piggery</option><option>Layers</option><option>Feedlot</option><option>Feeds</option><option>Ngushish</option><option>All units</option></select></div>
+    <div class="fg"><label>Daily rate (KSh)</label><input type="number" id="st-rate" placeholder="900"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveStaff()">Add Staff</button><button class="btn-s" onclick="closeM('m-staff')">Cancel</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="m-task"><div class="modal">
+  <div class="modal-title">Assign Task</div><div class="modal-sub">Create a task for a staff member</div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Assigned to</label><input type="text" id="tk-name" placeholder="e.g. J. Kamau"/></div>
+    <div class="fg"><label>Unit</label><select id="tk-unit"><option>Dairy</option><option>Piggery</option><option>Layers</option><option>Feedlot</option><option>Feeds</option><option>Ngushish</option><option>Health</option></select></div>
+  </div>
+  <div class="fg" style="margin-bottom:12px"><label>Task description</label><input type="text" id="tk-desc" placeholder="e.g. Check PM milking session"/></div>
+  <div class="form-row fr2">
+    <div class="fg"><label>Priority</label><select id="tk-pri"><option>High</option><option>Medium</option><option>Low</option></select></div>
+    <div class="fg"><label>Due time</label><input type="time" id="tk-time"/></div>
+  </div>
+  <div class="form-actions"><button class="btn-p" onclick="saveTask()">Assign Task</button><button class="btn-s" onclick="closeM('m-task')">Cancel</button></div>
+</div></div>
+
+<script>
+var CU={name:'Dr. Mwirigi',role:'CEO',initials:'DM',access:'full'};
+var simIv=null;
+var mD=[812,835,820,858,843,801,847];
+var eD=[258,264,270,260,275,268,271];
+var days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var C={};
+
+/* ── RBAC ── */
+var ROLES={
+  full:{
+    nav:[
+      {sec:'Core',items:[{id:'overview',icon:'📊',label:'CEO Overview'},{id:'dairy',icon:'🐄',label:'Dairy'},{id:'piggery',icon:'🐷',label:'Piggery'},{id:'layers',icon:'🥚',label:'Layers'},{id:'feedlot',icon:'🐂',label:'Feedlot & Doopers'}]},
+      {sec:'Operations',items:[{id:'feeds',icon:'🌾',label:'Feeds'},{id:'health',icon:'💉',label:'Health & Vaccines',badge:'hb'},{id:'ngushish',icon:'🥕',label:'Ngushish Farm'}]},
+      {sec:'People',items:[{id:'staff',icon:'👥',label:'Staff & Labour'}]},
+      {sec:'Finance & Reports',items:[{id:'finance',icon:'💰',label:'Financials'},{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  },
+  vet:{
+    nav:[
+      {sec:'Health',items:[{id:'health',icon:'💉',label:'Health & Vaccines',badge:'hb'}]},
+      {sec:'Units (read)',items:[{id:'dairy',icon:'🐄',label:'Dairy'},{id:'piggery',icon:'🐷',label:'Piggery'},{id:'layers',icon:'🥚',label:'Layers'},{id:'feedlot',icon:'🐂',label:'Feedlot & Doopers'}]},
+      {sec:'Reports',items:[{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  },
+  dairy:{
+    nav:[
+      {sec:'My Unit',items:[{id:'dairy',icon:'🐄',label:'Dairy'}]},
+      {sec:'Reports',items:[{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  },
+  piggery:{
+    nav:[
+      {sec:'My Unit',items:[{id:'piggery',icon:'🐷',label:'Piggery'}]},
+      {sec:'Reports',items:[{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  },
+  layers:{
+    nav:[
+      {sec:'My Unit',items:[{id:'layers',icon:'🥚',label:'Layers'}]},
+      {sec:'Reports',items:[{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  },
+  feeds:{
+    nav:[
+      {sec:'My Units',items:[{id:'feeds',icon:'🌾',label:'Feeds'},{id:'ngushish',icon:'🥕',label:'Ngushish Farm'}]},
+      {sec:'Reports',items:[{id:'reports',icon:'📤',label:'Reports'}]}
+    ]
+  }
+};
+
+var pickedRole='full';
+var pickedName='Dr. Mwirigi';
+
+function pickRole(el,role,name,access){
+  document.querySelectorAll('.rpill').forEach(function(p){p.classList.remove('active')});
+  el.classList.add('active');
+  pickedRole=access; pickedName=name;
+  CU={name:name,role:role,initials:name.split(' ').map(function(w){return w[0]}).join('').slice(0,2).toUpperCase(),access:access};
+}
+
+function doLogin(){
+  var pin=document.getElementById('lpin').value;
+  if(!pin){toast('Please enter a PIN','w');return;}
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('u-av').textContent=CU.initials;
+  document.getElementById('u-nm').textContent=CU.name;
+  document.getElementById('u-rl').textContent=CU.role;
+  buildNav();
+  setDates();
+  initCharts();
+  buildStaffList();
+  var firstPage=ROLES[CU.access].nav[0].items[0].id;
+  nav(firstPage, null);
+  toast('Welcome, '+CU.name.split(' ')[0]+'!','s');
+}
+
+function buildNav(){
+  var nb=document.getElementById('nav-body');
+  nb.innerHTML='';
+  var cfg=ROLES[CU.access].nav;
+  cfg.forEach(function(section){
+    var s=document.createElement('div');
+    s.className='nav-section';s.textContent=section.sec;nb.appendChild(s);
+    section.items.forEach(function(item){
+      var d=document.createElement('div');
+      d.className='nav-item';d.id='ni-'+item.id;d.onclick=function(){nav(item.id,d)};
+      var ico='<div class="nav-icon">'+item.icon+'</div>';
+      var lbl='<span class="nav-label">'+item.label+'</span>';
+      var badge=item.badge?'<span class="nav-badge" id="'+item.badge+'">3</span>':'';
+      d.innerHTML=ico+lbl+badge;
+      nb.appendChild(d);
+    });
+  });
+}
+
+function doLogout(){
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('lpin').value='';
+  if(simIv){clearInterval(simIv);simIv=null;document.getElementById('sim-btn').textContent='▶ Simulate';document.getElementById('sim-btn').classList.remove('on');}
+  Object.values(C).forEach(function(ch){try{ch.destroy()}catch(e){}});C={};
+}
+
+function nav(page,el){
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
+  var pg=document.getElementById('page-'+page);
+  if(pg)pg.classList.add('active');
+  if(el)el.classList.add('active');
+  else{var ni=document.getElementById('ni-'+page);if(ni)ni.classList.add('active');}
+  var titles={overview:'CEO Overview',dairy:'Dairy Unit',piggery:'Piggery Unit',layers:'Layers Unit',feedlot:'Feedlot & Doopers',feeds:'Feeds Management',health:'Health & Vaccines',ngushish:'Ngushish Farm',finance:'Financial Dashboard',staff:'Staff & Labour',reports:'Reports & Exports'};
+  document.getElementById('tb-title').textContent=titles[page]||page;
+}
+
+function setDates(){
+  var today=new Date().toISOString().split('T')[0];
+  document.getElementById('tb-date').textContent=new Date().toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  ['mi-date','vc-date','rp-date','bl-date','eg-date','tr-date','cr-plant','cr-harv','pg-date','cw-dob','tk-time'].forEach(function(id){var e=document.getElementById(id);if(e&&e.type==='date')e.value=today;});
+}
+
+function openM(id){document.getElementById(id).classList.add('open');}
+function closeM(id){document.getElementById(id).classList.remove('open');}
+document.addEventListener('click',function(e){if(e.target.classList.contains('modal-backdrop'))e.target.classList.remove('open');});
+
+function toast(msg,t){
+  var el=document.createElement('div');
+  el.className='toast t'+(t||'s');
+  var icons={s:'✓',w:'⚠',i:'ℹ',e:'✕'};
+  el.innerHTML='<span>'+(icons[t||'s']||'✓')+'</span><span>'+msg+'</span>';
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(function(){el.style.animation='tIn 0.3s ease reverse forwards';setTimeout(function(){el.remove()},300)},3200);
+}
+
+function dimAlert(id){var e=document.getElementById(id);if(e){e.style.transition='opacity 0.3s';e.style.opacity='0';setTimeout(function(){e.remove();updAlerts()},300);}}
+function updAlerts(){
+  var n=document.querySelectorAll('#alerts-panel .alert-card').length;
+  document.getElementById('k-alerts').textContent=n;
+  var hb=document.getElementById('hb');if(hb)hb.textContent=n;
+}
+
+/* ── STAFF LIST ── */
+var staffData=[
+  {name:'J. Kamau',role:'Dairy Manager',unit:'Dairy',color:'#3B6D11',status:'present'},
+  {name:'Dr. Omondi',role:'Farm Vet',unit:'All units',color:'#0F6E56',status:'present'},
+  {name:'S. Wanjiku',role:'Piggery Manager',unit:'Piggery',color:'#854F0B',status:'present'},
+  {name:'P. Njoroge',role:'Layers Manager',unit:'Layers',color:'#639922',status:'late'},
+  {name:'M. Githinji',role:'Feed Manager',unit:'Feeds',color:'#3B6D11',status:'present'},
+  {name:'A. Wangari',role:'Horticulture Mgr',unit:'Ngushish',color:'#0F6E56',status:'present'},
+  {name:'M. Ochieng',role:'Dairy Worker',unit:'Dairy',color:'#888780',status:'present'},
+  {name:'T. Mwaura',role:'Feedlot Supervisor',unit:'Feedlot',color:'#888780',status:'absent'},
+  {name:'B. Otieno',role:'Layer House Worker',unit:'Layers',color:'#888780',status:'present'},
+  {name:'F. Njuki',role:'Piggery Worker',unit:'Piggery',color:'#888780',status:'absent'},
+];
+
+function buildStaffList(){
+  var sl=document.getElementById('staff-list');
+  if(!sl)return;
+  sl.innerHTML='';
+  staffData.forEach(function(s,i){
+    var present=s.status==='present',late=s.status==='late';
+    var div=document.createElement('div');
+    div.className='staff-card';
+    var initials=s.name.split(' ').map(function(w){return w[0]}).join('').toUpperCase();
+    div.innerHTML='<div class="staff-avatar" style="background:'+s.color+'">'+initials+'</div>'+
+      '<div><div class="staff-name">'+s.name+'</div><div class="staff-role">'+s.role+' · '+s.unit+'</div></div>'+
+      '<div class="staff-status">'+
+        '<span class="tag '+(present?'tag-g':late?'tag-a':'tag-r')+'">'+(present?'Present':late?'Late':'Absent')+'</span>'+
+        '<button class="attend-btn '+(present?'ab-in':late?'ab-late':'ab-out')+'" onclick="toggleAttend('+i+',this)">'+
+          (present?'Mark absent':late?'Mark present':'Mark present')+'</button>'+
+      '</div>';
+    sl.appendChild(div);
+  });
+  recalcAttend();
+}
+
+function toggleAttend(idx,btn){
+  var s=staffData[idx];
+  if(s.status==='absent'){s.status='present';}else{s.status='absent';}
+  buildStaffList();
+  toast(s.name+' marked '+(s.status==='present'?'present':'absent'),'s');
+}
+
+function recalcAttend(){
+  var present=staffData.filter(function(s){return s.status==='present'||s.status==='late'}).length;
+  var absent=staffData.filter(function(s){return s.status==='absent'}).length;
+  document.getElementById('s-present').textContent=present;
+  document.getElementById('s-absent').textContent=absent;
+}
+
+function saveStaff(){
+  var n=document.getElementById('st-name').value;
+  var r=document.getElementById('st-role').value;
+  var u=document.getElementById('st-unit').value;
+  var rate=document.getElementById('st-rate').value;
+  if(!n){toast('Enter staff name','w');return;}
+  staffData.push({name:n,role:r,unit:u,color:'#888780',status:'present'});
+  buildStaffList();
+  toast(n+' added to staff register','s');
+  closeM('m-staff');
+  document.getElementById('st-name').value='';document.getElementById('st-role').value='';
+}
+
+function saveTask(){
+  var name=document.getElementById('tk-name').value;
+  var unit=document.getElementById('tk-unit').value;
+  var desc=document.getElementById('tk-desc').value;
+  var pri=document.getElementById('tk-pri').value;
+  if(!desc){toast('Enter task description','w');return;}
+  var priClass={High:'tag-r',Medium:'tag-a',Low:'tag-b'};
+  var tbody=document.querySelector('#task-tbl tbody');
+  var row=document.createElement('tr');
+  row.innerHTML='<td>'+(name||'Unassigned')+'</td><td>'+unit+'</td><td>'+desc+'</td><td><span class="tag '+(priClass[pri]||'tag-a')+'">'+pri+'</span></td><td><span class="tag tag-a">Pending</span></td>';
+  tbody.insertBefore(row,tbody.firstChild);
+  toast('Task assigned to '+(name||'team'),'s');
+  closeM('m-task');
+  document.getElementById('tk-name').value='';document.getElementById('tk-desc').value='';
+}
+
+function approvePayroll(){
+  toast('Payroll approved — KSh 418K queued for processing','s');
+  document.querySelectorAll('#page-staff .tag-a').forEach(function(t){if(t.closest('td')){t.className='tag tag-g';t.textContent='Paid';}});
+}
+
+/* ── REPORTS ── */
+var reportData={
+  'daily-ceo':{title:'Daily CEO Report — '+new Date().toLocaleDateString(),headers:['Metric','Unit','Value','Status'],rows:[['Milk production','Dairy','847 L','42% of 2000L target'],['Egg crates','Layers','271 crates','39% of 700 target'],['Piglets MTD','Piggery','53','53% of 100 target'],['FMD vaccine','Dairy','18 animals due','Action required'],['Silage level','Feeds','18%','Replenish within 10 days']]},
+  'milk-records':{title:'Milk Production Records — April 2025',headers:['Tag','Breed','Status','Today (L)','7d Avg','Lactation day'],rows:[['MW-001','Friesian','Milking','22','21.4','45'],['MW-002','Ayrshire','Milking','18','18.8','38'],['MW-015','Friesian','Dry off','0','0','—'],['MW-031','Jersey','Milking','14','15.1','62'],['MW-047','Friesian','Sick flag','9','16.2','29'],['MW-082','Ayrshire','Pregnant','0','0','—']]},
+  'egg-records':{title:'Egg Production Records — April 2025',headers:['Date','House A','House B','House C','House D','Total Crates','Mortalities'],rows:[['Apr 7','72','68','71','60','271','4'],['Apr 6','70','67','73','58','268','3'],['Apr 5','74','69','72','60','275','5'],['Apr 4','69','65','70','56','260','6'],['Apr 3','73','68','72','57','270','4']]},
+  'vacc-schedule':{title:'Vaccination Schedule — All Units',headers:['Vaccine','Unit','Animals','Last done','Next due','Status'],rows:[['FMD','Dairy','200','Oct 2024','14 Apr 2025','Due soon'],['Lumpy Skin Disease','Dairy','200','Jan 2025','Jul 2025','Done'],['Brucellosis','Dairy','200','Mar 2025','Sep 2025','Done'],['ASFV monitoring','Piggery','148','Feb 2025','May 2025','Done'],['Newcastle Disease','Layers','All','Mar 2025','Jun 2025','Done'],['Gumboro (IBD)','Layers','House D','Feb 2025','10 Apr 2025','OVERDUE'],['PPR','Doopers','84','Nov 2024','May 2025','Done']]},
+  'treatment-log':{title:'Treatment Log — Active Cases',headers:['Tag','Unit','Diagnosis','Treatment','Start date','Vet','Status'],rows:[['MW-047','Dairy','Mastitis (suspected)','Amoxicillin intramammary','5 Apr 2025','Dr. Omondi','Day 2'],['MW-133','Dairy','Foot rot','Oxytetracycline + hoof trim','3 Apr 2025','Dr. Omondi','Improving'],['PIG-031','Piggery','Respiratory','Tylosin in feed','4 Apr 2025','Dr. Omondi','Day 3']]},
+  'repro-report':{title:'Reproduction Report — Dairy Herd',headers:['Tag','Last AI date','Semen/Bull','Pregnancy','Expected calving','Calves (lifetime)'],rows:[['MW-012','12 Jan 2025','Code A42','Confirmed','22 Oct 2025','3'],['MW-035','5 Feb 2025','Code B17','Pending','—','2'],['MW-082','28 Nov 2024','Code A42','Confirmed','2 Sep 2025','4']]},
+  'unit-pl':{title:'Unit P&L Summary — April 2025',headers:['Unit','Revenue (KSh)','Expenses (KSh)','Profit (KSh)','Margin'],rows:[['Dairy','595,000','310,000','285,000','47.9%'],['Layers','298,000','180,000','118,000','39.6%'],['Piggery','195,000','130,000','65,000','33.3%'],['Ngushish','92,000','68,000','24,000','26.1%'],['Feedlot','42,000','62,000','-20,000','-47.6%'],['Doopers','18,000','24,000','-6,000','-33.3%'],['TOTAL','1,240,000','774,000','466,000','37.6%']]},
+  'payroll-report':{title:'Payroll Report — April 2025',headers:['Name','Role','Unit','Days worked','Daily rate','Gross pay (KSh)','Status'],rows:[['J. Kamau','Dairy Manager','Dairy','22','2,000','44,000','Pending'],['Dr. Omondi','Farm Vet','All','22','3,500','77,000','Pending'],['S. Wanjiku','Piggery Manager','Piggery','21','1,800','37,800','Pending'],['P. Njoroge','Layers Manager','Layers','22','1,800','39,600','Pending'],['M. Githinji','Feed Manager','Feeds','22','1,800','39,600','Paid'],['A. Wangari','Horticulture Mgr','Ngushish','20','1,800','36,000','Paid'],['M. Ochieng','Dairy Worker','Dairy','22','900','19,800','Pending']]},
+  'goals-report':{title:'5-Year Goals Tracker — April 2025',headers:['Goal','Current','Target','Progress','On track?'],rows:[['Milk production','847 L/day','2,000 L/day','42%','Needs focus'],['Egg crates','271/day','700/day','39%','Needs focus'],['Piglets/month','53','100','53%','On track'],['Layers flock','~8,000 birds','20,000 birds','40%','Needs investment'],['Feedlot throughput','12 bulls','50 / 2 months','24%','New unit — building']]},
+};
+var currentReportKey='';
+
+function generateReport(key){
+  var rd=reportData[key];if(!rd)return;
+  currentReportKey=key;
+  var pv=document.getElementById('report-preview');
+  document.getElementById('rp-title').textContent=rd.title;
+  var html='<div style="overflow-x:auto"><table><thead><tr>'+rd.headers.map(function(h){return'<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+
+    rd.rows.map(function(row){return'<tr>'+row.map(function(cell){return'<td>'+cell+'</td>'}).join('')+'</tr>'}).join('')+
+    '</tbody></table></div>';
+  document.getElementById('rp-body').innerHTML=html;
+  pv.style.display='block';
+  pv.scrollIntoView({behavior:'smooth',block:'start'});
+  toast('Report loaded: '+rd.title.split(' — ')[0],'s');
+}
+
+function exportCSV(type){
+  var key=type==='payroll'?'payroll-report':(type==='preview'?currentReportKey:'');
+  if(!key){toast('Generate a report first','w');return;}
+  var rd=reportData[key];if(!rd){toast('No data to export','w');return;}
+  var csv=[rd.headers.join(',')].concat(rd.rows.map(function(r){return r.map(function(c){return'"'+c+'"'}).join(',')})).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mwirigi-'+key+'-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+  toast('CSV downloaded: '+key+'.csv','s');
+}
+
+function printReport(){
+  var rd=reportData[currentReportKey];if(!rd)return;
+  var w=window.open('','_blank');
+  w.document.write('<html><head><title>'+rd.title+'</title><style>body{font-family:Arial,sans-serif;padding:30px;font-size:12px}h2{color:#27500A;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{background:#27500A;color:#fff;padding:8px 10px;text-align:left;font-size:11px}td{padding:8px 10px;border-bottom:0.5px solid #ddd}tr:nth-child(even){background:#f9f9f9}.footer{margin-top:24px;font-size:10px;color:#999}</style></head><body>');
+  w.document.write('<h2>'+rd.title+'</h2>');
+  w.document.write('<p style="font-size:11px;color:#666;margin-bottom:16px">Mwirigi Farm · Generated: '+new Date().toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'long',year:'numeric'})+'</p>');
+  w.document.write('<table><thead><tr>'+rd.headers.map(function(h){return'<th>'+h+'</th>'}).join('')+'</tr></thead><tbody>'+rd.rows.map(function(r){return'<tr>'+r.map(function(c){return'<td>'+c+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>');
+  w.document.write('<div class="footer">Confidential — Mwirigi Farm Management System v2.0</div></body></html>');
+  w.document.close();
+  setTimeout(function(){w.print();},400);
+  toast('Print dialog opened','i');
+}
+
+/* ── FORM SAVES ── */
+function saveMilk(){
+  var L=parseFloat(document.getElementById('mi-L').value)||0;
+  if(!L){toast('Enter litres','w');return;}
+  var tag=document.getElementById('mi-tag').value||'All';
+  if(tag.toLowerCase()==='all'){
+    var nv=parseInt(document.getElementById('k-milk').textContent)+L;
+    document.getElementById('k-milk').textContent=nv+' L';
+    document.getElementById('d-total').textContent=nv+' L';
+    document.getElementById('ov-milk').textContent=nv+' L';
+    mD[6]=nv;
+    if(C.milk7){C.milk7.data.datasets[0].data=[...mD];C.milk7.update();}
+    if(C.dairy){C.dairy.data.datasets[0].data=[...mD];C.dairy.update();}
+  }
+  toast('Milk logged: '+L+' L for '+tag,'s');closeM('m-milk');
+  document.getElementById('mi-L').value='';
+}
+function saveCow(){
+  var tag=document.getElementById('cw-tag').value;if(!tag){toast('Enter tag','w');return;}
+  var breed=document.getElementById('cw-breed').value,status=document.getElementById('cw-status').value;
+  var dc={Milking:'dot-g','Dry off':'dot-a',Pregnant:'dot-a',Heifer:'dot-gray'};
+  var tb=document.querySelector('#cow-tbl tbody'),row=document.createElement('tr');
+  row.innerHTML='<td><span class="tag tag-g">'+tag+'</span></td><td>'+breed+'</td><td><span class="dot '+dc[status]+'"></span>'+status+'</td><td>—</td><td>—</td>';
+  tb.insertBefore(row,tb.firstChild);toast('Cow '+tag+' registered','s');closeM('m-cow');document.getElementById('cw-tag').value='';
+}
+function saveRepro(){
+  var tag=document.getElementById('rp-tag').value;if(!tag){toast('Enter tag','w');return;}
+  var type=document.getElementById('rp-type').value,date=document.getElementById('rp-date').value;
+  var tb=document.getElementById('repro-body'),row=document.createElement('tr');
+  row.innerHTML='<td><span class="tag tag-g">'+tag+'</span></td><td>'+date+'</td><td><span class="tag tag-a">Pending</span></td><td>—</td><td>0</td>';
+  tb.insertBefore(row,tb.firstChild);toast(type+' logged for '+tag,'s');closeM('m-repro');document.getElementById('rp-tag').value='';
+}
+function savePig(){
+  var tag=document.getElementById('pg-tag').value;if(!tag){toast('Enter sow tag','w');return;}
+  var alive=parseInt(document.getElementById('pg-alive').value)||0;
+  var curr=parseInt(document.getElementById('p-total').textContent)||0;
+  document.getElementById('p-total').textContent=curr+alive;
+  toast('Farrowing logged: '+tag+' — '+alive+' alive','s');closeM('m-pig');
+  ['pg-tag','pg-born','pg-alive','pg-still'].forEach(function(id){document.getElementById(id).value='';});
+}
+function saveEggs(){
+  var total=parseInt(document.getElementById('eg-total').value)||0;if(!total){toast('Enter crates','w');return;}
+  document.getElementById('e-total').textContent=total;
+  eD[6]=total;if(C.eggs){C.eggs.data.datasets[0].data=[...eD];C.eggs.update();}
+  toast('Eggs logged: '+total+' crates','s');closeM('m-eggs');
+}
+function saveVacc(){
+  var name=document.getElementById('vc-name').value;if(!name){toast('Enter vaccine name','w');return;}
+  var unit=document.getElementById('vc-unit').value,count=document.getElementById('vc-count').value,date=document.getElementById('vc-date').value,next=document.getElementById('vc-next').value;
+  var tb=document.querySelector('#vacc-tbl tbody'),row=document.createElement('tr');
+  row.innerHTML='<td>'+name+'</td><td>'+unit+'</td><td>'+count+'</td><td>'+date+'</td><td>'+(next||'—')+'</td><td><span class="tag tag-g">Done</span></td>';
+  tb.insertBefore(row,tb.firstChild);toast('Vaccination logged: '+name,'s');closeM('m-vacc');document.getElementById('vc-name').value='';
+}
+function saveTreat(){
+  var tag=document.getElementById('tr-tag').value;if(!tag){toast('Enter animal tag','w');return;}
+  var unit=document.getElementById('tr-unit').value,diag=document.getElementById('tr-diag').value,treat=document.getElementById('tr-treat').value,date=document.getElementById('tr-date').value;
+  var tb=document.querySelector('#treat-tbl tbody'),row=document.createElement('tr');
+  row.innerHTML='<td><span class="tag tag-g">'+tag+'</span></td><td>'+unit+'</td><td>'+diag+'</td><td>'+treat+'</td><td>'+date+'</td><td><span class="tag tag-a">Day 1</span></td>';
+  tb.insertBefore(row,tb.firstChild);
+  var al=document.createElement('div');al.className='alert-card alert-r';al.id='nal'+Date.now();
+  al.innerHTML='<div class="alert-icon">🩺</div><div><div class="alert-title">'+tag+' — treatment started</div><div class="alert-sub">'+diag+'</div></div><button class="dismiss" onclick="dimAlert(\''+al.id+'\')">✕</button>';
+  document.getElementById('alerts-panel').prepend(al);updAlerts();
+  toast('Treatment record saved for '+tag,'s');closeM('m-treat');['tr-tag','tr-diag','tr-treat'].forEach(function(id){document.getElementById(id).value='';});
+}
+function saveBull(){
+  var tag=document.getElementById('bl-tag').value;if(!tag){toast('Enter bull tag','w');return;}
+  var breed=document.getElementById('bl-breed').value,date=document.getElementById('bl-date').value,wt=document.getElementById('bl-wt').value;
+  var tb=document.querySelector('#bull-tbl tbody'),row=document.createElement('tr');
+  row.innerHTML='<td>'+tag+'</td><td>'+(breed||'—')+'</td><td>'+date+'</td><td>'+(wt||'—')+' kg</td><td>—</td><td>—</td><td>0</td><td><span class="tag tag-g">On feed</span></td>';
+  tb.insertBefore(row,tb.firstChild);toast('Bull '+tag+' added to feedlot','s');closeM('m-bull');['bl-tag','bl-breed','bl-wt'].forEach(function(id){document.getElementById(id).value='';});
+}
+function saveFeed(){
+  var qty=document.getElementById('fd-qty').value;if(!qty){toast('Enter quantity','w');return;}
+  var type=document.getElementById('fd-type').value;
+  toast('Feed delivery logged: '+qty+' kg of '+type,'s');closeM('m-feed');document.getElementById('fd-qty').value='';
+}
+function saveCrop(){
+  var name=document.getElementById('cr-name').value;if(!name){toast('Enter crop name','w');return;}
+  var acres=document.getElementById('cr-acres').value,plant=document.getElementById('cr-plant').value,harv=document.getElementById('cr-harv').value,stat=document.getElementById('cr-stat').value,dest=document.getElementById('cr-dest').value;
+  var tc={Active:'tag-g',Growing:'tag-g',Maturing:'tag-a','Ready soon':'tag-t',Planted:'tag-a'};
+  var tb=document.querySelector('#crop-tbl tbody'),row=document.createElement('tr');
+  row.innerHTML='<td>'+name+'</td><td>'+acres+'</td><td>'+plant+'</td><td>'+(harv||'—')+'</td><td><span class="tag '+(tc[stat]||'tag-g')+'">'+stat+'</span></td><td>'+dest+'</td>';
+  tb.insertBefore(row,tb.firstChild);toast('Crop added: '+name,'s');closeM('m-crop');['cr-name','cr-acres'].forEach(function(id){document.getElementById(id).value='';});
+}
+
+/* ── SIMULATION ── */
+var simMsgs=['AM milk session complete','Feed distributed — all units','Egg collection done — House C','Vet check MW-047: improving','Sow PIG-012 monitored','Ngushish dispatch: 420 kg'];
+var simI=0;
+function toggleSim(){
+  if(simIv){clearInterval(simIv);simIv=null;document.getElementById('sim-btn').textContent='▶ Simulate';document.getElementById('sim-btn').classList.remove('on');toast('Simulation stopped','i');}
+  else{document.getElementById('sim-btn').textContent='⏹ Stop';document.getElementById('sim-btn').classList.add('on');toast('Live simulation running — watch the numbers!','i');simIv=setInterval(runSim,2800);}
+}
+function runSim(){
+  var d=Math.floor(Math.random()*28)-12;
+  var nm=Math.max(720,Math.min(1100,mD[6]+d));
+  mD.shift();mD.push(nm);
+  document.getElementById('k-milk').textContent=nm+' L';
+  document.getElementById('d-total').textContent=nm+' L';
+  document.getElementById('ov-milk').textContent=nm+' L';
+  document.getElementById('d-avg').textContent=(nm/52).toFixed(1)+' L';
+  if(C.milk7){C.milk7.data.datasets[0].data=[...mD];C.milk7.update('none');}
+  if(C.dairy){C.dairy.data.datasets[0].data=[...mD];C.dairy.update('none');}
+  var ed=Math.floor(Math.random()*8)-3;
+  var ne=Math.max(245,Math.min(310,eD[6]+ed));
+  eD.shift();eD.push(ne);
+  document.getElementById('k-eggs').textContent=ne;document.getElementById('e-total').textContent=ne;
+  if(C.eggs){C.eggs.data.datasets[0].data=[...eD];C.eggs.update('none');}
+  toast(simMsgs[simI%simMsgs.length],'i');simI++;
+}
+
+/* ── CHARTS ── */
+function initCharts(){
+  C.milk7=new Chart(document.getElementById('cMilk7'),{type:'line',data:{labels:days,datasets:[{data:[...mD],borderColor:'#3B6D11',backgroundColor:'rgba(59,109,17,0.07)',borderWidth:2,fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#3B6D11'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:760,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  C.dairy=new Chart(document.getElementById('cDairy'),{type:'bar',data:{labels:days,datasets:[{data:[...mD],backgroundColor:'rgba(59,109,17,0.65)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:760,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  C.pig=new Chart(document.getElementById('cPig'),{type:'bar',data:{labels:['Oct','Nov','Dec','Jan','Feb','Mar','Apr'],datasets:[{data:[38,42,45,48,50,53,53],backgroundColor:'#EF9F27',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:120,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  C.eggs=new Chart(document.getElementById('cEggs'),{type:'line',data:{labels:days,datasets:[{data:[...eD],borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.07)',borderWidth:2,fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#1D9E75'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:240,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  C.rev=new Chart(document.getElementById('cRev'),{type:'doughnut',data:{labels:['Dairy','Layers','Piggery','Ngushish','Other'],datasets:[{data:[595,298,195,92,60],backgroundColor:['#3B6D11','#1D9E75','#EF9F27','#639922','#854F0B'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false}}}});
+}
+</script>
+</body>
+</html>

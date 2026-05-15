@@ -1,0 +1,121 @@
+# Flutter/Dart
+.dart_tool/
+.buildlog/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+.idea/
+.vscode/
+*.iml
+*.log
+
+# Android
+/android/app/debug.keystore
+/android/.gradle/
+.android/
+build/
+captures/
+.externalNativeBuild/
+
+# iOS
+ios/Flutter/Flutter.podspec
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/.symlinks/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.podspec
+
+# VS Code & JetBrains
+.vscode/
+.idea/
+
+# Generated files
+build/
+**/build/
+**/.dart_tool/
+**/.packages
+
+# Mac
+.DS_Store
+
+# Node backend
+backend/node_modules/
+backend/package-lock.json
+backend/.env
+backend/.DS_Store
+backend/build/
+
+# Logs
+*.log
+
+
+#####
+#backend/.gitignore
+node_modules/
+.env
+*.log
+.DS_Store
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.*
+config.env
+
+# Build
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.*
+
+# Prisma
+node_modules/.prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+ios/Pods/
+
+# VS Code
+.vscode/
+
+# Android
+android/.gradle/
+android/app/build/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

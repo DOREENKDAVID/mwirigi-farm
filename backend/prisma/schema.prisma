@@ -1,0 +1,1623 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===================================================
+// ENUMS
+// ===================================================
+
+enum Role {
+  ADMIN
+  CEO
+  DAIRY_MANAGER
+  LAYERS_MANAGER
+  PIGGERY_MANAGER
+  FEEDLOT_MANAGER
+  FEEDS_MANAGER
+  VET
+  STORE_MANAGER
+  WORKER
+  ICT
+}
+
+enum SalaryType {
+  DAILY
+  MONTHLY
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  OFF
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum PayrollStatus {
+  PENDING
+  PAID
+}
+
+enum SessionType {
+  AM
+  MID
+  PM
+}
+
+enum Sections {
+  Dairy
+  Piggery
+  Poultry
+}
+
+// Operational unit groupings used by the cross-unit Health module.
+// Distinct from `Sections` because health spans broader categories
+// (Layers vs Poultry, Doopers, Feedlot) and we don't want migrations
+// in the Health module to reshape the existing facility taxonomy.
+enum HealthUnit {
+  Dairy
+  Piggery
+  Layers
+  Doopers
+  Feedlot
+}
+
+// Three classes of vaccination behaviour. The status engine branches on
+// this when computing whether a row is DONE / DUE_SOON / DUE_NOW / etc.
+enum VaccineProtocolType {
+  ANNUAL // calendar-locked to specific months (FMD, LSD, Anthrax)
+  RECURRING // every N months (Brucellosis, ASFV monitoring, PPR)
+  BROODER_DAY // age-driven on a brooder batch (kept in code, not DB rows)
+}
+
+// Display states for a vaccination row in the schedule.
+//   DONE              — current cycle has a record
+//   DUE_WINDOW_OPEN   — annual cycle: today is in/past allowedMonths, no record
+//   DUE_NOW           — recurring/brooder: due today (or in window)
+//   DUE_SOON          — within 30-day approach band before the next due date
+//   UPCOMING          — far in the future
+//   OVERDUE           — recurring/brooder: past the due window with no record
+enum VaccinationStatus {
+  DONE
+  DUE_WINDOW_OPEN
+  DUE_NOW
+  DUE_SOON
+  UPCOMING
+  OVERDUE
+}
+
+// Lifecycle of a single treatment row. Day-count for ACTIVE rows is
+// computed at read time (today - startDate); the enum captures the
+// vet-set state, not the day count.
+enum TreatmentStatus {
+  ACTIVE
+  IMPROVING
+  RECOVERED
+  CANCELLED
+}
+
+// Tabs in the "Vet protocol reference" card.
+enum VetProtocolGroup {
+  CHICKS
+  CALVES
+  PIGLETS
+}
+
+enum PayType {
+  DAILY
+  MONTHLY
+}
+
+enum OtpType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// Source of the user's account. EMAIL = signed up with email + password
+// (the existing /auth/register flow). GOOGLE / APPLE = signed in via the
+// matching OAuth provider. When a user has multiple credentials linked
+// (e.g. email + Google), the most-recently-used provider wins.
+enum AuthProvider {
+  EMAIL
+  GOOGLE
+  APPLE
+}
+
+// Cow breeds shown in the Register Cow form dropdown.
+enum Breed {
+  FRIESIAN
+  AYRSHIRE
+  JERSEY
+  BROWN_SWISS
+  SAHIWAL
+  BORAN
+  ZEBU
+  CROSSBREED
+}
+
+// Cow lifecycle/health status. Form lets you pick Milking/Dry/Pregnant/
+// Heifer/Open; SICK is a vet-set state surfaced via the Health module's
+// Report Sick flow (creates a Treatment) rather than picked from a
+// dropdown.
+enum CowStatus {
+  MILKING
+  DRY_OFF
+  PREGNANT
+  SICK
+  HEIFER
+  OPEN
+}
+
+enum ReproductionEventType {
+  AI
+  CALVING
+}
+
+enum PregnancyStatus {
+  PENDING
+  CONFIRMED
+  OPEN
+  ABORTED
+}
+
+// ===================================================
+// USERS & AUTH
+// ===================================================
+
+model User {
+  id       String  @id @default(uuid())
+  // userName is the display name; not unique because two staff can
+  // share a first name (e.g. two "Bosco"s in the HTML mockup roster).
+  // Email is the canonical unique identifier.
+  userName String
+  email    String  @unique
+  // Nullable so OAuth-only users (Google/Apple) don't need a placeholder
+  // hash. The login service rejects password attempts when this is null.
+  password String?
+  role     Role
+
+  // OAuth identity fields. `authProvider` tracks the most-recent sign-in
+  // source so the login screen can hint "you signed in with Google last
+  // time". `googleId` / `appleId` are the provider's stable subject IDs
+  // (the `sub` claim) and are unique across the whole table.
+  authProvider AuthProvider @default(EMAIL)
+  googleId     String?      @unique
+  appleId      String?      @unique
+
+  // HR / staff fields. Populated when the user is registered via the staff
+  // module; remain null for self-signup users created via /auth/register.
+  phoneNumber   String?
+  nationalId    String?
+  department    String?
+  // Free-text job title shown on the staff roster and payroll, e.g.
+  // "Dairy Worker", "Piggery Manager (A·B·C·EM)", "Farm Vet". When null,
+  // the UI falls back to the enum [role].
+  jobTitle      String?
+  salaryType    SalaryType?
+  dailyRate     Float?
+  monthlySalary Float?
+
+  // Defaults to false for existing users so the migration doesn't force
+  // everyone to reset. The staff service explicitly sets this to true when
+  // an admin creates a new staff member with a temporary password.
+  mustChangePassword Boolean @default(false)
+  isActive           Boolean @default(true)
+
+  emailVerified Boolean   @default(false)
+  otp           String?
+  otpType       OtpType?
+  otpExpires    DateTime?
+  otpAttempts   Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  milkRecords   MilkRecord[]
+  refreshTokens RefreshToken[]
+  attendance    Attendance[]
+  assignedTasks Task[]         @relation("AssignedTasks")
+  createdTasks  Task[]         @relation("CreatedTasks")
+  payrolls      Payroll[]
+  completedReminders ReminderOverride[] @relation("CompletedReminders")
+  createdRevenues   Revenue[]          @relation("FinanceCreatedRevenue")
+  createdExpenses   Expense[]          @relation("FinanceCreatedExpense")
+  payrollAdjustments    PayrollAdjustment[] @relation("StaffAdjustments")
+  approvedAdjustments   PayrollAdjustment[] @relation("ApprovedAdjustments")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ===================================================
+// FARM STRUCTURE (CORE)
+// ===================================================
+
+model House {
+  id        String   @id @default(uuid())
+  name      String   @unique // House A, House B, etc.
+  type      Sections // dairy, piggery, poultry — layer houses use Poultry
+  capacity  Int // bird capacity (target/design size)
+  // Current bird count. Distinct from capacity so phasing-out logic can
+  // compare actual vs target. Latest LayerProduction.closingStock is also
+  // a source of truth — birdCount is the registered/headline figure.
+  birdCount Int      @default(0)
+  // Tab/badge color shown in the per-house picker.
+  color     String   @default("#27500A")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 1-to-1 Worker relationship
+  worker Worker?
+
+  // Livestock + records
+  cows             Cow[]
+  layerProductions LayerProduction[]
+}
+
+// ===================================================
+// WORKERS / STAFF
+// ===================================================
+
+model Worker {
+  id   String @id @default(uuid())
+  name String
+  role String
+  unit String // Dairy, Layers, Piggery, ICT, etc
+
+  payType PayType // MONTHLY or DAILY
+  payRate Float? // nullable (e.g CEO)
+
+  houseId String? @unique
+  house   House?  @relation(fields: [houseId], references: [id])
+
+  // Cows directly assigned to this worker. Cows may span houses, so
+  // worker-level assignment is the operational unit for milk logging.
+  // House.worker still exists as a "supervision default" but the
+  // cow → worker link is the primary one consulted by the dairy module.
+  cows Cow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================================================
+// DAIRY MODULE
+// ===================================================
+
+model Cow {
+  id          String    @id @default(uuid())
+  tag         String    @unique
+  breed       Breed
+  dateOfBirth DateTime
+  status      CowStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  houseId String?
+  house   House?  @relation(fields: [houseId], references: [id])
+
+  // Direct assignment to a worker — drives the worker-pill filter, the
+  // milk-logging worker bar, and the manager view. Backfilled from
+  // house.worker on migration; new cows may be assigned independently.
+  workerId String?
+  worker   Worker? @relation(fields: [workerId], references: [id])
+
+  // ----- Extended cow record (Register Cow dialog v4.1) -----
+  // All optional — leave blank rather than guess, per the dialog
+  // subtitle. Stored as plain types; UI groups them into "Identity",
+  // "Calving history", "Notes" sections.
+  //
+  // breedOrigin captures the F/L/X classification used by some
+  // government cattle registries:
+  //   F = Exotic / Foreign
+  //   L = Local breed
+  //   X = Crossbreed / Grade
+  //
+  // The lactationNumber / weightKg / motherTag / fatherTag columns
+  // remain in the table but are no longer surfaced in the v4.1
+  // Register Cow dialog — left here so historical data isn't lost
+  // and a future "advanced details" panel can re-expose them.
+  nickname        String?
+  imageUrl        String? // relative path served by Express static, e.g. /uploads/cows/abc.jpg
+  breedOrigin     String? // 'F' | 'L' | 'X'
+  lactationNumber Int?
+  weightKg        Float?
+  colorMarkings   String?
+  acquisitionDate DateTime?
+  acquisitionType String? // free text: "Born on farm", "Purchased", "Gift", etc.
+  motherTag       String?
+  fatherTag       String?
+  healthNotes     String?
+
+  milkRecords         MilkRecord[]
+  reproductionRecords ReproductionRecord[]
+
+  @@index([workerId])
+  @@index([houseId])
+}
+
+// Single source of truth for AI events and Calving events.
+// Soft-deletes via `deletedAt`. The list view derives lifetimeCalvesCount
+// per cow by counting records where eventType = CALVING.
+model ReproductionRecord {
+  id    String @id @default(uuid())
+  cowId String
+  cow   Cow    @relation(fields: [cowId], references: [id], onDelete: Cascade)
+
+  eventType ReproductionEventType
+  eventDate DateTime
+
+  // AI-only fields
+  sireCode            String?
+  pregnancyStatus     PregnancyStatus @default(PENDING)
+  pregnancyCheckDate  DateTime?
+  expectedCalvingDate DateTime?
+
+  // CALVING-only fields
+  calfTag             String?
+  calfSex             String? // "M" | "F"
+  calfBirthWeightKg   Float?
+  calvingEase         Int?    // 1 (easy) … 5 (hard)
+  calvingFate         String? // free text: "Heifer to herd", "Bull → feedlot", "Stillborn"
+
+  notes     String?
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cowId])
+  @@index([eventDate])
+  @@index([eventType])
+}
+
+model MilkRecord {
+  id      String      @id @default(uuid())
+  litres  Float
+  session SessionType
+  date    DateTime
+
+  createdAt DateTime @default(now())
+
+  cowId String
+  cow   Cow    @relation(fields: [cowId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([date, session])
+}
+
+// Feedlot inventory — bedding, equipment, veterinary supplies, feed
+// concentrate stock specific to the feedlot/doopers unit. Mirrors
+// `DairyInventoryItem` so the frontend card pattern is identical.
+model FeedlotInventoryItem {
+  id        String  @id @default(uuid())
+  name      String
+  category  String  // "Bedding" | "Equipment" | "Veterinary" | "Feed"
+  quantity  Float
+  unit      String?
+  location  String?
+  condition String?
+  notes     String?
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+// Dairy unit inventory — bedding, equipment, veterinary supplies. Grouped
+// by category in the UI. Soft-delete via `deletedAt`.
+model DairyInventoryItem {
+  id        String  @id @default(uuid())
+  name      String
+  category  String  // "Bedding" | "Equipment" | "Veterinary"
+  quantity  Float
+  unit      String? // "bags", "pcs", "L", etc.
+  location  String? // "House A,B,C" / "Parlour" / "Cold room" / "Vet store" / "Maternity"
+  condition String? // "Good" | "Fair" | "Poor"
+  notes     String?
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+// Layers unit inventory — feed (layer/grower/starter mash + supplements),
+// vaccines/medication (with expiry tracking), consumables (trays,
+// disinfectant, bulbs, water additives). Grouped by `category` in the UI.
+//
+// `lowThreshold` powers the "⚠ low stock" alert. `expiresAt` powers the
+// "⚠ vaccine expiring soon" alert. Soft-delete via `deletedAt`.
+model LayersInventoryItem {
+  id           String  @id @default(uuid())
+  name         String
+  category     String  // "Feed" | "Vaccines" | "Consumables"
+  subCategory  String? // "Layer mash" | "Grower mash" | "Starter mash" | "Supplements" | etc.
+  quantity     Float
+  unit         String? // "kg", "L", "doses", "pcs", "bags", etc.
+  lowThreshold Float?  // when quantity <= this, the row gets the LOW badge
+  location     String?
+  condition    String? // "Good" | "Fair" | "Poor"
+  expiresAt    DateTime?
+  notes        String?
+  deletedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+  @@index([expiresAt])
+}
+
+// ===================================================
+// POULTRY MODULE (LAYERS)
+// ===================================================
+
+// Daily layer production entry. One row per (house, date).
+// Computed columns (trays, percentLaying, closingStock) are persisted by
+// the service so reads are simple — see layers.service.computeAndSave.
+//   trays         = eggsCollected / 30
+//   percentLaying = (eggsCollected / openingStock) * 100
+//   closingStock  = openingStock - deadRemoved
+// dayAge auto-increments from the previous record by actual days elapsed.
+model LayerProduction {
+  id   String   @id @default(uuid())
+  date DateTime
+
+  openingStock  Int
+  eggsCollected Int
+  trays         Float
+  percentLaying Float
+  feedKg        Float   @default(0)
+  deadRemoved   Int     @default(0)
+  closingStock  Int
+  dayAge        Int
+  remarks       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  houseId String
+  house   House  @relation(fields: [houseId], references: [id], onDelete: Cascade)
+
+  @@unique([houseId, date])
+  @@index([date])
+  @@index([houseId])
+}
+
+// One brooder batch = one rearing cycle of day-1 chicks. Lifecycle:
+//   - REARING            (ageDays < 84)
+//   - READY_TO_TRANSFER  (84 <= ageDays < targetDays, no actualTransferDate)
+//   - TRANSFERRED        (actualTransferDate set, OR ageDays >= targetDays)
+// Status is DERIVED in the service layer — never stored — so live data
+// can't drift from the dates that anchor the cycle.
+model Brooder {
+  id                 String    @id @default(uuid())
+  // Human-friendly batch label (e.g. "Brooder 2026-Q1"). Optional.
+  label              String?
+  // Initial day-1 chick count when received.
+  population         Int
+  receivedDate       DateTime
+  // Cycle target (default 90 days = 3 months until cage transfer).
+  targetDays         Int       @default(90)
+  // Cumulative deaths during the brooder phase.
+  mortality          Int       @default(0)
+  // Set when the chicks have physically been transferred to layer houses.
+  // Derived status flips to TRANSFERRED once this is non-null.
+  actualTransferDate DateTime?
+  notes              String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Legacy: brooder-only vaccination records, kept for backward compat
+  // during the Health-module migration. New code reads/writes from
+  // `vaccinationRecords` (the unified VaccinationRecord table) instead.
+  vaccinations        BrooderVaccination[]
+  vaccinationRecords  VaccinationRecord[]
+  allocations         AllocationPlan[]
+
+  @@index([receivedDate])
+}
+
+// One row per administered vaccination event for a brooder batch. The
+// PROTOCOL itself (which vaccines, on which day-of-life) lives in code as a
+// constant — see layersUnit.service. This table only records what was
+// actually given. Status (DONE / DUE_NOW / UPCOMING / OVERDUE) is computed
+// per protocol step at read time by overlaying these records on the protocol.
+model BrooderVaccination {
+  id        String  @id @default(uuid())
+  brooderId String
+  brooder   Brooder @relation(fields: [brooderId], references: [id], onDelete: Cascade)
+
+  // Day-of-life when the vaccine was given (matches the protocol's dayOffset).
+  dayOffset      Int
+  // Display name copied from the protocol entry — kept here so historical
+  // records survive future protocol edits.
+  vaccineName    String
+  administeredAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([brooderId, dayOffset])
+  @@index([brooderId])
+}
+
+enum AllocationType {
+  POL_SALE // Sold as point-of-lay pullets
+  REPLACEMENT // Retained to replace phasing-out adult houses
+}
+
+// Versioned allocation rows for a brooder cycle. Multiple rows allowed per
+// brooder so plans can evolve (e.g. revising 6,000/4,000 to 5,000/5,000)
+// without losing the prior decision. Reads pick the latest revision per type.
+model AllocationPlan {
+  id        String  @id @default(uuid())
+  brooderId String
+  brooder   Brooder @relation(fields: [brooderId], references: [id], onDelete: Cascade)
+
+  // cycleId == brooderId by convention (one cycle per batch). Stored
+  // explicitly so future schemas could group multiple brooders under one
+  // cycle without rewriting allocations.
+  cycleId String
+
+  type        AllocationType
+  birds       Int
+  // Free-text destination ("Sale at point-of-lay (POL pullets)" /
+  // "Replace Houses A & B (2,000 each)").
+  description String
+
+  createdAt DateTime @default(now())
+
+  @@index([brooderId])
+  @@index([cycleId])
+}
+
+// ===================================================
+// PIGGERY MODULE
+// ===================================================
+
+// ===================================================
+// PIGGERY MODULE
+// ===================================================
+
+enum PigCategory {
+  SOW
+  BOAR
+  PIGLET
+}
+
+enum PigStatus {
+  LACTATING
+  GESTATING
+  FARROWING_SOON
+  WEANED
+  DRY
+  SERVICE
+}
+
+enum SheepCategory {
+  EWE
+  RAM
+  LAMB
+}
+
+// One row per pig. Sow-only fields (litterCount, lastFarrowed, dueDate,
+// status) sit on the same table since the per-pig overhead is tiny and the
+// sow-register query stays a single SELECT.
+model Pig {
+  id       String      @id @default(uuid())
+  tag      String      @unique
+  category PigCategory
+
+  // Set for SOWs/BOARs as applicable; null for piglets.
+  status       PigStatus?
+  litterCount  Int        @default(0)
+  lastFarrowed DateTime?
+  dueDate      DateTime?
+
+  // Location + breeding info (master register Rev 2).
+  house       String?
+  pen         String?
+  serviceDate DateTime?
+  expFarrow   DateTime?
+  breed       String?
+  age         String?  // free-text: "~5mo", "Mature", "5-6mo"
+  role        String?  // boars: "Active", "CASTRATED", "Young — coming into service"
+  note        String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  farrowingRecords FarrowingRecord[]
+  litters          Litter[]
+
+  @@index([category])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@index([house])
+}
+
+model FarrowingRecord {
+  id           String   @id @default(uuid())
+  date         DateTime
+  pigletsBorn  Int
+  pigletsAlive Int
+  pigletsDead  Int
+
+  // Optional breakdown (Winners / Fatteners / Beaconners) per the HTML form.
+  winners    Int?
+  fatteners  Int?
+  beaconners Int?
+  remarks    String?
+  service    DateTime?
+
+  createdAt DateTime @default(now())
+
+  sowId String
+  sow   Pig    @relation(fields: [sowId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([sowId])
+}
+
+// Active litter — one per currently-nursing sow. Litter ID follows the
+// "L-[sow tag]-[YYMM]" convention from the master register.
+model Litter {
+  id       String    @id @default(uuid())
+  litterId String    @unique
+  born     DateTime?
+  count    Int       @default(0)
+  note     String?
+
+  sowId String
+  sow   Pig    @relation(fields: [sowId], references: [id], onDelete: Cascade)
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([sowId])
+  @@index([deletedAt])
+}
+
+// Pen-level group of weaned piglets in House C nursery (and similar).
+model NurseryGroup {
+  id    String    @id @default(uuid())
+  pen   String
+  count Int
+  age   String?
+  born  DateTime?
+  breed String?
+  note  String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([deletedAt])
+}
+
+// Pen-level head count for Houses E (fattening) and F (finishing).
+model FattenPen {
+  id         String   @id @default(uuid())
+  pen        String   @unique
+  house      String   // "E" or "F"
+  count      Int
+  age        String?
+  saleReady  Boolean  @default(false)
+  saleWindow String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([house])
+  @@index([deletedAt])
+}
+
+// Piggery inventory — bedding · equipment · veterinary · tags · feed.
+model PiggeryInventoryItem {
+  id        String    @id @default(uuid())
+  name      String
+  category  String    // "Bedding" | "Equipment" | "Veterinary" | "Tags" | "Feed"
+  quantity  Float
+  unit      String?
+  location  String?
+  condition String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+// ===================================================
+// FEEDLOT & DOOPERS
+// ===================================================
+
+// One row per bull on feed. `currentWeight` is updated whenever a new
+// WeightRecord is logged. ADG, daysOnFeed, and status are computed at read
+// time — see feedlot.service.computeBullView.
+model Bull {
+  id            String   @id @default(uuid())
+  tag           String   @unique
+  breed         String
+  entryDate     DateTime
+  entryWeight   Float
+  currentWeight Float
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  weightRecords WeightRecord[]
+
+  @@index([entryDate])
+  @@index([deletedAt])
+}
+
+model WeightRecord {
+  id     String   @id @default(uuid())
+  weight Float
+  date   DateTime
+
+  createdAt DateTime @default(now())
+
+  bullId String
+  bull   Bull   @relation(fields: [bullId], references: [id], onDelete: Cascade)
+
+  @@index([bullId])
+  @@index([date])
+}
+
+// Doopers flock. Tagged + dated like the bulls so individuals can be
+// edited and deleted from the register. `entryWeight` is optional since
+// lambs are often born inside the flock without a measured intake weight.
+model Sheep {
+  id            String        @id @default(uuid())
+  tag           String        @unique
+  category      SheepCategory
+  entryDate     DateTime
+  entryWeight   Float?
+  currentWeight Float?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+model LambingRecord {
+  id        String   @id @default(uuid())
+  date      DateTime
+  lambsBorn Int
+
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+// ===================================================
+// NGUSHISH MODULE (Horticulture · Irrigation · Fodder)
+// ===================================================
+
+// Lifecycle states for a crop. The dashboard's "active crops" KPI excludes
+// HARVESTED and FAILED. Some statuses are produce-specific (TASSELING for
+// maize, READY_SOON for tubers) but live in one enum to keep filtering on
+// the crop register simple.
+enum CropStatus {
+  PLANTED
+  ACTIVE
+  GROWING
+  MATURING
+  TASSELING
+  READY_SOON
+  READY
+  AWAITING
+  INFRASTRUCTURE
+  HARVESTED
+  FAILED
+}
+
+// One row per planted crop or planting batch. Soft-deleted via `deletedAt`.
+// Perennials (e.g. Napier grass) skip `expectedHarvest` and use
+// `harvestFrequency` instead — see ngushish.validation for the cross-field
+// rule.
+model Crop {
+  id               String     @id @default(uuid())
+  name             String
+  acreage          Float
+  plantedDate      DateTime?
+  expectedHarvest  DateTime?
+  harvestFrequency String?
+  status           CropStatus
+  destination      String?
+  notes            String?
+  isPerennial      Boolean    @default(false)
+  irrigationType   String?
+  irrigated        Boolean    @default(false)
+
+  // Block-register fields (Ngusishi Farm template 10 May 2026).
+  // `block` is the field identifier shown to operators (A1i, B5, C1ii …).
+  // `age` is a free-text human-readable age ("3 weeks", "2½ months").
+  // `dueDate` is the next operational milestone (harvest or planting).
+  // `season` labels the cropping window ("Short Rain", "Long Rain",
+  // "Perennial"). `actionNote` is the per-row operator instruction
+  // ("HARVEST NOW", "URGENT — plant in 5 days").
+  block      String?
+  age        String?
+  dueDate    DateTime?
+  season     String?
+  actionNote String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  harvests   Harvest[]
+  dispatches ProduceDispatch[]
+  irrigation IrrigationLog[]
+
+  @@index([status])
+  @@index([deletedAt])
+  @@index([irrigated])
+  @@index([block])
+}
+
+// Ngushish farm inventory — inputs, equipment, agrochemicals.
+model NgushishInventoryItem {
+  id        String    @id @default(uuid())
+  name      String
+  category  String    // "Inputs" | "Equipment" | "Agrochemicals" | "Tags"
+  quantity  Float
+  unit      String?
+  location  String?
+  condition String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+// Actual harvesting events. One Crop has many Harvest rows over its life
+// (especially perennials).
+model Harvest {
+  id           String   @id @default(uuid())
+  cropId       String
+  crop         Crop     @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  quantityKg   Float
+  harvestDate  DateTime
+  qualityGrade String?
+  notes        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cropId])
+  @@index([harvestDate])
+}
+
+// Where harvested produce went and what it earned. The dashboard's
+// "produceDispatchedTodayKg" + "revenueToday" KPIs aggregate this table by
+// today's date.
+model ProduceDispatch {
+  id            String   @id @default(uuid())
+  cropId        String
+  crop          Crop     @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  quantityKg    Float
+  destination   String
+  revenue       Float
+  dispatchDate  DateTime
+  buyerName     String?
+  transportCost Float?
+  notes         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cropId])
+  @@index([dispatchDate])
+}
+
+// One row per irrigation event on a crop. Used both for an audit log and
+// future water-usage analytics.
+model IrrigationLog {
+  id              String   @id @default(uuid())
+  cropId          String
+  crop            Crop     @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  irrigationDate  DateTime
+  durationMinutes Int?
+  waterSource     String?
+  notes           String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cropId])
+  @@index([irrigationDate])
+}
+
+// ===================================================
+// FEEDS MANAGEMENT MODULE
+// ===================================================
+//
+// Stock-vs-consumption inventory for raw materials, plus bulk forage
+// (silage / Napier) and a daily distribution table that mirrors the HTML
+// "Daily distribution by unit" card. Status (CRITICAL/LOW/ADEQUATE) is
+// computed at read-time in the service layer — never stored — so it
+// always tracks live stockOnHandKg and dailyUseKg.
+
+enum FeedCategory {
+  MAIZE_GERM
+  SOYA
+  SUNFLOWER
+  LIME
+  PREMIX
+  WHEAT_BRAN
+  COTTON_SEED
+  FISH_MEAL
+  OTHER
+}
+
+enum BulkFeedType {
+  SILAGE
+  NAPIER
+  MAIZE_SILAGE
+}
+
+enum BulkFeedUnit {
+  PERCENT
+  ACRES
+  TONNES
+}
+
+enum BulkFeedStatus {
+  ACTIVE
+  REPLENISH_SOON
+  MATURING
+  DEPLETED
+}
+
+enum LivestockUnit {
+  DAIRY
+  CALVES
+  HEIFERS
+  DOOPERS
+  FEEDLOT
+  PIGGERY
+  LAYERS
+  BROODER
+}
+
+// One row per raw material on the inventory sheet. `stockOnHandKg` and
+// `dailyUseKg` are mutated by deliveries / consumption logs — never
+// edited directly via PATCH (use the dedicated endpoints so the audit
+// trail stays coherent).
+model FeedMaterial {
+  id               String       @id @default(uuid())
+  name             String       @unique
+  category         FeedCategory
+  packSize         String // free-text: "50 kg bag", "20 L jerrican"
+  stockOnHandKg    Float        @default(0)
+  dailyUseKg       Float        @default(0)
+  reorderLevelDays Int          @default(5)
+  supplier         String?
+  costPerKg        Float?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  deliveries      FeedDelivery[]
+  consumptionLogs FeedConsumptionLog[]
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+// One row per incoming delivery. Creating a delivery atomically bumps
+// FeedMaterial.stockOnHandKg in the same transaction.
+model FeedDelivery {
+  id         String       @id @default(uuid())
+  materialId String
+  material   FeedMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  quantityKg    Float
+  unitCost      Float?
+  supplier      String?
+  invoiceNumber String?
+  deliveredAt   DateTime
+  notes         String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([materialId])
+  @@index([deliveredAt])
+}
+
+// One row per consumption-rate adjustment ("we used 44 bags over 3 days
+// → 14.67 bags/day"). Creating a log atomically updates
+// FeedMaterial.dailyUseKg with `calculatedDailyUseKg`.
+model FeedConsumptionLog {
+  id         String       @id @default(uuid())
+  materialId String
+  material   FeedMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  quantityUsedKg       Float
+  durationDays         Int
+  calculatedDailyUseKg Float
+  notes                String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([materialId])
+}
+
+// One row per silage/forage stockpile. `quantity` is interpreted with
+// `unit` (PERCENT = pit fullness, ACRES = standing crop, TONNES = stored).
+model BulkFeedStock {
+  id       String         @id @default(uuid())
+  type     BulkFeedType   @unique
+  quantity Float
+  unit     BulkFeedUnit
+  status   BulkFeedStatus
+  notes    String?
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+// Daily allocation per livestock unit. One active row per unit at a time
+// (enforced by the service via upsert keyed on `livestockUnit`). History
+// is preserved via createdAt; the GET returns the latest row per unit.
+model FeedDistribution {
+  id            String        @id @default(uuid())
+  livestockUnit LivestockUnit
+  concentrateKg Float         @default(0)
+  silageKg      Float         @default(0)
+  napierKg      Float         @default(0)
+  animalCount   Int           @default(0)
+  recordedAt    DateTime      @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([livestockUnit])
+  @@index([recordedAt])
+}
+
+// ===================================================
+// HEALTH & VACCINES MODULE
+// ===================================================
+// Three concerns, one module:
+//   1. Vaccination protocols & records (annual, recurring, brooder)
+//   2. Active treatments (vet workflow)
+//   3. Vet protocol reference library (chicks/calves/piglets schedules)
+
+// One row per vaccination protocol the farm follows. Brooder/chick
+// protocols intentionally do NOT live here — they remain a code constant
+// in layersUnit.service.js and are composed into the schedule view at
+// read time. This table holds the cross-unit annual + recurring vaccines.
+model VaccineProtocol {
+  id      String              @id @default(uuid())
+  name    String
+  unit    HealthUnit
+  // Free-text species/group label (e.g. "Cow", "Pig", "Sheep") — used
+  // for display only.
+  species String?
+  type    VaccineProtocolType
+
+  // ANNUAL: months when the vaccine is administered (e.g. [2,3] for FMD).
+  // Empty for RECURRING / BROODER_DAY.
+  allowedMonths Int[] @default([])
+
+  // RECURRING: months between doses. Null for ANNUAL / BROODER_DAY.
+  recurrenceMonths Int?
+
+  // BROODER_DAY (not used for stored DB rows currently — left here to
+  // future-proof if we ever migrate the chick protocol into DB).
+  dayOffsetStart Int?
+  dayOffsetEnd   Int?
+
+  notes  String?
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  records VaccinationRecord[]
+}
+
+// Single source of truth for ALL administered vaccination events across
+// the farm. Polymorphic by design — exactly one of two shapes:
+//
+//   1. Cross-unit annual/recurring → `protocolId` set, brooder fields null.
+//      Status logic: overlay onto the VaccineProtocol's allowedMonths /
+//      recurrenceMonths to compute DUE_NOW / DUE_SOON / OVERDUE.
+//
+//   2. Brooder/chick batch → `brooderId` + `vaccineName` + `dayOffset`
+//      set, `protocolId` null. The brooder protocol itself lives in
+//      code (BROODER_VACCINE_PROTOCOL) — these rows record actual
+//      administrations against that protocol so DONE state propagates
+//      from the Health module to the Layers dashboard.
+//
+// The Layers dashboard previously read brooder DONE state from the
+// `BrooderVaccination` table; that table is now legacy. New brooder
+// administrations write here instead.
+model VaccinationRecord {
+  id         String           @id @default(uuid())
+  protocolId String?
+  protocol   VaccineProtocol? @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  unit           HealthUnit
+  animalCount    Int
+  administeredAt DateTime
+
+  // Brooder-shape fields. All three are non-null for brooder events,
+  // all three are null for cross-unit events.
+  brooderId   String?
+  brooder     Brooder? @relation(fields: [brooderId], references: [id], onDelete: Cascade)
+  vaccineName String?
+  dayOffset   Int?
+
+  // Optional manual override for the next-due date. Otherwise derived
+  // from protocol.type + protocol.allowedMonths or recurrenceMonths.
+  nextDueOverride DateTime?
+
+  notes        String?
+  recordedById String?
+
+  createdAt DateTime @default(now())
+
+  // Idempotency guard for brooder events: at most one administration
+  // per (brooder, dayOffset). Postgres treats NULLs as not-equal so
+  // cross-unit rows (brooderId=null, dayOffset=null) are unaffected.
+  @@unique([brooderId, dayOffset])
+  @@index([protocolId])
+  @@index([brooderId])
+  @@index([administeredAt])
+}
+
+// Lightweight workflow record for an animal currently under treatment.
+// References livestock by `tag` (operational identifier) rather than via
+// polymorphic FKs to Cow/Pig/Sheep — keeps the schema lean and the UX
+// matches the HTML mockup which lists only tag + unit.
+model Treatment {
+  id String @id @default(uuid())
+
+  tag  String
+  unit HealthUnit
+
+  diagnosis  String
+  medication String
+  startDate  DateTime
+  endDate    DateTime?
+
+  status       TreatmentStatus @default(ACTIVE)
+  notes        String?
+  attendingVet String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([startDate])
+}
+
+// One row per animal-group in the Vet protocol reference library
+// (Chicks / Calves / Piglets). Each template has an ordered list of
+// `VetProtocolStep` rows.
+model VetProtocolTemplate {
+  id    String           @id @default(uuid())
+  group VetProtocolGroup @unique
+  title String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps VetProtocolStep[]
+}
+
+// One step in a vet protocol template. `dayLabel` is free-text so it can
+// span "Day 1", "Week 6 (Day 42)", "At birth", "2 months", "Monthly Days
+// 1-3", etc., matching the HTML mockup verbatim.
+model VetProtocolStep {
+  id         String              @id @default(uuid())
+  templateId String
+  template   VetProtocolTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  order     Int
+  dayLabel  String
+  procedure String
+  notes     String?
+
+  @@index([templateId, order])
+}
+
+// ===================================================
+// Reports
+// ===================================================
+
+model Report {
+  id        String   @id @default(uuid())
+  type      String
+  data      Json
+  createdAt DateTime @default(now())
+}
+
+// ===================================================
+// FARM CONFIGURATION
+// ===================================================
+
+model FarmConfig {
+  id String @id @default(uuid())
+
+  farmName String
+  version  String
+  location String
+  year     String
+
+  milkTarget      Float
+  eggsTarget      Int
+  householdDeduct Float
+  calfDeduction   Float
+
+  sowCount         Int
+  gestationDays    Int
+  weaningDays      Int
+  saleAgeDays      Int
+  beaconnersTarget Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================================================
+// STAFF & LABOUR
+// ===================================================
+
+// One row per (user, day). Admins flip the status; users self-mark via
+// check-in / check-out which set checkIn / checkOut timestamps.
+model Attendance {
+  id     String           @id @default(uuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status AttendanceStatus
+
+  checkIn  DateTime?
+  checkOut DateTime?
+
+  // Stored at midnight of the local day so we can do cheap unique lookups.
+  date DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model Task {
+  id String @id @default(uuid())
+
+  assignedToId String
+  assignedById String
+
+  unit        String
+  title       String
+  description String?
+
+  priority TaskPriority @default(MEDIUM)
+  status   TaskStatus   @default(PENDING)
+
+  dueDate DateTime?
+
+  assignedTo User @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: Cascade)
+  assignedBy User @relation("CreatedTasks", fields: [assignedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId])
+  @@index([dueDate])
+}
+
+// One Payroll row per (user, month, year). `status: PAID` is set after the
+// admin runs the process action; before that, the GET /payroll endpoint
+// returns rows computed on the fly with status PENDING.
+model Payroll {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  month Int // 1..12
+  year  Int
+
+  daysWorked Int
+  grossPay   Float
+
+  status PayrollStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, month, year])
+}
+
+
+// =============================================================
+// REMINDERS — completion / snooze overrides for synthetic reminders
+// =============================================================
+//
+// The reminders feed is *virtual* — it's composed on every request
+// from existing source tables (vaccinations, reproduction, sows,
+// treatments, etc). This table only persists user actions (mark done,
+// snooze) keyed by a stable `syntheticId` of the form:
+//   "<sourceType>:<sourceId>:<facet>"
+//
+// Examples:
+//   "vaccine:abc-123:next-due"
+//   "repro:xyz-789:pregcheck"
+//   "pig:cuid:duedate"
+//
+// When a generator emits a reminder, it merges the override (if any)
+// onto the synthesized row so the UI shows the correct status.
+model ReminderOverride {
+  id          String   @id @default(uuid())
+  syntheticId String   @unique
+  status      String   // "DONE" | "SNOOZED"
+  completedAt DateTime?
+  snoozedUntil DateTime?
+  notes       String?
+
+  completedById String?
+  completedBy   User?    @relation("CompletedReminders", fields: [completedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+
+// =============================================================
+// FINANCE MODULE — revenue, expenses, budgets per farm unit
+// =============================================================
+//
+// The Finance module is a CEO-level consolidated view. Each row is
+// tagged with `unit` so the dashboard can roll up Revenue / Expense
+// totals per farm unit and compute net profit + margins.
+//
+// Models are intentionally minimal at v1 — auto-pulling from Dairy /
+// Layers / Piggery transactions (e.g. milk sales, egg sales) is a
+// follow-up that will append to these tables via service hooks.
+
+enum FinanceUnit {
+  Dairy
+  Layers
+  Piggery
+  Ngushish
+  Feedlot
+  Doopers
+  Other
+}
+
+enum RevenueCategory {
+  MILK_SALES
+  EGG_SALES
+  PIG_SALES
+  CROP_SALES
+  FEED_SALES
+  ANIMAL_SALES
+  EQUIPMENT_SALES
+  OTHER_INCOME
+}
+
+enum ExpenseCategory {
+  FEEDS
+  LABOUR
+  VACCINES
+  UTILITIES
+  FUEL
+  TRANSPORT
+  MAINTENANCE
+  FARM_INPUTS
+  SALARIES
+  EQUIPMENT
+  MISC
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+}
+
+model Revenue {
+  id        String          @id @default(uuid())
+  unit      FinanceUnit
+  category  RevenueCategory
+  amount    Float
+  quantity  Float?
+  unitLabel String?         // free-text unit label e.g. "L", "crates", "kg"
+  date      DateTime
+  notes     String?
+  createdById String?
+  createdBy   User?         @relation("FinanceCreatedRevenue", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unit])
+  @@index([date])
+  @@index([category])
+}
+
+model Expense {
+  id        String          @id @default(uuid())
+  unit      FinanceUnit
+  category  ExpenseCategory
+  amount    Float
+  vendor    String?
+  paymentMethod PaymentMethod?
+  receiptUrl    String?
+  approved      Boolean       @default(true)
+  date          DateTime
+  notes         String?
+  createdById   String?
+  createdBy     User?         @relation("FinanceCreatedExpense", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unit])
+  @@index([date])
+  @@index([category])
+  @@index([approved])
+}
+
+model Budget {
+  id              String      @id @default(uuid())
+  unit            FinanceUnit
+  allocatedAmount Float
+  month           Int         // 1..12
+  year            Int
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([unit, month, year])
+  @@index([year, month])
+}
+
+
+// =============================================================
+// PAYROLL ADJUSTMENT — advances, bonuses, penalties, overtime
+// =============================================================
+//
+// One row per adjustment to a staff member's payroll for a given
+// (month, year). The Advance pill UI shows ADVANCE rows for the active
+// payroll period. Status workflow:
+//
+//   PENDING   → manager hasn't decided yet (gray pill)
+//   APPROVED  → confirmed for next payroll (amber pill, deductible)
+//   DEDUCTED  → already applied to a processed payroll (green pill,
+//               locked from further edits)
+//   DECLINED  → rejected (red outlined pill)
+//
+// Net pay calculation in finance.service:
+//   net = gross + bonuses + overtime − advances − penalties
+// where only APPROVED/DEDUCTED adjustments count.
+
+enum PayrollAdjustmentType {
+  ADVANCE
+  BONUS
+  PENALTY
+  OVERTIME
+}
+
+enum PayrollAdjustmentStatus {
+  PENDING
+  APPROVED
+  DEDUCTED
+  DECLINED
+}
+
+enum AdvancePaymentMethod {
+  CASH
+  MPESA
+  BANK_TRANSFER
+}
+
+model PayrollAdjustment {
+  id      String                  @id @default(uuid())
+  userId  String
+  user    User                    @relation("StaffAdjustments", fields: [userId], references: [id], onDelete: Cascade)
+
+  type    PayrollAdjustmentType
+  status  PayrollAdjustmentStatus @default(PENDING)
+
+  amount  Float
+  month   Int    // 1..12 — period this adjustment applies to
+  year    Int
+
+  reason   String?
+  notes    String?
+
+  // ---- Advance reference + dates (added in 2026-05) ----
+  // referenceNo: ADV-<year>-<5-digit zero-padded counter>. Auto-generated
+  // on create when the type is ADVANCE.
+  referenceNo      String? @unique
+  requestDate      DateTime?
+  // approvedDate / disbursedDate are nullable until the corresponding
+  // step in the workflow happens. approvedAt (above) stays for backwards
+  // compat — it's set when status flips to APPROVED/DEDUCTED.
+  approvedDate     DateTime?
+  disbursedDate    DateTime?
+  // Month the advance is repaid out of payroll. Defaults to (month, year)
+  // of the row itself but can be deferred to a later payroll cycle.
+  repaymentMonth   Int?
+  repaymentYear    Int?
+
+  paymentMethod    AdvancePaymentMethod?
+  // Required when paymentMethod = MPESA. Validated by zod schema.
+  transactionCode  String?
+
+  requestedAt   DateTime  @default(now())
+  approvedAt    DateTime?
+  approvedById  String?
+  approvedBy    User?    @relation("ApprovedAdjustments", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([year, month])
+  @@index([type])
+  @@index([referenceNo])
+}

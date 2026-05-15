@@ -1,0 +1,175 @@
+import express from "express";
+import * as dairyController from "./dairy.controller.js";
+import {
+  authorizeRoles,
+  authMiddleware,
+} from "../../middleware/auth.middleware.js";
+
+const dairyRoutes = express.Router();
+
+// Role mapping (matches schema.prisma's Role enum):
+//   CEO            → full dairy access
+//   DAIRY_MANAGER  → full dairy access
+//   VET            → can log milk + view cows
+//   Anyone else    → read-only (just authMiddleware)
+
+//////////////////////////////////////////////////////
+// 🐄 COW ROUTES
+//////////////////////////////////////////////////////
+
+dairyRoutes.post(
+  "/cows",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.createCow,
+);
+
+dairyRoutes.get("/cows", authMiddleware, dairyController.getAllCows);
+
+dairyRoutes.get("/cows/tag/:tag", authMiddleware, dairyController.getCowByTag);
+
+dairyRoutes.put(
+  "/cows/tag/:tag",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.updateCow,
+);
+
+dairyRoutes.delete(
+  "/cows/tag/:tag",
+  authMiddleware,
+  authorizeRoles("CEO"),
+  dairyController.deleteCow,
+);
+
+//////////////////////////////////////////////////////
+// 🥛 MILK RECORD ROUTES
+//////////////////////////////////////////////////////
+
+dairyRoutes.post(
+  "/milk",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER", "VET"),
+  dairyController.createMilkRecord,
+);
+
+// Read-only listing — open to any authenticated user.
+dairyRoutes.get("/milk", authMiddleware, dairyController.getMilkRecords);
+
+dairyRoutes.get(
+  "/milk/cow/:cowId",
+  authMiddleware,
+  dairyController.getMilkRecordsByCow,
+);
+
+dairyRoutes.delete(
+  "/milk/:id",
+  authMiddleware,
+  authorizeRoles("CEO"),
+  dairyController.deleteMilkRecord,
+);
+
+//////////////////////////////////////////////////////
+// 📊 DASHBOARD / SUMMARY ROUTES
+//////////////////////////////////////////////////////
+
+dairyRoutes.get("/dashboard", authMiddleware, dairyController.getDairyDashboard);
+
+// Compact KPI payload for the Flutter dairy summary cards.
+dairyRoutes.get("/summary", authMiddleware, dairyController.getDairySummary);
+
+//////////////////////////////////////////////////////
+// 👷 WORKER ROUTES
+//////////////////////////////////////////////////////
+
+dairyRoutes.get("/workers", authMiddleware, dairyController.getWorkers);
+
+dairyRoutes.get(
+  "/workers/:workerId/cows",
+  authMiddleware,
+  dairyController.getCowsByWorker,
+);
+
+//////////////////////////////////////////////////////
+// PHASE 2 + 3 — operational aggregation + bulk submit
+//////////////////////////////////////////////////////
+
+// Per-house roll-up for the "Houses overview" card.
+dairyRoutes.get(
+  "/houses/overview",
+  authMiddleware,
+  dairyController.getHousesOverview,
+);
+
+// Per-worker / per-session view that drives both the worker view and
+// the manager view of the milk-logging panel.
+dairyRoutes.get(
+  "/milk/sessions/today",
+  authMiddleware,
+  dairyController.getTodaySessions,
+);
+
+// Today's gross / net (calf + household deductions applied).
+dairyRoutes.get(
+  "/milk/summary/today",
+  authMiddleware,
+  dairyController.getTodayNetSummary,
+);
+
+// Atomic bulk submit: { workerId, session, date, entries: [{cowId, litres}] }
+// Idempotent — re-submitting the same (cow, date, session) overwrites.
+dairyRoutes.post(
+  "/milk/sessions",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER", "VET"),
+  dairyController.submitMilkSession,
+);
+
+//////////////////////////////////////////////////////
+// 📈 DAILY MILK — 7-DAY TREND
+//////////////////////////////////////////////////////
+
+// One row per day with the day-of-week label and total litres. Used by
+// the "Daily milk — 7 days" bar chart on the Dairy page. ?days= can
+// override the default 7-day window.
+dairyRoutes.get(
+  "/milk/trend/daily",
+  authMiddleware,
+  dairyController.getDailyMilkTrend,
+);
+
+//////////////////////////////////////////////////////
+// 🐮 CALVES REGISTER
+//////////////////////////////////////////////////////
+
+// CALVING reproduction records joined with dam and (when matched) calf cow.
+dairyRoutes.get("/calves", authMiddleware, dairyController.getCalvesRegister);
+
+//////////////////////////////////////////////////////
+// 📦 DAIRY INVENTORY
+//////////////////////////////////////////////////////
+
+dairyRoutes.get("/inventory", authMiddleware, dairyController.getDairyInventory);
+
+dairyRoutes.post(
+  "/inventory",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.createDairyInventoryItem,
+);
+
+dairyRoutes.patch(
+  "/inventory/:id",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.updateDairyInventoryItem,
+);
+
+dairyRoutes.delete(
+  "/inventory/:id",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.deleteDairyInventoryItem,
+);
+
+export default dairyRoutes;

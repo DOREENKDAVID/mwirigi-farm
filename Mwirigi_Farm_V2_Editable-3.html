@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mwirigi Farm — Management System V2 (Editable)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#F5F5F3;color:#2C2C2A;font-size:14px;line-height:1.4}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit}
+
+/* LOGIN */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#27500A 0%,#3B6D11 100%);padding:20px}
+.login-card{background:#fff;border-radius:12px;padding:32px;width:100%;max-width:440px;box-shadow:0 12px 48px rgba(0,0,0,0.18)}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.login-logo{width:44px;height:44px;border-radius:10px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:24px}
+.login-title{font-size:22px;font-weight:700;color:#27500A}
+.login-sub{font-size:13px;color:#666;margin-left:56px;margin-top:-4px}
+.login-hdr{font-size:11px;font-weight:600;color:#27500A;margin:24px 0 10px 0;text-transform:uppercase;letter-spacing:0.06em}
+.role-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;margin-bottom:8px;background:#fafaf8;border:1px solid #E8E8E4;border-radius:8px;text-align:left;transition:all 0.15s}
+.role-btn:hover{border-color:#639922;background:#EAF3DE}
+.role-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0}
+.role-name{font-weight:600;font-size:14px;color:#27500A}
+.role-desc{font-size:12px;color:#666}
+
+/* APP SHELL */
+.app{display:none;min-height:100vh}
+.app.active{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr}
+.topbar{grid-column:1/3;background:#27500A;color:#fff;padding:0 20px;display:flex;align-items:center;justify-content:space-between}
+.topbar-brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.topbar-brand-logo{width:30px;height:30px;border-radius:7px;background:#EAF3DE;display:flex;align-items:center;justify-content:center;font-size:16px}
+.topbar-user{display:flex;align-items:center;gap:12px;font-size:13px}
+.topbar-user-info{text-align:right}
+.topbar-user-name{font-weight:600;font-size:13px}
+.topbar-user-role{font-size:11px;color:#C0DD97}
+.topbar-logout{background:rgba(255,255,255,0.12);border:none;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px}
+.topbar-logout:hover{background:rgba(255,255,255,0.22)}
+.sidebar{background:#fff;border-right:1px solid #E8E8E4;padding:16px 0;overflow-y:auto}
+.side-group-label{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.08em;padding:12px 20px 6px}
+.side-item{display:flex;align-items:center;gap:10px;padding:9px 20px;border-left:3px solid transparent;cursor:pointer;font-size:13px;color:#444;transition:all 0.1s}
+.side-item:hover{background:#fafaf8}
+.side-item.active{background:#EAF3DE;border-left-color:#639922;color:#27500A;font-weight:600}
+.side-item[data-disabled]{opacity:0.4;cursor:not-allowed}
+.side-item[data-disabled]:hover{background:transparent}
+.side-badge{margin-left:auto;background:#C0DD97;color:#27500A;font-size:10px;padding:1px 7px;border-radius:10px;font-weight:600}
+
+/* MAIN */
+.main{padding:24px;overflow-y:auto;max-height:calc(100vh - 56px);background:#FAFAF7}
+.page-hdr{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:16px}
+.page-title{font-size:22px;font-weight:700;color:#27500A}
+.page-sub{font-size:13px;color:#666;margin-top:2px}
+.page-actions{display:flex;gap:8px;align-items:center}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid #E8E8E4;background:#fff;font-size:13px;font-weight:500;color:#444;transition:all 0.15s}
+.btn:hover{background:#f5f5f3;border-color:#C0DD97}
+.btn-primary{background:#3B6D11;color:#fff;border-color:#27500A}
+.btn-primary:hover{background:#27500A}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-warning{background:#EF9F27;color:#fff;border-color:#C47B0A}
+.btn-warning:hover{background:#C47B0A}
+
+/* CARDS */
+.card{background:#fff;border:1px solid #E8E8E4;border-radius:10px;padding:18px;margin-bottom:16px}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.06em}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border:1px solid #E8E8E4;border-radius:10px;padding:14px 16px}
+.kpi-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.kpi-val{font-size:26px;font-weight:700;color:#27500A;line-height:1.1}
+.kpi-sub{font-size:12px;color:#666;margin-top:3px}
+.kpi-trend{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;margin-top:4px}
+.trend-up{background:#EAF3DE;color:#27500A}
+.trend-down{background:#FCEBEB;color:#A32D2D}
+.two-col{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+@media(max-width:960px){.two-col{grid-template-columns:1fr}}
+
+/* DAIRY */
+.dairy-sess-tabs{display:flex;gap:4px;background:#F1EFE8;padding:4px;border-radius:8px;margin-bottom:16px;width:fit-content}
+.dairy-sess-btn{padding:7px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#666}
+.dairy-sess-btn.active{background:#fff;color:#27500A;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.worker-pill-bar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:16px}
+.w-pill{padding:6px 12px;border-radius:20px;font-size:12px;border:1px solid #E8E8E4;background:#fff;cursor:pointer;font-weight:500;color:#666;transition:all 0.12s}
+.w-pill:hover{border-color:#639922}
+.w-pill.active{background:#EAF3DE;border-color:#639922;color:#27500A}
+.w-pill.done{background:#E1F5EE;border-color:#1D9E75;color:#085041}
+.w-pill.mgr{background:#E6F1FB;border-color:#185FA5;color:#0C447C;margin-left:auto}
+.w-pill.mgr.active{background:#185FA5;color:#fff}
+.cow-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.cow-card{background:#fff;border:1px solid #E8E8E4;border-radius:8px;padding:10px 12px}
+.cow-card.flagged{border-color:#E24B4A;background:#FCEBEB}
+.cow-card.submitted{border-color:#1D9E75;background:#E1F5EE}
+.cow-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.cow-tag-chip{font-size:11px;font-weight:600;background:#EAF3DE;color:#27500A;padding:2px 8px;border-radius:10px}
+.cow-avg-lbl{font-size:11px;color:#888}
+.cow-input-row{display:flex;gap:5px;align-items:center}
+.cow-input{width:70px;padding:6px 8px;border:1px solid #D0CFC9;border-radius:6px;font-size:13px;font-weight:500}
+.cow-input:focus{outline:none;border-color:#639922;box-shadow:0 0 0 2px rgba(99,153,34,0.1)}
+.cow-input.flagged{border-color:#E24B4A}
+.cow-unit{font-size:11px;color:#888}
+.drop-flag{font-size:10px;color:#A32D2D;margin-top:3px;font-weight:500}
+.calf-badge{display:inline-block;font-size:10px;background:#FAEEDA;color:#633806;padding:1px 6px;border-radius:8px;margin-top:3px;font-weight:500}
+.ded-panel{background:#fafaf8;border-radius:8px;padding:12px;margin-top:12px}
+.ded-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.ded-row.net{border-top:1px solid #D0CFC9;padding-top:10px;margin-top:6px;font-weight:600;color:#0F6E56;font-size:15px}
+.ded-val{font-weight:600}
+.ded-val.minus{color:#A32D2D}
+
+/* LAYERS */
+.house-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.house-tab{padding:10px 16px;border-radius:8px;border:1px solid #E8E8E4;background:#fff;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500}
+.house-tab:hover{border-color:#639922}
+.house-tab.active{border-color:#639922;background:#EAF3DE;color:#27500A}
+.house-tab-icon{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0}
+.house-tab-info{text-align:left}
+.house-tab-name{font-size:13px;font-weight:600;color:#27500A}
+.house-tab-cap{font-size:11px;color:#666}
+.layers-qe-form{background:#F5F5F3;border-radius:10px;padding:16px;margin-bottom:16px}
+.layers-qe-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:10px}
+.layers-qe-field label{display:block;font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;font-weight:600}
+.layers-qe-field input,.layers-qe-field select{width:100%;padding:7px 10px;border:1px solid #D0CFC9;border-radius:6px;font-size:13px;background:#fff}
+.layers-qe-field input:focus,.layers-qe-field select:focus{outline:none;border-color:#639922}
+.layers-qe-field.auto input{background:#FAEEDA;color:#633806;font-weight:600;border-color:#EF9F27}
+
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;background:#FAFAF7;color:#666;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #E8E8E4}
+td{padding:8px 10px;border-bottom:1px solid #F1EFE8}
+tr:hover td{background:#fafaf8}
+table.compact td,table.compact th{padding:6px 8px;font-size:12px}
+.num-col{text-align:right;font-variant-numeric:tabular-nums}
+.good{color:#27500A;font-weight:600}
+.warn{color:#854F0B;font-weight:600}
+.bad{color:#A32D2D;font-weight:600}
+.tag-chip{font-size:11px;font-weight:600;background:#EAF3DE;color:#27500A;padding:2px 8px;border-radius:10px;white-space:nowrap}
+
+/* HERD */
+.herd-layout{display:grid;grid-template-columns:300px 1fr;gap:16px}
+@media(max-width:960px){.herd-layout{grid-template-columns:1fr}}
+.herd-list{background:#fff;border:1px solid #E8E8E4;border-radius:10px;max-height:600px;overflow-y:auto}
+.herd-search{padding:10px;border-bottom:1px solid #E8E8E4}
+.herd-search input{width:100%;padding:7px 10px;border:1px solid #D0CFC9;border-radius:6px;font-size:13px}
+.herd-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #F1EFE8;cursor:pointer}
+.herd-item:hover{background:#fafaf8}
+.herd-item.active{background:#EAF3DE}
+.herd-avatar{width:32px;height:32px;border-radius:50%;background:#C0DD97;color:#27500A;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0}
+.herd-item-title{font-size:12px;font-weight:600;color:#27500A}
+.herd-item-sub{font-size:11px;color:#666}
+
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px}
+.bg-g{background:#EAF3DE;color:#27500A}
+.bg-a{background:#FAEEDA;color:#633806}
+.bg-t{background:#E1F5EE;color:#085041}
+.bg-b{background:#E6F1FB;color:#0C447C}
+.bg-r{background:#FCEBEB;color:#501313}
+.bg-gray{background:#F1EFE8;color:#444}
+.bg-purple{background:#EEEDFE;color:#26215C}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#27500A;color:#fff;padding:10px 20px;border-radius:22px;font-size:13px;font-weight:500;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:2000;box-shadow:0 6px 18px rgba(0,0,0,0.2)}
+.toast.show{opacity:1}
+.restricted{background:#FCEBEB;border:1px solid #F09595;border-radius:8px;padding:20px;text-align:center;color:#501313;font-size:13px}
+.restricted strong{display:block;font-size:15px;margin-bottom:6px;color:#A32D2D}
+.section-label{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px}
+.chart-wrap{position:relative;height:260px;padding:10px}
+.footer{padding:14px 20px;text-align:center;font-size:11px;color:#888;border-top:1px solid #E8E8E4;margin-top:24px}
+
+/* ══════════════════════════════════
+   SETTINGS / EDIT PANEL
+══════════════════════════════════ */
+.settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:900;backdrop-filter:blur(2px)}
+.settings-overlay.open{display:flex;align-items:flex-start;justify-content:flex-end}
+.settings-drawer{background:#fff;width:560px;max-width:95vw;height:100vh;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,0.18);display:flex;flex-direction:column}
+.settings-topbar{background:#27500A;color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.settings-topbar-title{font-size:16px;font-weight:700}
+.settings-close{background:rgba(255,255,255,0.15);border:none;color:#fff;width:32px;height:32px;border-radius:6px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.settings-body{padding:20px;flex:1}
+.settings-save-bar{padding:16px 20px;border-top:1px solid #E8E8E4;background:#FAFAF7;display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+.stab-bar{display:flex;gap:4px;background:#F1EFE8;padding:4px;border-radius:8px;margin-bottom:20px;flex-wrap:wrap}
+.stab{padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:#666}
+.stab.active{background:#fff;color:#27500A;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.stab-panel{display:none}
+.stab-panel.active{display:block}
+.field-group{margin-bottom:20px}
+.field-group-title{font-size:12px;font-weight:700;color:#27500A;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #EAF3DE}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field-row.triple{grid-template-columns:1fr 1fr 1fr}
+.field-row.full{grid-template-columns:1fr}
+.field label{display:block;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:7px 10px;border:1px solid #D0CFC9;border-radius:6px;font-size:13px;background:#fff;color:#2C2C2A}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#639922;box-shadow:0 0 0 2px rgba(99,153,34,0.1)}
+.field textarea{resize:vertical;min-height:60px}
+.worker-edit-row{display:grid;grid-template-columns:28px 1fr 70px 70px 80px;gap:6px;align-items:center;padding:6px 8px;background:#fafaf8;border-radius:6px;margin-bottom:5px;font-size:12px}
+.worker-edit-row:hover{background:#EAF3DE}
+.worker-num{font-weight:700;color:#888;text-align:center;font-size:11px}
+.worker-edit-row input{padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px;width:100%}
+.worker-edit-row input:focus{outline:none;border-color:#639922}
+.house-edit-row{display:grid;grid-template-columns:40px 1fr 90px;gap:8px;align-items:center;padding:8px 10px;background:#fafaf8;border-radius:6px;margin-bottom:6px}
+.house-num-badge{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px}
+.house-edit-row input{padding:6px 8px;border:1px solid #D0CFC9;border-radius:5px;font-size:13px;width:100%}
+.house-edit-row input:focus{outline:none;border-color:#639922}
+.staff-edit-row{display:grid;grid-template-columns:1fr 1fr 90px;gap:8px;align-items:center;padding:7px 10px;background:#fafaf8;border-radius:6px;margin-bottom:5px}
+.staff-edit-row input,.staff-edit-row select{padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px;width:100%}
+.staff-edit-row input:focus,.staff-edit-row select:focus{outline:none;border-color:#639922}
+.add-row-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed #C0DD97;border-radius:6px;background:transparent;color:#639922;font-size:12px;font-weight:600;cursor:pointer;width:100%;justify-content:center;margin-top:6px}
+.add-row-btn:hover{background:#EAF3DE}
+.del-btn{background:#FCEBEB;border:1px solid #F09595;color:#A32D2D;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer}
+.del-btn:hover{background:#F09595;color:#fff}
+.info-note{background:#EAF3DE;border-radius:6px;padding:10px 12px;font-size:12px;color:#27500A;margin-bottom:14px}
+.info-note strong{display:block;margin-bottom:3px}
+.settings-fab{position:fixed;bottom:28px;right:28px;background:#3B6D11;color:#fff;border:none;border-radius:50px;padding:12px 22px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 4px 18px rgba(39,80,10,0.35);z-index:800;transition:all 0.15s}
+.settings-fab:hover{background:#27500A;transform:translateY(-1px);box-shadow:0 6px 24px rgba(39,80,10,0.45)}
+.settings-fab.hidden{display:none}
+.changed-dot{display:inline-block;width:8px;height:8px;background:#EF9F27;border-radius:50%;margin-left:4px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo">🌿</div>
+      <div>
+        <div class="login-title" id="lFarmName">Mwirigi Farm</div>
+      </div>
+    </div>
+    <div class="login-sub" id="lFarmSub">Management System V2 · MFIMS</div>
+    <div class="login-hdr">Select your role to continue</div>
+    <button class="role-btn" onclick="login('ceo')">
+      <div class="role-avatar" style="background:#EAF3DE;color:#27500A" id="lAvCeo">DM</div>
+      <div><div class="role-name" id="lNameCeo">Dr. Mwirigi</div><div class="role-desc">CEO · Full farm access</div></div>
+    </button>
+    <button class="role-btn" onclick="login('dairy_mgr')">
+      <div class="role-avatar" style="background:#E6F1FB;color:#0C447C" id="lAvDairy">JK</div>
+      <div><div class="role-name" id="lNameDairy">J. Kamau</div><div class="role-desc" id="lDescDairy">Dairy Unit Manager · 115 cows, 11 workers</div></div>
+    </button>
+    <button class="role-btn" onclick="login('layers_mgr')">
+      <div class="role-avatar" style="background:#FAEEDA;color:#633806" id="lAvLayers">FK</div>
+      <div><div class="role-name" id="lNameLayers">F. Kiprop</div><div class="role-desc" id="lDescLayers">Layers Manager · 3 houses, 6,900 birds</div></div>
+    </button>
+    <button class="role-btn" onclick="login('vet')">
+      <div class="role-avatar" style="background:#E1F5EE;color:#085041" id="lAvVet">DO</div>
+      <div><div class="role-name" id="lNameVet">Dr. Omondi</div><div class="role-desc">Farm Vet · Health &amp; vaccinations (all units)</div></div>
+    </button>
+    <button class="role-btn" onclick="login('piggery_mgr')">
+      <div class="role-avatar" style="background:#FDE8D8;color:#7A2E00" id="lAvPig">SY</div>
+      <div><div class="role-name" id="lNamePig">Simiyu</div><div class="role-desc" id="lDescPig">Piggery Head · 64 sows</div></div>
+    </button>
+    <button class="role-btn" onclick="login('ict')">
+      <div class="role-avatar" style="background:#EEEDFE;color:#26215C">IC</div>
+      <div><div class="role-name">ICT Officer</div><div class="role-desc">System administration · Full access</div></div>
+    </button>
+    <div style="text-align:center;margin-top:18px;font-size:11px;color:#888">MFIMS V2 · <span id="lYear">2025</span> · Demo</div>
+    <button onclick="openSettings()" style="width:100%;margin-top:12px;padding:8px;border:1px dashed #C0DD97;border-radius:6px;background:transparent;color:#639922;font-size:12px;font-weight:600;cursor:pointer">⚙ Edit Farm Configuration</button>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-brand-logo">🌿</div>
+      <div id="topFarmName">Mwirigi Farm <span style="opacity:0.6;font-weight:400;font-size:12px;margin-left:8px">MFIMS V2</span></div>
+    </div>
+    <div class="topbar-user">
+      <div class="topbar-user-info">
+        <div class="topbar-user-name" id="userName">—</div>
+        <div class="topbar-user-role" id="userRole">—</div>
+      </div>
+      <button class="topbar-logout" onclick="logout()">Sign out</button>
+    </div>
+  </header>
+  <aside class="sidebar">
+    <div class="side-group-label">Overview</div>
+    <div class="side-item active" data-module="dashboard" onclick="navTo('dashboard',this)">Dashboard</div>
+    <div class="side-group-label">Production units</div>
+    <div class="side-item" data-module="dairy" onclick="navTo('dairy',this)">Dairy <span class="side-badge" id="sbDairy">115</span></div>
+    <div class="side-item" data-module="layers" onclick="navTo('layers',this)">Layers <span class="side-badge" id="sbLayers">6,900</span></div>
+    <div class="side-item" data-module="piggery" onclick="navTo('piggery',this)">Piggery <span class="side-badge" id="sbPiggery">64</span></div>
+    <div class="side-group-label">Registries</div>
+    <div class="side-item" data-module="herd" onclick="navTo('herd',this)">Herd Registry</div>
+    <div class="side-group-label">Management</div>
+    <div class="side-item" data-module="staff" onclick="navTo('staff',this)">Staff &amp; Labour</div>
+    <div class="side-item" data-module="reports" onclick="navTo('reports',this)">Reports</div>
+  </aside>
+  <main class="main" id="mainContent"></main>
+</div>
+
+<!-- SETTINGS FAB -->
+<button class="settings-fab hidden" id="settingsFab" onclick="openSettings()">⚙ Edit Farm Config</button>
+
+<!-- SETTINGS OVERLAY -->
+<div class="settings-overlay" id="settingsOverlay" onclick="overlayClick(event)">
+  <div class="settings-drawer" id="settingsDrawer">
+    <div class="settings-topbar">
+      <div>
+        <div class="settings-topbar-title">⚙ Farm Configuration Editor</div>
+        <div style="font-size:11px;color:#C0DD97;margin-top:2px">Changes apply instantly across the app</div>
+      </div>
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="stab-bar">
+        <button class="stab active" onclick="showStab('farm',this)">🌿 Farm</button>
+        <button class="stab" onclick="showStab('staff',this)">👥 Staff</button>
+        <button class="stab" onclick="showStab('dairy',this)">🐄 Dairy</button>
+        <button class="stab" onclick="showStab('layers',this)">🥚 Layers</button>
+        <button class="stab" onclick="showStab('piggery',this)">🐷 Piggery</button>
+        <button class="stab" onclick="showStab('vacc',this)">💉 Vaccines</button>
+      </div>
+
+      <!-- FARM TAB -->
+      <div class="stab-panel active" id="stab-farm">
+        <div class="field-group">
+          <div class="field-group-title">Farm Identity</div>
+          <div class="field-row">
+            <div class="field"><label>Farm Name</label><input id="cfg_farmName" type="text" value="Mwirigi Farm" oninput="cfg.farmName=this.value;applyFarmName()"/></div>
+            <div class="field"><label>System Version</label><input id="cfg_version" type="text" value="V2" oninput="cfg.version=this.value;applyFarmName()"/></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Location</label><input id="cfg_location" type="text" value="Meru County, Kenya" oninput="cfg.location=this.value"/></div>
+            <div class="field"><label>Year / Season</label><input id="cfg_year" type="text" value="2025" oninput="cfg.year=this.value;document.getElementById('lYear').textContent=this.value"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">CEO / Owner</div>
+          <div class="field-row">
+            <div class="field"><label>Full name</label><input id="cfg_ceoName" type="text" value="Dr. Mwirigi" oninput="cfg.roles.ceo.name=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Title</label><input id="cfg_ceoTitle" type="text" value="Chief Executive Officer" oninput="cfg.roles.ceo.title=this.value"/></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Initials (avatar)</label><input id="cfg_ceoInit" type="text" maxlength="3" value="DM" oninput="cfg.ceoInit=this.value;refreshLoginLabels()"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Production Targets (daily)</div>
+          <div class="field-row triple">
+            <div class="field"><label>Milk target (L)</label><input id="cfg_milkTarget" type="number" value="600" oninput="cfg.milkTarget=+this.value"/></div>
+            <div class="field"><label>Eggs target</label><input id="cfg_eggsTarget" type="number" value="5500" oninput="cfg.eggsTarget=+this.value"/></div>
+            <div class="field"><label>Household deduction (L)</label><input id="cfg_hhDed" type="number" value="15" oninput="cfg.hhDed=+this.value"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAFF TAB -->
+      <div class="stab-panel" id="stab-staff">
+        <div class="info-note"><strong>Tip</strong>Edit names, roles and rates here. Workers (dairy milking staff) are managed in the Dairy tab.</div>
+        <div class="field-group">
+          <div class="field-group-title">Management Staff</div>
+          <div id="mgmtStaffList"></div>
+          <button class="add-row-btn" onclick="addMgmtStaff()">+ Add staff member</button>
+        </div>
+      </div>
+
+      <!-- DAIRY TAB -->
+      <div class="stab-panel" id="stab-dairy">
+        <div class="info-note"><strong>Tip</strong>Change worker names, their cow counts and average yields. Total cows updates automatically.</div>
+        <div class="field-group">
+          <div class="field-group-title">Dairy Settings</div>
+          <div class="field-row triple">
+            <div class="field"><label>Dairy Manager name</label><input id="cfg_dairyMgrName" type="text" value="J. Kamau" oninput="cfg.roles.dairy_mgr.name=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Manager initials</label><input id="cfg_dairyMgrInit" type="text" maxlength="3" value="JK" oninput="cfg.dairyMgrInit=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Calf deduction (L/session)</label><input id="cfg_calfDed" type="number" value="5" oninput="cfg.calfDedCount=+this.value"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Calves (&lt;4 months)</div>
+          <div class="field-row triple">
+            <div class="field"><label>Calf count (&lt;4mo)</label><input id="cfg_youngCalves" type="number" value="5" oninput="cfg.youngCalves=+this.value"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Workers &amp; Assigned Cows</div>
+          <div style="display:grid;grid-template-columns:28px 1fr 60px 70px;gap:6px;padding:5px 8px;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em">
+            <div>#</div><div>Name</div><div>Cows</div><div>Avg Yield</div>
+          </div>
+          <div id="workerEditList"></div>
+          <button class="add-row-btn" onclick="addWorker()">+ Add worker</button>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Breed Mix</div>
+          <div class="field-row triple">
+            <div class="field"><label>Breed 1</label><input id="cfg_breed1" type="text" value="Friesian" oninput="cfg.breeds[0]=this.value"/></div>
+            <div class="field"><label>Breed 2</label><input id="cfg_breed2" type="text" value="Ayrshire" oninput="cfg.breeds[1]=this.value"/></div>
+            <div class="field"><label>Breed 3</label><input id="cfg_breed3" type="text" value="Jersey" oninput="cfg.breeds[2]=this.value"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYERS TAB -->
+      <div class="stab-panel" id="stab-layers">
+        <div class="info-note"><strong>Tip</strong>Edit house names, capacities and stock. The laying rate and charts update when you save.</div>
+        <div class="field-group">
+          <div class="field-group-title">Layers Manager</div>
+          <div class="field-row">
+            <div class="field"><label>Manager name</label><input id="cfg_layersMgrName" type="text" value="F. Kiprop" oninput="cfg.roles.layers_mgr.name=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Manager initials</label><input id="cfg_layersMgrInit" type="text" maxlength="3" value="FK" oninput="cfg.layersMgrInit=this.value;refreshLoginLabels()"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Poultry Houses</div>
+          <div id="houseEditList"></div>
+        </div>
+      </div>
+
+      <!-- PIGGERY TAB -->
+      <div class="stab-panel" id="stab-piggery">
+        <div class="field-group">
+          <div class="field-group-title">Piggery Manager</div>
+          <div class="field-row">
+            <div class="field"><label>Manager name</label><input id="cfg_pigMgrName" type="text" value="Simiyu" oninput="cfg.roles.piggery_mgr.name=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Manager initials</label><input id="cfg_pigMgrInit" type="text" maxlength="3" value="SY" oninput="cfg.piggeryMgrInit=this.value;refreshLoginLabels()"/></div>
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Piggery Details</div>
+          <div class="field-row triple">
+            <div class="field"><label>Total sows</label><input id="cfg_sowCount" type="number" value="64" oninput="cfg.sowCount=+this.value;document.getElementById('sbPiggery').textContent=this.value"/></div>
+            <div class="field"><label>Gestation days</label><input id="cfg_gestation" type="number" value="114" oninput="cfg.gestation=+this.value"/></div>
+            <div class="field"><label>Weaning days</label><input id="cfg_weaning" type="number" value="28" oninput="cfg.weaning=+this.value"/></div>
+          </div>
+          <div class="field-row triple">
+            <div class="field"><label>Sale age (days)</label><input id="cfg_saleAge" type="number" value="182" oninput="cfg.saleAge=+this.value"/></div>
+            <div class="field"><label>Beaconners target/month</label><input id="cfg_beaTarget" type="number" value="100" oninput="cfg.beaconnersTarget=+this.value"/></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VACCINES TAB -->
+      <div class="stab-panel" id="stab-vacc">
+        <div class="info-note"><strong>Tip</strong>Edit vaccine names, dates and intervals. These appear in the Herd Registry for each cow.</div>
+        <div class="field-group">
+          <div class="field-group-title">Vaccination Schedule</div>
+          <div style="display:grid;grid-template-columns:1fr 100px 100px 90px;gap:6px;padding:5px 8px;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.05em">
+            <div>Vaccine</div><div>Last Given</div><div>Next Due</div><div>Status</div>
+          </div>
+          <div id="vaccEditList"></div>
+          <button class="add-row-btn" onclick="addVaccine()">+ Add vaccine</button>
+        </div>
+        <div class="field-group">
+          <div class="field-group-title">Farm Vet</div>
+          <div class="field-row">
+            <div class="field"><label>Vet name</label><input id="cfg_vetName" type="text" value="Dr. Omondi" oninput="cfg.roles.vet.name=this.value;refreshLoginLabels()"/></div>
+            <div class="field"><label>Initials</label><input id="cfg_vetInit" type="text" maxlength="3" value="DO" oninput="cfg.vetInit=this.value;refreshLoginLabels()"/></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-save-bar">
+      <button class="btn" onclick="closeSettings()">Close</button>
+      <button class="btn btn-primary" onclick="applyAllSettings()">✓ Apply &amp; Refresh</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   EDITABLE CONFIG — all farm data lives here
+══════════════════════════════════════════════ */
+let cfg = {
+  farmName: 'Mwirigi Farm',
+  version: 'V2',
+  location: 'Meru County, Kenya',
+  year: '2025',
+  milkTarget: 600,
+  eggsTarget: 5500,
+  hhDed: 15,
+  youngCalves: 5,
+  calfDedCount: 5,
+  sowCount: 64,
+  gestation: 114,
+  weaning: 28,
+  saleAge: 182,
+  beaconnersTarget: 100,
+  piggeryMgrInit: 'SY',
+  ceoInit: 'DM',
+  dairyMgrInit: 'JK',
+  layersMgrInit: 'FK',
+  vetInit: 'DO',
+  breeds: ['Friesian','Ayrshire','Jersey'],
+  workers: [
+    {name:'J. Kamau',  cows:11, avg:22},
+    {name:'M. Ochieng',cows:11, avg:18},
+    {name:'P. Waweru', cows:11, avg:16},
+    {name:'B. Otieno', cows:11, avg:20},
+    {name:'F. Njuki',  cows:11, avg:19},
+    {name:'S. Mwangi', cows:10, avg:17},
+    {name:'A. Karanja',cows:10, avg:21},
+    {name:'T. Gitau',  cows:10, avg:18},
+    {name:'R. Mugo',   cows:10, avg:15},
+    {name:'L. Wanjiku',cows:10, avg:17},
+    {name:'C. Muthoni',cows:10, avg:16}
+  ],
+  houses: [
+    {num:1, name:'House 1', capacity:2500, color:'#27500A', light:'#EAF3DE'},
+    {num:2, name:'House 2', capacity:2300, color:'#085041', light:'#E1F5EE'},
+    {num:3, name:'House 3', capacity:2100, color:'#0C447C', light:'#E6F1FB'}
+  ],
+  mgmtStaff: [
+    {role:'CEO',             name:'Dr. Mwirigi',  unit:'Leadership',    rate:'—'},
+    {role:'Dairy Manager',   name:'J. Kamau',     unit:'Dairy',         rate:'35,000/mo'},
+    {role:'Layers Manager',  name:'F. Kiprop',    unit:'Layers',        rate:'28,000/mo'},
+    {role:'Piggery Head',    name:'Simiyu',       unit:'Piggery',       rate:'30,000/mo'},
+    {role:'Farm Vet',        name:'Dr. Omondi',   unit:'Health (all)',  rate:'45,000/mo'},
+    {role:'ICT Officer',     name:'Vacant',       unit:'ICT',           rate:'40,000/mo'}
+  ],
+  vaccines: [
+    {name:'FMD',              last:'15 Jan 2025', next:'15 Jul 2025', status:'Current'},
+    {name:'Lumpy Skin Disease',last:'3 Feb 2025', next:'3 Feb 2026',  status:'Current'},
+    {name:'Brucellosis',      last:'24 Jan 2025', next:'24 Jan 2026', status:'Current'},
+    {name:'ECF',              last:'16 Feb 2025', next:'16 Feb 2026', status:'Current'}
+  ],
+  roles: {
+    ceo:         {name:'Dr. Mwirigi', title:'Chief Executive Officer', access:['dashboard','dairy','layers','piggery','herd','staff','reports']},
+    dairy_mgr:   {name:'J. Kamau',   title:'Dairy Unit Manager',      access:['dashboard','dairy','herd','reports']},
+    layers_mgr:  {name:'F. Kiprop',  title:'Layers Manager',          access:['dashboard','layers','reports']},
+    piggery_mgr: {name:'Simiyu',     title:'Piggery Head',            access:['dashboard','piggery','reports']},
+    vet:         {name:'Dr. Omondi', title:'Farm Vet',                access:['dashboard','dairy','layers','piggery','herd','reports']},
+    ict:         {name:'ICT Officer',title:'System Administrator',    access:['dashboard','dairy','layers','piggery','herd','staff','reports']}
+  }
+};
+
+/* ══════ BUILD LIVE DATA FROM CONFIG ══════ */
+let cows = [];
+function rebuildCows() {
+  cows = [];
+  let n = 1;
+  cfg.workers.forEach((w, wi) => {
+    for (let i = 0; i < w.cows; i++) {
+      const tag = 'MW-' + String(n).padStart(3,'0');
+      const avg = Math.max(8, w.avg + Math.round(((n*7+wi*3)%9-4)*0.8));
+      cows.push({
+        tag, worker:wi, workerName:w.name, avg,
+        breed: cfg.breeds[(n-1) % cfg.breeds.length],
+        origin: ['Friesian','Ayrshire','Jersey'].includes(cfg.breeds[(n-1) % cfg.breeds.length]) ? 'Exotic' : 'Local/Cross',
+        hasCalf: n <= cfg.youngCalves,
+        calfInfo: n <= cfg.youngCalves ? {tag:'CF-0'+n, dam:tag, ageM: ((n-1)%3)+1} : null
+      });
+      n++;
+    }
+  });
+}
+rebuildCows();
+
+/* ══════ SESSION STATE ══════ */
+const dairySession = {current:'AM', data:{AM:{},MID:{},PM:{}}, submitted:{AM:[],MID:[],PM:[]}, currentWorker:0, isMgrView:false};
+(function seedDairy(){
+  cows.forEach(c => {
+    if (c.worker < 5 && Math.random() > 0.25) {
+      dairySession.data.AM[c.tag] = Math.max(4, c.avg + Math.round((Math.random()-0.4)*4));
+    }
+  });
+  dairySession.submitted.AM = [0,1,2,3,4];
+})();
+
+let layersHistory = [];
+const layersSession = {currentHouse:1, today:{}};
+function rebuildLayersHistory() {
+  layersHistory = [];
+  layersSession.today = {};
+  const base = cfg.houses.map(h => h.capacity);
+  const today = new Date();
+  for (let d = 7; d >= 1; d--) {
+    const dt = new Date(today); dt.setDate(today.getDate()-d);
+    cfg.houses.forEach((h,i) => {
+      base[i] = base[i] - Math.floor(Math.random()*4);
+      const stock = base[i];
+      const layingRate = 0.78 + Math.random()*0.08;
+      const eggs = Math.floor(stock * layingRate);
+      layersHistory.push({
+        date: dt.toISOString().split('T')[0],
+        house: h.num, dayAge: 210+(7-d), opening:stock,
+        eggs, trays: eggs/30, pctLaying:(eggs/stock)*100,
+        feed: Math.round(stock*0.115*10)/10,
+        dead: Math.random()>0.5?1:0,
+        closing: stock - (Math.random()>0.5?1:0), remarks:''
+      });
+    });
+  }
+  cfg.houses.forEach((h,i) => {
+    const last = layersHistory.filter(r=>r.house===h.num).slice(-1)[0];
+    layersSession.today[h.num] = {openingStock: last ? last.closing : h.capacity, eggs:'', feed:'', dead:'', remarks:''};
+  });
+}
+rebuildLayersHistory();
+
+rebuildLayersHistory();
+
+/* ══════ PIGGERY STATE ══════ */
+let piggeryHistory = [];
+const piggeryToday = {dateOfService:'', expectantSows:'', dayOfFarrowing:'', winners:'', fatteners:'', beaconners:'', totalAlive:'', dead:''};
+(function seedPiggery(){
+  const today = new Date();
+  const bWin=[12,15,11,14,13,16,10];
+  const bFat=[8,10,9,11,10,12,8];
+  const bBea=[88,92,95,98,87,103,91];
+  const bDead=[3,2,4,2,3,1,2];
+  for(let i=6;i>=0;i--){
+    const dt=new Date(today);dt.setDate(today.getDate()-i*28);
+    const w=bWin[6-i];const f=bFat[6-i];const b=bBea[6-i];
+    const d=bDead[6-i];
+    piggeryHistory.push({
+      date:dt.toISOString().split('T')[0],
+      dateOfService:new Date(dt.getTime()-114*86400000).toISOString().split('T')[0],
+      expectantSows:Math.floor(cfg.sowCount*0.6+Math.random()*8-4),
+      dayOfFarrowing:114+Math.floor(Math.random()*3),
+      winners:w, fatteners:f, beaconners:b,
+      totalAlive:w+f+b, dead:d, remarks:''
+    });
+  }
+})();
+
+let currentRole = null;
+let currentModule = 'dashboard';
+let charts = {};
+let herdSelected = 'MW-001';
+
+/* ══════ SETTINGS PANEL ══════ */
+function openSettings() {
+  renderWorkerEditList();
+  renderHouseEditList();
+  renderMgmtStaffList();
+  renderVaccEditList();
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+function overlayClick(e) {
+  if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+}
+function showStab(id, btn) {
+  document.querySelectorAll('.stab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.stab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('stab-'+id).classList.add('active');
+}
+
+/* WORKER EDIT */
+function renderWorkerEditList() {
+  document.getElementById('workerEditList').innerHTML = cfg.workers.map((w,i) => `
+    <div class="worker-edit-row">
+      <div class="worker-num">${i+1}</div>
+      <input type="text" value="${w.name}" oninput="cfg.workers[${i}].name=this.value" placeholder="Name"/>
+      <input type="number" value="${w.cows}" min="1" max="30" oninput="cfg.workers[${i}].cows=+this.value" placeholder="#cows"/>
+      <input type="number" value="${w.avg}" min="5" max="50" oninput="cfg.workers[${i}].avg=+this.value" placeholder="avg L"/>
+      <button class="del-btn" onclick="removeWorker(${i})">✕</button>
+    </div>`).join('');
+}
+function addWorker() {
+  cfg.workers.push({name:'New Worker', cows:10, avg:16});
+  renderWorkerEditList();
+}
+function removeWorker(i) {
+  if (cfg.workers.length <= 1) { showToast('Minimum 1 worker required'); return; }
+  cfg.workers.splice(i,1);
+  renderWorkerEditList();
+}
+
+/* HOUSE EDIT */
+function renderHouseEditList() {
+  document.getElementById('houseEditList').innerHTML = cfg.houses.map((h,i) => `
+    <div class="house-edit-row">
+      <div class="house-num-badge" style="background:${h.color}">${h.num}</div>
+      <input type="text" value="${h.name}" oninput="cfg.houses[${i}].name=this.value" placeholder="House name"/>
+      <input type="number" value="${h.capacity}" min="100" oninput="cfg.houses[${i}].capacity=+this.value" placeholder="Capacity"/>
+    </div>`).join('');
+}
+
+/* MGMT STAFF EDIT */
+function renderMgmtStaffList() {
+  document.getElementById('mgmtStaffList').innerHTML = cfg.mgmtStaff.map((s,i) => `
+    <div class="staff-edit-row">
+      <input type="text" value="${s.name}" oninput="cfg.mgmtStaff[${i}].name=this.value" placeholder="Name"/>
+      <input type="text" value="${s.role}" oninput="cfg.mgmtStaff[${i}].role=this.value" placeholder="Role"/>
+      <button class="del-btn" onclick="removeMgmtStaff(${i})">✕</button>
+    </div>`).join('');
+}
+function addMgmtStaff() {
+  cfg.mgmtStaff.push({role:'Staff', name:'New Name', unit:'—', rate:'—'});
+  renderMgmtStaffList();
+}
+function removeMgmtStaff(i) {
+  cfg.mgmtStaff.splice(i,1);
+  renderMgmtStaffList();
+}
+
+/* VACCINE EDIT */
+function renderVaccEditList() {
+  document.getElementById('vaccEditList').innerHTML = cfg.vaccines.map((v,i) => `
+    <div style="display:grid;grid-template-columns:1fr 100px 100px 90px 36px;gap:6px;align-items:center;padding:7px 8px;background:#fafaf8;border-radius:6px;margin-bottom:5px">
+      <input type="text" value="${v.name}" oninput="cfg.vaccines[${i}].name=this.value" style="padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px"/>
+      <input type="text" value="${v.last}" oninput="cfg.vaccines[${i}].last=this.value" style="padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px"/>
+      <input type="text" value="${v.next}" oninput="cfg.vaccines[${i}].next=this.value" style="padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px"/>
+      <select oninput="cfg.vaccines[${i}].status=this.value" style="padding:5px 7px;border:1px solid #D0CFC9;border-radius:5px;font-size:12px">
+        <option ${v.status==='Current'?'selected':''}>Current</option>
+        <option ${v.status==='Due Soon'?'selected':''}>Due Soon</option>
+        <option ${v.status==='Overdue'?'selected':''}>Overdue</option>
+      </select>
+      <button class="del-btn" onclick="removeVaccine(${i})">✕</button>
+    </div>`).join('');
+}
+function addVaccine() {
+  cfg.vaccines.push({name:'New Vaccine', last:'—', next:'—', status:'Current'});
+  renderVaccEditList();
+}
+function removeVaccine(i) {
+  cfg.vaccines.splice(i,1);
+  renderVaccEditList();
+}
+
+/* APPLY ALL */
+function applyAllSettings() {
+  rebuildCows();
+  rebuildLayersHistory();
+  dairySession.data = {AM:{},MID:{},PM:{}};
+  dairySession.submitted = {AM:[],MID:[],PM:[]};
+  dairySession.currentWorker = 0;
+  (function reseed(){
+    cows.forEach(c => {
+      if (c.worker < 5 && Math.random() > 0.25) {
+        dairySession.data.AM[c.tag] = Math.max(4, c.avg + Math.round((Math.random()-0.4)*4));
+      }
+    });
+    dairySession.submitted.AM = cfg.workers.slice(0,5).map((_,i)=>i);
+  })();
+  applyFarmName();
+  refreshLoginLabels();
+  updateSidebadges();
+  closeSettings();
+  if (currentRole) renderModule(currentModule);
+  showToast('✓ Configuration applied!');
+}
+
+function applyFarmName() {
+  const n = cfg.farmName;
+  document.querySelectorAll('#lFarmName,#topFarmName').forEach(el => {
+    if (el.id === 'topFarmName') el.innerHTML = n + ' <span style="opacity:0.6;font-weight:400;font-size:12px;margin-left:8px">MFIMS '+cfg.version+'</span>';
+    else el.textContent = n;
+  });
+  document.getElementById('lFarmSub').textContent = 'Management System '+cfg.version+' · MFIMS';
+  document.title = n + ' — Management System '+cfg.version;
+}
+
+function refreshLoginLabels() {
+  document.getElementById('lNameCeo').textContent = cfg.roles.ceo.name;
+  document.getElementById('lAvCeo').textContent = cfg.ceoInit;
+  document.getElementById('lNameDairy').textContent = cfg.roles.dairy_mgr.name;
+  document.getElementById('lAvDairy').textContent = cfg.dairyMgrInit;
+  document.getElementById('lDescDairy').textContent = 'Dairy Unit Manager · '+totalCows()+' cows, '+cfg.workers.length+' workers';
+  document.getElementById('lNameLayers').textContent = cfg.roles.layers_mgr.name;
+  document.getElementById('lAvLayers').textContent = cfg.layersMgrInit;
+  document.getElementById('lDescLayers').textContent = 'Layers Manager · '+cfg.houses.length+' houses, '+totalBirds()+' birds';
+  document.getElementById('lNamePig').textContent = cfg.roles.piggery_mgr.name;
+  document.getElementById('lAvPig').textContent = cfg.piggeryMgrInit;
+  document.getElementById('lDescPig').textContent = 'Piggery Head · '+cfg.sowCount+' sows';
+  document.getElementById('lNameVet').textContent = cfg.roles.vet.name;
+  document.getElementById('lAvVet').textContent = cfg.vetInit;
+}
+
+function updateSidebadges() {
+  document.getElementById('sbDairy').textContent = totalCows();
+  document.getElementById('sbLayers').textContent = totalBirds().toLocaleString();
+  document.getElementById('sbPiggery').textContent = cfg.sowCount;
+}
+
+function totalCows() { return cfg.workers.reduce((s,w)=>s+w.cows,0); }
+function totalBirds() { return cfg.houses.reduce((s,h)=>s+h.capacity,0); }
+
+/* ══════ AUTH ══════ */
+function login(role) {
+  currentRole = role;
+  const r = cfg.roles[role];
+  document.getElementById('userName').textContent = r.name;
+  document.getElementById('userRole').textContent = r.title;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  document.getElementById('settingsFab').classList.remove('hidden');
+  document.querySelectorAll('.side-item').forEach(el => {
+    const mod = el.dataset.module;
+    if (mod && !r.access.includes(mod)) {
+      el.setAttribute('data-disabled','');
+      el.onclick = () => showToast('Access restricted for your role');
+    } else if (mod) {
+      el.removeAttribute('data-disabled');
+      el.onclick = () => navTo(mod, el);
+    }
+  });
+  navTo(r.access[0], document.querySelector(`.side-item[data-module="${r.access[0]}"]`));
+}
+
+function logout() {
+  Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});
+  charts = {};
+  currentRole = null;
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('settingsFab').classList.add('hidden');
+}
+
+/* ══════ NAV ══════ */
+function navTo(mod, el) {
+  if (!currentRole) return;
+  if (!cfg.roles[currentRole].access.includes(mod)) { showToast('Access restricted'); return; }
+  currentModule = mod;
+  document.querySelectorAll('.side-item').forEach(e=>e.classList.remove('active'));
+  if (el) el.classList.add('active');
+  Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});
+  charts = {};
+  renderModule(mod);
+}
+
+function renderModule(mod) {
+  const main = document.getElementById('mainContent');
+  if (mod==='dashboard') main.innerHTML = renderDashboard();
+  else if (mod==='dairy') main.innerHTML = renderDairy();
+  else if (mod==='layers') main.innerHTML = renderLayers();
+  else if (mod==='herd') main.innerHTML = renderHerd();
+  else if (mod==='piggery') main.innerHTML = renderPiggery();
+  else if (mod==='staff') main.innerHTML = renderStaff();
+  else if (mod==='reports') main.innerHTML = renderReports();
+  setTimeout(initCharts, 50);
+}
+
+/* ══════ CALCULATIONS ══════ */
+function calcDairyTotals() {
+  const out = {};
+  ['AM','MID','PM'].forEach(s => {
+    let gross=0, entries=0;
+    cows.forEach(c => {
+      const v = dairySession.data[s][c.tag];
+      if (v !== undefined && v !== '') { gross += parseFloat(v)||0; entries++; }
+    });
+    gross = Math.round(gross*10)/10;
+    const net = entries > 0 ? Math.round((gross - cfg.youngCalves - cfg.hhDed)*10)/10 : 0;
+    out[s] = {gross, net, entries};
+  });
+  out.dayGross = Math.round((out.AM.gross+out.MID.gross+out.PM.gross)*10)/10;
+  out.dayNet   = Math.round((out.AM.net+out.MID.net+out.PM.net)*10)/10;
+  return out;
+}
+
+function calcLayersTotals() {
+  let totalEggs=0, totalStock=0, totalFeed=0, totalDead=0;
+  cfg.houses.forEach(h => {
+    const last = layersHistory.filter(r=>r.house===h.num).slice(-1)[0];
+    if (last) { totalEggs+=last.eggs; totalStock+=last.opening; totalFeed+=last.feed; totalDead+=last.dead; }
+  });
+  const trays = totalEggs/30;
+  const avgLaying = totalStock>0?(totalEggs/totalStock)*100:0;
+  return {totalEggs, totalStock, totalFeed, totalDead, trays, avgLaying};
+}
+
+/* ══════ DASHBOARD ══════ */
+function calcPiggeryTotals() {
+  const recs = piggeryHistory;
+  const totalAlive = recs.reduce((s,r)=>s+(+r.totalAlive||0),0);
+  const totalDead  = recs.reduce((s,r)=>s+(+r.dead||0),0);
+  const totalBea   = recs.reduce((s,r)=>s+(+r.beaconners||0),0);
+  const lastMonth  = recs.length>0?recs[recs.length-1].beaconners:0;
+  return {totalAlive, totalDead, totalBea, lastMonth};
+}
+function renderDashboard() {
+  const d = calcDairyTotals();
+  const l = calcLayersTotals();
+  const p = calcPiggeryTotals();
+  const lastPig = piggeryHistory.length>0 ? piggeryHistory[piggeryHistory.length-1] : null;
+  return `
+    <div class="page-hdr">
+      <div>
+        <div class="page-title">Farm Dashboard</div>
+        <div class="page-sub">Today · ${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="showToast('Refreshing live data…')">Refresh</button>
+        <button class="btn btn-primary" onclick="navTo('reports',document.querySelector('[data-module=reports]'))">View full reports</button>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Milk — net today</div>
+        <div class="kpi-val">${d.dayNet||'—'} <span style="font-size:14px;color:#888">L</span></div>
+        <div class="kpi-sub">Gross: ${d.dayGross} L · Target: ${cfg.milkTarget} L</div>
+        <span class="kpi-trend ${d.dayNet>=cfg.milkTarget*0.4?'trend-up':'trend-down'}">${d.dayNet>=cfg.milkTarget*0.4?'▲ On track':'▼ Below target'}</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Eggs — today</div>
+        <div class="kpi-val">${l.totalEggs.toLocaleString()}</div>
+        <div class="kpi-sub">${l.trays.toFixed(1)} trays · Target: ${cfg.eggsTarget.toLocaleString()}</div>
+        <span class="kpi-trend ${l.totalEggs>=cfg.eggsTarget*0.9?'trend-up':'trend-down'}">${l.avgLaying.toFixed(1)}% laying rate</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Piggery — beaconners</div>
+        <div class="kpi-val">${p.lastMonth}</div>
+        <div class="kpi-sub">Target: ${cfg.beaconnersTarget}/mo · Total alive: ${lastPig?lastPig.totalAlive:'—'}</div>
+        <span class="kpi-trend ${p.lastMonth>=cfg.beaconnersTarget?'trend-up':'trend-down'}">${p.lastMonth>=cfg.beaconnersTarget?'▲ Target met':'▼ Below target'}</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Dairy herd</div>
+        <div class="kpi-val">${totalCows()}</div>
+        <div class="kpi-sub">${cfg.workers.length} workers · ${cfg.youngCalves} calves under 4mo</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">Dairy — sessions today</div><span class="badge bg-g">Live</span></div>
+        <table class="compact">
+          <thead><tr><th>Session</th><th class="num-col">Gross</th><th class="num-col">Net</th><th class="num-col">Workers</th></tr></thead>
+          <tbody>
+            ${['AM','MID','PM'].map(s=>{const sd=d[s];const lbl=s==='AM'?'AM':s==='MID'?'Mid':'PM';return `<tr><td><strong>${lbl}</strong></td><td class="num-col">${sd.gross||'—'}</td><td class="num-col good">${sd.net||'—'}</td><td class="num-col">${dairySession.submitted[s].length}/${cfg.workers.length}</td></tr>`;}).join('')}
+            <tr style="background:#FAFAF7"><td><strong>Total</strong></td><td class="num-col"><strong>${d.dayGross}</strong></td><td class="num-col good"><strong>${d.dayNet} L</strong></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">Layers — today by house</div></div>
+        ${cfg.houses.map(h=>{const last=layersHistory.filter(r=>r.house===h.num).slice(-1)[0];if(!last)return '';const pct=(last.eggs/last.opening)*100;return `<div style="padding:8px 0;border-bottom:1px solid #F1EFE8"><div style="display:flex;justify-content:space-between;align-items:baseline"><strong style="color:${h.color};font-size:12px">${h.name}</strong><div style="font-size:15px;font-weight:700;color:${h.color}">${last.eggs.toLocaleString()}<span style="font-size:10px;color:#888"> eggs</span></div></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-top:2px"><span>${(last.eggs/30).toFixed(1)} trays</span><span class="${pct>=80?'good':pct>=70?'warn':'bad'}">${pct.toFixed(1)}% laying</span></div></div>`;}).join('')}
+      </div>
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">Piggery — latest record</div></div>
+        ${lastPig ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div style="background:#FDE8D8;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#7A2E00;text-transform:uppercase;font-weight:600">Winners</div><div style="font-size:20px;font-weight:700;color:#7A2E00">${lastPig.winners}</div></div>
+          <div style="background:#FAEEDA;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#633806;text-transform:uppercase;font-weight:600">Fatteners</div><div style="font-size:20px;font-weight:700;color:#633806">${lastPig.fatteners}</div></div>
+          <div style="background:#EAF3DE;border-radius:6px;padding:8px;text-align:center;grid-column:span 2"><div style="font-size:10px;color:#27500A;text-transform:uppercase;font-weight:600">Beaconners <span style="color:#888">(target ${cfg.beaconnersTarget}/mo)</span></div><div style="font-size:22px;font-weight:700;color:${lastPig.beaconners>=cfg.beaconnersTarget?'#27500A':'#A32D2D'}">${lastPig.beaconners} <span style="font-size:11px">${lastPig.beaconners>=cfg.beaconnersTarget?'✓':'▼ below target'}</span></div></div>
+          <div style="background:#F1EFE8;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#444;text-transform:uppercase;font-weight:600">Total Alive</div><div style="font-size:20px;font-weight:700;color:#27500A">${lastPig.totalAlive}</div></div>
+          <div style="background:#FCEBEB;border-radius:6px;padding:8px;text-align:center"><div style="font-size:10px;color:#A32D2D;text-transform:uppercase;font-weight:600">Dead</div><div style="font-size:20px;font-weight:700;color:#A32D2D">${lastPig.dead}</div></div>
+        </div>` : '<div style="text-align:center;padding:24px;color:#888;font-size:13px">No records yet</div>'}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div class="card"><div class="card-hdr"><div class="card-title">Milk — last 7 days</div></div><div class="chart-wrap"><canvas id="dashMilkChart"></canvas></div></div>
+      <div class="card"><div class="card-hdr"><div class="card-title">Egg production — last 7 days</div></div><div class="chart-wrap"><canvas id="dashEggChart"></canvas></div></div>
+      <div class="card"><div class="card-hdr"><div class="card-title">Piggery — beaconners vs target</div></div><div class="chart-wrap"><canvas id="dashPigChart"></canvas></div></div>
+    </div>`;
+}
+
+/* ══════ DAIRY ══════ */
+function renderDairy() {
+  const d = calcDairyTotals();
+  return `
+    <div class="page-hdr">
+      <div>
+        <div class="page-title">Dairy Unit — Milk Logging</div>
+        <div class="page-sub">${totalCows()} cows · ${cfg.workers.length} workers · 3 sessions/day · Calf deduction: ${cfg.youngCalves}L · Household: ${cfg.hhDed}L</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="dairySwitchMgr()">${dairySession.isMgrView?'← Back to worker view':'Manager view →'}</button>
+      </div>
+    </div>
+    <div class="dairy-sess-tabs">
+      ${['AM','MID','PM'].map(s=>`<button class="dairy-sess-btn ${dairySession.current===s?'active':''}" onclick="dairySetSession('${s}')">${s==='AM'?'AM session':s==='MID'?'Midday':'PM session'}</button>`).join('')}
+    </div>
+    ${dairySession.isMgrView ? renderDairyMgr() : renderDairyWorker()}`;
+}
+
+function renderDairyWorker() {
+  const cw = dairySession.currentWorker;
+  const myCows = cows.filter(c=>c.worker===cw);
+  const submitted = dairySession.submitted[dairySession.current].includes(cw);
+  let mySubtotal = 0;
+  myCows.forEach(c => { const v = dairySession.data[dairySession.current][c.tag]; if (v!==undefined&&v!=='') mySubtotal += parseFloat(v)||0; });
+  const workerPills = cfg.workers.map((w,i) => {
+    const done = dairySession.submitted[dairySession.current].includes(i);
+    const active = i===cw;
+    return `<button class="w-pill ${active?'active':''} ${done?'done':''}" onclick="dairySelectWorker(${i})">${w.name}${done?' ✓':''}</button>`;
+  }).join('');
+  const cowCards = myCows.map(c => {
+    const v = dairySession.data[dairySession.current][c.tag];
+    const isLow = v!==undefined&&v!==''&&parseFloat(v)<c.avg*0.75;
+    return `<div class="cow-card${isLow?' flagged':''}${submitted?' submitted':''}" id="cow-${c.tag}">
+      <div class="cow-top"><span class="cow-tag-chip">${c.tag}</span><span class="cow-avg-lbl">avg ${c.avg}L</span></div>
+      ${submitted
+        ? `<div style="font-size:16px;font-weight:600;color:${isLow?'#A32D2D':'#085041'}">${v||0} L</div>`
+        : `<div class="cow-input-row"><input class="cow-input${isLow?' flagged':''}" type="number" min="0" max="50" step="0.5" value="${v||''}" placeholder="0" oninput="dairyInput('${c.tag}',this.value)"><span class="cow-unit">L</span></div>`}
+      ${isLow?`<div class="drop-flag">▼ Below avg (${c.avg}L)</div>`:''}
+      ${c.hasCalf?`<div class="calf-badge">Calf &lt;4mo — ${c.calfInfo.tag}</div>`:''}
+    </div>`;
+  }).join('');
+  const d = calcDairyTotals(); const sd = d[dairySession.current];
+  return `
+    <div class="worker-pill-bar">${workerPills}
+      <button class="w-pill mgr ${dairySession.isMgrView?'active':''}" onclick="dairySwitchMgr()">Manager view</button>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hdr">
+          <div><div style="font-size:15px;font-weight:600;color:#27500A">${cfg.workers[cw].name}</div>
+          <div style="font-size:12px;color:#666">${myCows.length} assigned cows · ${dairySession.current==='AM'?'AM session':dairySession.current==='MID'?'Midday session':'PM session'}</div></div>
+          ${!submitted?`<button class="btn btn-primary btn-sm" onclick="dairySubmitWorker()">Submit session</button>`:`<span class="badge bg-t">✓ Submitted</span>`}
+        </div>
+        <div class="cow-grid">${cowCards}</div>
+        ${!submitted?`<div style="margin-top:14px;padding:12px 14px;background:#F5F5F3;border-radius:8px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#666">Your running subtotal</span><span style="font-size:18px;font-weight:700;color:#27500A">${mySubtotal.toFixed(1)} L</span></div>`:''}
+      </div>
+      <div>
+        <div class="card">
+          <div class="section-label">Session summary — ${dairySession.current==='AM'?'AM':dairySession.current==='MID'?'Midday':'PM'}</div>
+          <div style="font-size:26px;font-weight:700;color:#27500A">${sd.gross} L</div>
+          <div style="font-size:12px;color:#666">${dairySession.submitted[dairySession.current].length} of ${cfg.workers.length} workers submitted</div>
+          <div class="ded-panel">
+            <div class="ded-row"><span>Gross collected</span><span class="ded-val">${sd.gross} L</span></div>
+            <div class="ded-row"><span>Calves (${cfg.youngCalves} × 1L)</span><span class="ded-val minus">− ${sd.gross>0?cfg.youngCalves:0} L</span></div>
+            <div class="ded-row"><span>Household usage</span><span class="ded-val minus">− ${sd.gross>0?cfg.hhDed:0} L</span></div>
+            <div class="ded-row net"><span>Net for dispatch</span><span>${sd.net} L</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">Today across sessions</div>
+          <table class="compact">
+            <tr><td>AM</td><td class="num-col good">${d.AM.net} L</td></tr>
+            <tr><td>Midday</td><td class="num-col good">${d.MID.net} L</td></tr>
+            <tr><td>PM</td><td class="num-col good">${d.PM.net} L</td></tr>
+            <tr style="background:#FAFAF7"><td><strong>Day total</strong></td><td class="num-col" style="font-size:15px"><strong style="color:#27500A">${d.dayNet} L</strong></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderDairyMgr() {
+  const d = calcDairyTotals();
+  const workerRows = cfg.workers.map((w,i) => {
+    const myCows = cows.filter(c=>c.worker===i);
+    const tots={AM:0,MID:0,PM:0};
+    myCows.forEach(c => { ['AM','MID','PM'].forEach(s=>{const v=dairySession.data[s][c.tag];if(v!==undefined&&v!=='')tots[s]+=parseFloat(v)||0;}); });
+    const grand=tots.AM+tots.MID+tots.PM;
+    return `<tr><td>${w.name}</td><td class="num-col">${myCows.length}</td><td class="num-col">${tots.AM>0?tots.AM.toFixed(0):'—'}</td><td class="num-col">${tots.MID>0?tots.MID.toFixed(0):'—'}</td><td class="num-col">${tots.PM>0?tots.PM.toFixed(0):'—'}</td><td class="num-col good">${grand>0?grand.toFixed(0)+' L':'—'}</td></tr>`;
+  }).join('');
+  const flagged = [];
+  cows.forEach(c=>{ ['AM','MID','PM'].forEach(s=>{const v=dairySession.data[s][c.tag];if(v!==undefined&&v!==''&&parseFloat(v)>0&&parseFloat(v)<c.avg*0.75)flagged.push({tag:c.tag,session:s,got:parseFloat(v),avg:c.avg});}); });
+  return `
+    <div class="worker-pill-bar">
+      ${cfg.workers.map((w,i)=>`<button class="w-pill ${dairySession.submitted[dairySession.current].includes(i)?'done':''}" onclick="dairySelectWorker(${i})">${w.name}</button>`).join('')}
+      <button class="w-pill mgr active" onclick="dairySwitchMgr()">Manager view</button>
+    </div>
+    ${flagged.length>0?`<div class="card" style="border-color:#F09595;background:#FCEBEB"><div style="font-size:13px;color:#A32D2D"><strong>${flagged.length} yield alert${flagged.length>1?'s':''}</strong> — cows below 75% of average: ${flagged.map(f=>`<strong>${f.tag}</strong> (${f.session}: ${f.got.toFixed(1)}L vs avg ${f.avg}L)`).join(', ')}</div></div>`:''}
+    <div class="card">
+      <div class="section-label">Worker production — all sessions</div>
+      <table>
+        <thead><tr><th>Worker</th><th class="num-col">Cows</th><th class="num-col">AM</th><th class="num-col">Midday</th><th class="num-col">PM</th><th class="num-col">Total</th></tr></thead>
+        <tbody>${workerRows}
+          <tr style="background:#FAFAF7"><td><strong>TOTAL</strong></td><td class="num-col"><strong>${totalCows()}</strong></td><td class="num-col"><strong>${d.AM.gross.toFixed(0)}</strong></td><td class="num-col"><strong>${d.MID.gross.toFixed(0)}</strong></td><td class="num-col"><strong>${d.PM.gross.toFixed(0)}</strong></td><td class="num-col good"><strong>${d.dayGross.toFixed(0)} L</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-label">Daily reconciliation</div>
+      <table>
+        <thead><tr><th>Session</th><th class="num-col">Gross (L)</th><th class="num-col">Calves (−L)</th><th class="num-col">Household (−L)</th><th class="num-col">Net</th></tr></thead>
+        <tbody>
+          ${['AM','MID','PM'].map(s=>{const sd=d[s];return `<tr><td><strong>${s==='AM'?'AM':s==='MID'?'Midday':'PM'}</strong></td><td class="num-col">${sd.gross.toFixed(0)}</td><td class="num-col bad">− ${sd.gross>0?cfg.youngCalves:0}</td><td class="num-col bad">− ${sd.gross>0?cfg.hhDed:0}</td><td class="num-col good"><strong>${sd.net} L</strong></td></tr>`}).join('')}
+          <tr style="background:#FAFAF7"><td><strong>Day total</strong></td><td class="num-col"><strong>${d.dayGross.toFixed(0)}</strong></td><td class="num-col bad"><strong>− ${cfg.youngCalves*3}</strong></td><td class="num-col bad"><strong>− ${cfg.hhDed*3}</strong></td><td class="num-col good" style="font-size:15px"><strong>${d.dayNet} L</strong></td></tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function dairySetSession(s){dairySession.current=s;renderModule('dairy');}
+function dairySelectWorker(i){dairySession.currentWorker=i;dairySession.isMgrView=false;renderModule('dairy');}
+function dairySwitchMgr(){dairySession.isMgrView=!dairySession.isMgrView;renderModule('dairy');}
+function dairyInput(tag,val){
+  dairySession.data[dairySession.current][tag]=val===''?'':parseFloat(val)||0;
+  const card=document.getElementById('cow-'+tag);
+  if(card){const cow=cows.find(c=>c.tag===tag);const v=parseFloat(val)||0;const isLow=v>0&&v<cow.avg*0.75;card.classList.toggle('flagged',isLow);const inp=card.querySelector('.cow-input');if(inp)inp.classList.toggle('flagged',isLow);}
+}
+function dairySubmitWorker(){
+  const cw=dairySession.currentWorker;const myCows=cows.filter(c=>c.worker===cw);
+  const anyEntry=myCows.some(c=>dairySession.data[dairySession.current][c.tag]!==undefined&&dairySession.data[dairySession.current][c.tag]!=='');
+  if(!anyEntry){showToast('Enter at least one cow reading');return;}
+  myCows.forEach(c=>{if(dairySession.data[dairySession.current][c.tag]===undefined||dairySession.data[dairySession.current][c.tag]==='')dairySession.data[dairySession.current][c.tag]=0;});
+  if(!dairySession.submitted[dairySession.current].includes(cw))dairySession.submitted[dairySession.current].push(cw);
+  showToast(`${cfg.workers[cw].name} submitted — ${dairySession.current} session`);
+  renderModule('dairy');
+}
+
+/* ══════ LAYERS ══════ */
+function renderLayers(){
+  const house=cfg.houses.find(h=>h.num===layersSession.currentHouse);
+  const today=layersSession.today[house.num]||{openingStock:'',eggs:'',feed:'',dead:'',remarks:''};
+  const history=layersHistory.filter(r=>r.house===house.num);
+  const opening=parseFloat(today.openingStock)||0;
+  const eggs=parseFloat(today.eggs)||0;
+  const feed=parseFloat(today.feed)||0;
+  const dead=parseFloat(today.dead)||0;
+  const trays=eggs/30;
+  const pctLaying=opening>0?(eggs/opening)*100:0;
+  const closing=opening-dead;
+  const houseTabs=cfg.houses.map(h=>{
+    const active=h.num===layersSession.currentHouse;
+    return `<button class="house-tab ${active?'active':''}" onclick="layersSelectHouse(${h.num})"><div class="house-tab-icon" style="background:${h.color}">${h.num}</div><div class="house-tab-info"><div class="house-tab-name">${h.name}</div><div class="house-tab-cap">${h.capacity.toLocaleString()} birds</div></div></button>`;
+  }).join('');
+  const histRows=history.slice(-7).reverse().map(r=>{
+    const dt=new Date(r.date);
+    return `<tr><td>${dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</td><td class="num-col">${r.dayAge}</td><td class="num-col">${r.opening.toLocaleString()}</td><td class="num-col">${r.eggs.toLocaleString()}</td><td class="num-col">${(r.eggs/30).toFixed(1)}</td><td class="num-col ${r.pctLaying>=80?'good':r.pctLaying>=70?'warn':'bad'}">${r.pctLaying.toFixed(1)}%</td><td class="num-col">${r.feed.toFixed(1)}</td><td class="num-col">${r.dead}</td><td class="num-col">${r.closing.toLocaleString()}</td></tr>`;
+  }).join('');
+  return `
+    <div class="page-hdr">
+      <div><div class="page-title">Layers Unit — Daily Production</div><div class="page-sub">${cfg.houses.length} houses · ${totalBirds().toLocaleString()} birds total · Auto-calc: trays (÷30), % laying, closing stock</div></div>
+      <div class="page-actions"><button class="btn btn-primary" onclick="layersSubmit()">Submit today's entry</button></div>
+    </div>
+    <div class="house-tabs">${houseTabs}</div>
+    <div class="layers-qe-form">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:14px;font-weight:600;color:${house.color}">Daily entry — ${house.name}</div>
+        <div style="font-size:12px;color:#666">${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long'})} · Capacity ${house.capacity.toLocaleString()}</div></div>
+        <div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em">Auto-calc preview</div>
+        <div style="display:flex;gap:16px;font-size:12px;margin-top:4px">
+          <div><span style="color:#888">Trays:</span> <strong style="color:#633806">${trays.toFixed(2)}</strong></div>
+          <div><span style="color:#888">% Laying:</span> <strong style="color:${pctLaying>=80?'#27500A':pctLaying>=70?'#854F0B':'#A32D2D'}">${pctLaying.toFixed(1)}%</strong></div>
+          <div><span style="color:#888">Closing:</span> <strong style="color:#633806">${closing.toLocaleString()}</strong></div>
+        </div></div>
+      </div>
+      <div class="layers-qe-grid">
+        <div class="layers-qe-field"><label>Opening stock</label><input type="number" value="${today.openingStock||''}" oninput="layersUpdate('openingStock',this.value)" placeholder="0"/></div>
+        <div class="layers-qe-field"><label>Eggs collected</label><input type="number" value="${today.eggs||''}" oninput="layersUpdate('eggs',this.value)" placeholder="0"/></div>
+        <div class="layers-qe-field auto"><label>Trays (auto ÷30)</label><input type="text" readonly value="${eggs>0?trays.toFixed(2):''}" /></div>
+        <div class="layers-qe-field auto"><label>% Laying (auto)</label><input type="text" readonly value="${eggs>0&&opening>0?pctLaying.toFixed(1)+'%':''}"/></div>
+        <div class="layers-qe-field"><label>Feed (kg)</label><input type="number" step="0.1" value="${today.feed||''}" oninput="layersUpdate('feed',this.value)" placeholder="0"/></div>
+        <div class="layers-qe-field"><label>Dead removed</label><input type="number" value="${today.dead||''}" oninput="layersUpdate('dead',this.value)" placeholder="0"/></div>
+        <div class="layers-qe-field auto"><label>Closing stock (auto)</label><input type="text" readonly value="${opening>0?closing.toLocaleString():''}"/></div>
+        <div class="layers-qe-field" style="grid-column:span 2"><label>Remarks</label><input type="text" value="${today.remarks||''}" oninput="layersUpdate('remarks',this.value)" placeholder="Observations, weather, etc."/></div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">${house.name} — last 7 days</div><span class="badge bg-a">Auto-logged</span></div>
+        <table class="compact">
+          <thead><tr><th>Date</th><th class="num-col">Age (d)</th><th class="num-col">Opening</th><th class="num-col">Eggs</th><th class="num-col">Trays</th><th class="num-col">% Lay</th><th class="num-col">Feed (kg)</th><th class="num-col">Dead</th><th class="num-col">Closing</th></tr></thead>
+          <tbody>${histRows}</tbody>
+        </table>
+      </div>
+      <div class="card"><div class="section-label">Production trend — last 7 days</div><div class="chart-wrap"><canvas id="layersTrendChart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="section-label">All houses — today's snapshot</div>
+      <table>
+        <thead><tr><th>House</th><th class="num-col">Capacity</th><th class="num-col">Current stock</th><th class="num-col">Eggs today</th><th class="num-col">Trays</th><th class="num-col">% Laying</th><th class="num-col">Feed (kg)</th></tr></thead>
+        <tbody>
+          ${cfg.houses.map(h=>{
+            const last=layersHistory.filter(r=>r.house===h.num).slice(-1)[0];
+            if(!last)return '';
+            return `<tr><td><strong style="color:${h.color}">${h.name}</strong></td><td class="num-col">${h.capacity.toLocaleString()}</td><td class="num-col">${last.opening.toLocaleString()}</td><td class="num-col">${last.eggs.toLocaleString()}</td><td class="num-col">${(last.eggs/30).toFixed(1)}</td><td class="num-col ${last.pctLaying>=80?'good':'warn'}">${last.pctLaying.toFixed(1)}%</td><td class="num-col">${last.feed.toFixed(1)}</td></tr>`;
+          }).join('')}
+          <tr style="background:#FAFAF7"><td><strong>TOTAL</strong></td><td class="num-col"><strong>${totalBirds().toLocaleString()}</strong></td><td colspan="5"></td></tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function layersSelectHouse(n){layersSession.currentHouse=n;renderModule('layers');}
+function layersUpdate(field,val){
+  layersSession.today[layersSession.currentHouse][field]=val;
+  const house=cfg.houses.find(h=>h.num===layersSession.currentHouse);
+  const today=layersSession.today[house.num];
+  const opening=parseFloat(today.openingStock)||0;
+  const eggs=parseFloat(today.eggs)||0;
+  const dead=parseFloat(today.dead)||0;
+  const autoInputs=document.querySelectorAll('.layers-qe-field.auto input');
+  if(autoInputs.length>=3){
+    autoInputs[0].value=eggs>0?(eggs/30).toFixed(2):'';
+    autoInputs[1].value=eggs>0&&opening>0?((eggs/opening)*100).toFixed(1)+'%':'';
+    autoInputs[2].value=opening>0?(opening-dead).toLocaleString():'';
+  }
+}
+function layersSubmit(){
+  const house=cfg.houses.find(h=>h.num===layersSession.currentHouse);
+  const today=layersSession.today[house.num];
+  if(!today.eggs||!today.openingStock){showToast('Enter opening stock and eggs collected');return;}
+  const opening=parseFloat(today.openingStock)||0;
+  const eggs=parseFloat(today.eggs)||0;
+  const dead=parseFloat(today.dead)||0;
+  const lastEntry=layersHistory.filter(r=>r.house===house.num).slice(-1)[0];
+  layersHistory.push({
+    date:new Date().toISOString().split('T')[0],house:house.num,
+    dayAge:lastEntry?lastEntry.dayAge+1:211,opening,eggs,trays:eggs/30,
+    pctLaying:opening>0?(eggs/opening)*100:0,feed:parseFloat(today.feed)||0,
+    dead,closing:opening-dead,remarks:today.remarks||''
+  });
+  layersSession.today[house.num]={openingStock:opening-dead,eggs:'',feed:'',dead:'',remarks:''};
+  showToast(`${house.name} entry logged · ${eggs} eggs, ${(eggs/30).toFixed(1)} trays`);
+  renderModule('layers');
+}
+
+/* ══════ HERD REGISTRY ══════ */
+function renderHerd(){
+  const selected=cows.find(c=>c.tag===herdSelected)||cows[0];
+  const listHtml=cows.slice(0,40).map(c=>{
+    const active=c.tag===herdSelected;
+    return `<div class="herd-item ${active?'active':''}" onclick="herdSelect('${c.tag}')">
+      <div class="herd-avatar">${c.tag.slice(-3)}</div>
+      <div style="flex:1;min-width:0"><div class="herd-item-title">${c.tag}</div><div class="herd-item-sub">${c.breed} · ${c.workerName}</div>${c.hasCalf?'<span class="badge bg-a" style="margin-top:3px;display:inline-block">Calf</span>':''}</div>
+    </div>`;
+  }).join('');
+  const vaccRows=cfg.vaccines.map(v=>`<tr><td>${v.name}</td><td>${v.last}</td><td>${v.next}</td><td><span class="badge ${v.status==='Current'?'bg-g':v.status==='Due Soon'?'bg-a':'bg-r'}">${v.status}</span></td></tr>`).join('');
+  return `
+    <div class="page-hdr"><div><div class="page-title">Herd Registry</div><div class="page-sub">${totalCows()} cow profiles · identity · calving · vaccination</div></div></div>
+    <div class="herd-layout">
+      <div class="herd-list">
+        <div class="herd-search"><input type="text" placeholder="Search tag or breed..." onkeyup="herdFilter(this.value)"/></div>
+        <div id="herdListBody">${listHtml}</div>
+        <div style="padding:10px;text-align:center;font-size:11px;color:#888">Showing 40 of ${totalCows()} · scroll for more</div>
+      </div>
+      <div>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+            <div class="herd-avatar" style="width:48px;height:48px;font-size:12px">${selected.tag.slice(-3)}</div>
+            <div>
+              <div style="font-size:18px;font-weight:700;color:#27500A">${selected.tag}</div>
+              <div style="font-size:13px;color:#666">${selected.breed} · ${selected.origin} · Worker: ${selected.workerName}</div>
+              <div style="margin-top:5px">
+                <span class="badge bg-g">Milking</span>
+                <span class="badge bg-${selected.origin==='Exotic'?'b':'t'}">${selected.origin}</span>
+                ${selected.hasCalf?`<span class="badge bg-a">Calf ${selected.calfInfo.tag} (${selected.calfInfo.ageM}mo)</span>`:''}
+              </div>
+            </div>
+            <div style="margin-left:auto;text-align:right"><div style="font-size:24px;font-weight:700;color:#3B6D11">${selected.avg} L</div><div style="font-size:11px;color:#888;text-transform:uppercase">Avg/session</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-label">Vaccination history</div>
+          <table class="compact"><thead><tr><th>Vaccine</th><th>Last given</th><th>Next due</th><th>Status</th></tr></thead>
+          <tbody>${vaccRows}</tbody></table>
+        </div>
+        ${selected.hasCalf?`<div class="card"><div class="section-label">Calf records</div><table class="compact"><thead><tr><th>Calf tag</th><th>Sex</th><th>Age</th><th>Status</th></tr></thead><tbody><tr><td><strong>${selected.calfInfo.tag}</strong></td><td>Heifer</td><td>${selected.calfInfo.ageM} months</td><td><span class="badge bg-g">Healthy</span></td></tr></tbody></table></div>`:''}
+      </div>
+    </div>`;
+}
+function herdSelect(tag){herdSelected=tag;renderModule('herd');}
+function herdFilter(q){
+  const lc=q.toLowerCase();
+  const filtered=cows.filter(c=>!lc||c.tag.toLowerCase().includes(lc)||c.breed.toLowerCase().includes(lc)).slice(0,40);
+  document.getElementById('herdListBody').innerHTML=filtered.map(c=>`<div class="herd-item ${c.tag===herdSelected?'active':''}" onclick="herdSelect('${c.tag}')"><div class="herd-avatar">${c.tag.slice(-3)}</div><div><div class="herd-item-title">${c.tag}</div><div class="herd-item-sub">${c.breed} · ${c.workerName}</div></div></div>`).join('');
+}
+
+/* ══════ PIGGERY ══════ */
+function calcPiggeryMonthTotal() {
+  const now = new Date();
+  const ym = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  return piggeryHistory.filter(r=>r.date&&r.date.startsWith(ym)).reduce((s,r)=>s+(+r.beaconners||0),0);
+}
+function renderPiggery(){
+  const t = piggeryToday;
+  const winners   = parseFloat(t.winners)||0;
+  const fatteners = parseFloat(t.fatteners)||0;
+  const beaconners= parseFloat(t.beaconners)||0;
+  const dead      = parseFloat(t.dead)||0;
+  const totalAlive= winners+fatteners+beaconners;
+  const monthBea  = calcPiggeryMonthTotal();
+  const histRows = piggeryHistory.slice().reverse().slice(0,10).map((r,i)=>{
+    const dt = new Date(r.date);
+    const beaOk = r.beaconners >= cfg.beaconnersTarget;
+    return `<tr>
+      <td>${dt.toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'})}</td>
+      <td>${r.dateOfService?new Date(r.dateOfService).toLocaleDateString('en-KE',{day:'numeric',month:'short'}):'—'}</td>
+      <td class="num-col">${r.expectantSows}</td>
+      <td class="num-col">${r.dayOfFarrowing}</td>
+      <td class="num-col" style="color:#7A2E00;font-weight:600">${r.winners}</td>
+      <td class="num-col" style="color:#633806;font-weight:600">${r.fatteners}</td>
+      <td class="num-col ${beaOk?'good':'warn'}">${r.beaconners}${beaOk?' ✓':''}</td>
+      <td class="num-col good">${r.totalAlive}</td>
+      <td class="num-col bad">${r.dead}</td>
+      <td><button class="del-btn" onclick="deletePigRecord(${piggeryHistory.length-1-i})">✕</button></td>
+    </tr>`;
+  }).join('');
+  const totW=piggeryHistory.reduce((s,r)=>s+(+r.winners||0),0);
+  const totF=piggeryHistory.reduce((s,r)=>s+(+r.fatteners||0),0);
+  const totB=piggeryHistory.reduce((s,r)=>s+(+r.beaconners||0),0);
+  const totA=piggeryHistory.reduce((s,r)=>s+(+r.totalAlive||0),0);
+  const totD=piggeryHistory.reduce((s,r)=>s+(+r.dead||0),0);
+
+  return `
+    <div class="page-hdr">
+      <div>
+        <div class="page-title">Piggery Unit — Production Records</div>
+        <div class="page-sub">${cfg.sowCount} sows · Manager: ${cfg.roles.piggery_mgr.name} · Gestation ${cfg.gestation}d · Beaconners target: ${cfg.beaconnersTarget}/month</div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="piggerySubmit()">+ Log Farrowing Entry</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Total Sows</div>
+        <div class="kpi-val">${cfg.sowCount}</div>
+        <div class="kpi-sub">Active breeding herd · ${cfg.gestation}d gestation</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Beaconners this month</div>
+        <div class="kpi-val" style="color:${monthBea>=cfg.beaconnersTarget?'#27500A':'#A32D2D'}">${monthBea}</div>
+        <div class="kpi-sub">Target: ${cfg.beaconnersTarget}/month</div>
+        <span class="kpi-trend ${monthBea>=cfg.beaconnersTarget?'trend-up':'trend-down'}">${monthBea>=cfg.beaconnersTarget?'▲ Target met':'▼ Below target'}</span>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Total piglets alive</div>
+        <div class="kpi-val">${totA}</div>
+        <div class="kpi-sub">Across ${piggeryHistory.length} farrowing records</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Total mortality</div>
+        <div class="kpi-val" style="color:#A32D2D">${totD}</div>
+        <div class="kpi-sub">Survival rate: ${totA+totD>0?((totA/(totA+totD))*100).toFixed(1):0}%</div>
+      </div>
+    </div>
+
+    <!-- ENTRY FORM (Layers QE style) -->
+    <div class="layers-qe-form" style="border:2px solid #C47B0A">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#7A2E00">🐷 New Farrowing Entry</div>
+          <div style="font-size:12px;color:#666">${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long'})} · Auto-calc: Total alive = Winners + Fatteners + Beaconners</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.05em">Auto-calc preview</div>
+          <div style="display:flex;gap:16px;font-size:12px;margin-top:4px">
+            <div><span style="color:#888">Total alive:</span> <strong style="color:#27500A">${totalAlive}</strong></div>
+            <div><span style="color:#888">Beaconners vs target:</span> <strong style="color:${beaconners>=cfg.beaconnersTarget?'#27500A':beaconners>0?'#A32D2D':'#888'}">${beaconners>0?(beaconners>=cfg.beaconnersTarget?'✓ Met':'▼ Below'):'—'}</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="layers-qe-grid">
+        <div class="layers-qe-field"><label>Date of Farrowing</label><input type="date" id="pig_date" value="${t.date||new Date().toISOString().split('T')[0]}" oninput="piggeryToday.date=this.value"/></div>
+        <div class="layers-qe-field"><label>Date of Service</label><input type="date" id="pig_dos" value="${t.dateOfService||''}" oninput="piggeryToday.dateOfService=this.value"/></div>
+        <div class="layers-qe-field"><label>Expectant Sows</label><input type="number" id="pig_exp" value="${t.expectantSows||''}" oninput="piggeryToday.expectantSows=this.value;pigAutoCalc()" placeholder="0"/></div>
+        <div class="layers-qe-field"><label>Day of Farrowing</label><input type="number" id="pig_dof" value="${t.dayOfFarrowing||''}" oninput="piggeryToday.dayOfFarrowing=this.value" placeholder="${cfg.gestation}"/></div>
+        <div class="layers-qe-field"><label>No. of Winners</label><input type="number" id="pig_win" value="${t.winners||''}" oninput="piggeryToday.winners=this.value;pigAutoCalc()" placeholder="0"/></div>
+        <div class="layers-qe-field"><label>No. of Fatteners</label><input type="number" id="pig_fat" value="${t.fatteners||''}" oninput="piggeryToday.fatteners=this.value;pigAutoCalc()" placeholder="0"/></div>
+        <div class="layers-qe-field"><label>No. of Beaconners</label><input type="number" id="pig_bea" value="${t.beaconners||''}" oninput="piggeryToday.beaconners=this.value;pigAutoCalc()" placeholder="0" style="border-color:${beaconners>=cfg.beaconnersTarget&&beaconners>0?'#1D9E75':beaconners>0&&beaconners<cfg.beaconnersTarget?'#E24B4A':''}"/></div>
+        <div class="layers-qe-field auto"><label>Total Alive (auto)</label><input type="text" readonly value="${totalAlive>0?totalAlive:''}"/></div>
+        <div class="layers-qe-field"><label>Dead Piglets</label><input type="number" id="pig_dead" value="${t.dead||''}" oninput="piggeryToday.dead=this.value" placeholder="0"/></div>
+        <div class="layers-qe-field" style="grid-column:span 2"><label>Remarks</label><input type="text" id="pig_rem" value="${t.remarks||''}" oninput="piggeryToday.remarks=this.value" placeholder="Observations, health notes, etc."/></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button class="btn" onclick="piggeryClear()">Clear</button>
+        <button class="btn btn-primary" onclick="piggerySubmit()">✓ Save Farrowing Record</button>
+      </div>
+    </div>
+
+    <!-- HISTORY TABLE + CHART -->
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-title">Farrowing records — last 10 entries</div>
+          <span class="badge bg-a">${piggeryHistory.length} total records</span>
+        </div>
+        ${piggeryHistory.length===0
+          ? `<div style="text-align:center;padding:32px;color:#888;font-size:13px">No records yet. Fill in the form above and click <strong>Save</strong>.</div>`
+          : `<div style="overflow-x:auto"><table class="compact">
+            <thead><tr>
+              <th>Farrow Date</th><th>Date of Service</th>
+              <th class="num-col">Expectant Sows</th>
+              <th class="num-col">Day Farrow</th>
+              <th class="num-col">Winners</th>
+              <th class="num-col">Fatteners</th>
+              <th class="num-col">Beaconners</th>
+              <th class="num-col">Total Alive</th>
+              <th class="num-col">Dead</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              ${histRows}
+              <tr style="background:#FAFAF7;font-weight:600">
+                <td colspan="4"><strong>TOTALS</strong></td>
+                <td class="num-col" style="color:#7A2E00"><strong>${totW}</strong></td>
+                <td class="num-col" style="color:#633806"><strong>${totF}</strong></td>
+                <td class="num-col good"><strong>${totB}</strong></td>
+                <td class="num-col good"><strong>${totA}</strong></td>
+                <td class="num-col bad"><strong>${totD}</strong></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table></div>`}
+      </div>
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">Production trend — piglets</div><span class="badge bg-a">Agricultural chart</span></div>
+        <div class="chart-wrap"><canvas id="piggeryTrendChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- BEACONNERS PROGRESS BAR -->
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Beaconners monthly progress vs target (${cfg.beaconnersTarget}/month)</div></div>
+      <div class="chart-wrap" style="height:200px"><canvas id="piggeryBeaChart"></canvas></div>
+    </div>`;
+}
+
+function pigAutoCalc(){
+  const w=parseFloat(piggeryToday.winners)||0;
+  const f=parseFloat(piggeryToday.fatteners)||0;
+  const b=parseFloat(piggeryToday.beaconners)||0;
+  const total=w+f+b;
+  const autoInputs=document.querySelectorAll('.layers-qe-field.auto input');
+  if(autoInputs.length>0) autoInputs[0].value = total>0?total:'';
+}
+function piggeryClear(){
+  Object.keys(piggeryToday).forEach(k=>piggeryToday[k]='');
+  renderModule('piggery');
+}
+function piggerySubmit(){
+  const t=piggeryToday;
+  if(!t.winners&&!t.beaconners&&!t.fatteners){showToast('Enter at least one piglet count');return;}
+  const w=parseFloat(t.winners)||0;const f=parseFloat(t.fatteners)||0;const b=parseFloat(t.beaconners)||0;
+  piggeryHistory.push({
+    date:t.date||new Date().toISOString().split('T')[0],
+    dateOfService:t.dateOfService||'',
+    expectantSows:parseFloat(t.expectantSows)||0,
+    dayOfFarrowing:parseFloat(t.dayOfFarrowing)||cfg.gestation,
+    winners:w, fatteners:f, beaconners:b,
+    totalAlive:w+f+b, dead:parseFloat(t.dead)||0,
+    remarks:t.remarks||''
+  });
+  Object.keys(piggeryToday).forEach(k=>piggeryToday[k]='');
+  showToast('Farrowing record saved ✓ · '+b+' beaconners logged');
+  renderModule('piggery');
+}
+function deletePigRecord(i){
+  if(!confirm('Delete this record?'))return;
+  piggeryHistory.splice(i,1);
+  renderModule('piggery');
+}
+
+/* ══════ STAFF ══════ */
+function renderStaff(){
+  const all=[
+    ...cfg.mgmtStaff,
+    ...cfg.workers.map(w=>({role:'Dairy Worker',name:w.name,unit:'Dairy',rate:'600/day'}))
+  ];
+  return `<div class="page-hdr"><div><div class="page-title">Staff &amp; Labour</div><div class="page-sub">${all.length} team members · Payroll managed in this module</div></div></div>
+    <div class="card"><table>
+      <thead><tr><th>Name</th><th>Role</th><th>Unit</th><th>Rate</th></tr></thead>
+      <tbody>${all.map(p=>`<tr><td><strong>${p.name}</strong></td><td>${p.role}</td><td>${p.unit}</td><td class="num-col">${p.rate}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+/* ══════ REPORTS ══════ */
+function renderReports(){
+  const d=calcDairyTotals();const l=calcLayersTotals();
+  return `<div class="page-hdr"><div><div class="page-title">Reports</div><div class="page-sub">Production, financial &amp; compliance reporting</div></div></div>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Today's milk (net)</div><div class="kpi-val">${d.dayNet} L</div></div>
+      <div class="kpi"><div class="kpi-label">Today's eggs</div><div class="kpi-val">${l.totalEggs.toLocaleString()}</div></div>
+      <div class="kpi"><div class="kpi-label">Today's trays</div><div class="kpi-val">${l.trays.toFixed(1)}</div></div>
+      <div class="kpi"><div class="kpi-label">Flock mortality (today)</div><div class="kpi-val">${l.totalDead}</div></div>
+    </div>
+    <div class="card">
+      <div class="section-label">Available reports</div>
+      <table><thead><tr><th>Report</th><th>Frequency</th><th>Last generated</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong>Daily CEO summary</strong></td><td>Daily 07:30</td><td>Today 07:30</td><td><button class="btn btn-sm" onclick="showToast('PDF export in progress…')">Export PDF</button></td></tr>
+        <tr><td>Dairy production (monthly)</td><td>Monthly</td><td>31 Mar ${cfg.year}</td><td><button class="btn btn-sm" onclick="showToast('CSV export ready')">Export CSV</button></td></tr>
+        <tr><td>Layers production (monthly)</td><td>Monthly</td><td>31 Mar ${cfg.year}</td><td><button class="btn btn-sm" onclick="showToast('CSV export ready')">Export CSV</button></td></tr>
+        <tr><td>Vaccination schedule</td><td>Weekly</td><td>Yesterday</td><td><button class="btn btn-sm" onclick="showToast('Generated')">Generate</button></td></tr>
+        <tr><td>Payroll (dairy workers)</td><td>Monthly</td><td>31 Mar ${cfg.year}</td><td><button class="btn btn-sm" onclick="showToast('Generated')">Generate</button></td></tr>
+      </tbody></table>
+    </div>`;
+}
+
+/* ══════ CHARTS ══════ */
+function initCharts(){
+  if(currentModule==='dashboard'){
+    const milkEl=document.getElementById('dashMilkChart');
+    if(milkEl){
+      const labels=[];const today=new Date();
+      for(let i=6;i>=0;i--){const dt=new Date(today);dt.setDate(today.getDate()-i);labels.push(dt.toLocaleDateString('en-KE',{weekday:'short'}));}
+      const data=[620,585,640,615,600,630,calcDairyTotals().dayNet];
+      charts.milk=new Chart(milkEl,{type:'line',data:{labels,datasets:[{label:'Net litres',data,borderColor:'#3B6D11',backgroundColor:'rgba(99,153,34,0.1)',tension:0.3,fill:true,pointBackgroundColor:'#27500A'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:false,grid:{color:'#F1EFE8'}}}}});
+    }
+    const eggEl=document.getElementById('dashEggChart');
+    if(eggEl){
+      const labels=[];const today=new Date();
+      for(let i=6;i>=0;i--){const dt=new Date(today);dt.setDate(today.getDate()-i);labels.push(dt.toLocaleDateString('en-KE',{weekday:'short'}));}
+      const datasets=cfg.houses.map((h,hi)=>({
+        label:h.name,
+        data:Array.from({length:7},(_,di)=>{const rec=layersHistory.filter(r=>r.house===h.num)[di];return rec?rec.eggs:0;}),
+        backgroundColor:h.color
+      }));
+      charts.egg=new Chart(eggEl,{type:'bar',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#F1EFE8'}}}}});
+    }
+    const pigDashEl=document.getElementById('dashPigChart');
+    if(pigDashEl){
+      const recent=piggeryHistory.slice(-7);
+      const labels=recent.map(r=>new Date(r.date).toLocaleDateString('en-KE',{day:'numeric',month:'short'}));
+      charts.pigdash=new Chart(pigDashEl,{
+        type:'bar',
+        data:{labels,datasets:[
+          {label:'Beaconners',data:recent.map(r=>r.beaconners),backgroundColor:'rgba(59,109,17,0.75)',borderColor:'#27500A',borderWidth:1},
+          {label:'Target',data:recent.map(()=>cfg.beaconnersTarget),type:'line',borderColor:'#EF9F27',backgroundColor:'transparent',borderDash:[5,5],pointRadius:0,tension:0}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,grid:{color:'#F1EFE8'}},x:{grid:{display:false}}}}
+      });
+    }
+  }
+  if(currentModule==='layers'){
+    const trendEl=document.getElementById('layersTrendChart');
+    if(trendEl){
+      const house=layersSession.currentHouse;
+      const data=layersHistory.filter(r=>r.house===house).slice(-7);
+      charts.trend=new Chart(trendEl,{type:'line',data:{labels:data.map(r=>new Date(r.date).toLocaleDateString('en-KE',{day:'numeric',month:'short'})),datasets:[{label:'Eggs',data:data.map(r=>r.eggs),borderColor:'#3B6D11',backgroundColor:'rgba(99,153,34,0.1)',tension:0.3,fill:true,yAxisID:'y'},{label:'% Laying',data:data.map(r=>r.pctLaying),borderColor:'#854F0B',backgroundColor:'transparent',tension:0.3,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{position:'left',grid:{color:'#F1EFE8'}},y1:{position:'right',min:60,max:100,grid:{display:false}}}}});
+    }
+  }
+  if(currentModule==='piggery'){
+    const trendEl=document.getElementById('piggeryTrendChart');
+    if(trendEl && piggeryHistory.length>0){
+      const data=piggeryHistory.slice(-8);
+      const labels=data.map(r=>new Date(r.date).toLocaleDateString('en-KE',{day:'numeric',month:'short'}));
+      charts.pigTrend=new Chart(trendEl,{
+        type:'bar',
+        data:{labels,datasets:[
+          {label:'Winners',   data:data.map(r=>r.winners),   backgroundColor:'#854F0B',stack:'s'},
+          {label:'Fatteners', data:data.map(r=>r.fatteners), backgroundColor:'#EF9F27',stack:'s'},
+          {label:'Beaconners',data:data.map(r=>r.beaconners),backgroundColor:'#3B6D11',stack:'s'},
+          {label:'Dead',      data:data.map(r=>r.dead),      backgroundColor:'#E24B4A',stack:'d'},
+          {label:'Target',    data:data.map(()=>cfg.beaconnersTarget),type:'line',borderColor:'#185FA5',backgroundColor:'transparent',borderDash:[6,3],pointRadius:0,tension:0,stack:undefined}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},
+          scales:{x:{stacked:true,grid:{display:false}},y:{stacked:false,grid:{color:'#F1EFE8'},beginAtZero:true}}}
+      });
+    }
+    const beaEl=document.getElementById('piggeryBeaChart');
+    if(beaEl && piggeryHistory.length>0){
+      const data=piggeryHistory.slice(-8);
+      const labels=data.map(r=>new Date(r.date).toLocaleDateString('en-KE',{day:'numeric',month:'short'}));
+      charts.pigBea=new Chart(beaEl,{
+        type:'bar',
+        data:{labels,datasets:[
+          {label:'Beaconners',data:data.map(r=>r.beaconners),
+           backgroundColor:data.map(r=>r.beaconners>=cfg.beaconnersTarget?'rgba(39,80,10,0.8)':'rgba(226,75,74,0.7)'),
+           borderColor:data.map(r=>r.beaconners>=cfg.beaconnersTarget?'#27500A':'#A32D2D'),
+           borderWidth:1.5},
+          {label:`Target (${cfg.beaconnersTarget})`,data:data.map(()=>cfg.beaconnersTarget),type:'line',borderColor:'#EF9F27',backgroundColor:'transparent',borderWidth:2,borderDash:[6,3],pointRadius:0,tension:0}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{font:{size:11}}},
+            annotation:{annotations:{targetLine:{type:'line',yMin:cfg.beaconnersTarget,yMax:cfg.beaconnersTarget,borderColor:'#EF9F27',borderWidth:2,borderDash:[6,3]}}}},
+          scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#F1EFE8'}}}}
+      });
+    }
+  }
+}
+
+/* ══════ TOAST ══════ */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
