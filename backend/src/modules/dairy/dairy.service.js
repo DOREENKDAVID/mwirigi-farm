@@ -4,10 +4,24 @@ import prisma from "../../prisma/client.js";
 // COW SERVICES
 //////////////////////////////////////////////////////
 
+// Statuses that require a `statusReason` — surfaces in the herd table
+// and reports so the why is visible without joining Treatment.
+const STATUSES_REQUIRING_REASON = new Set(["SICK", "DRY_OFF"]);
+
+const assertStatusReasonIfRequired = (status, statusReason) => {
+  if (!STATUSES_REQUIRING_REASON.has(status)) return;
+  const trimmed = typeof statusReason === "string" ? statusReason.trim() : "";
+  if (trimmed.length === 0) {
+    throw new Error(`A reason is required when status is ${status}`);
+  }
+};
+
 export const createCow = async (input) => {
   const tag = input.tag;
   const normalizedTag =
     tag.trim().charAt(0).toUpperCase() + tag.trim().slice(1).toLowerCase();
+
+  assertStatusReasonIfRequired(input.status, input.statusReason);
 
   const existingCow = await prisma.cow.findUnique({
     where: { tag: normalizedTag },
@@ -34,6 +48,7 @@ export const createCow = async (input) => {
       breed: input.breed,
       dateOfBirth: input.dateOfBirth,
       status: input.status,
+      statusReason: trimOrNull(input.statusReason),
       houseId: input.houseId ?? null,
       workerId: resolvedWorkerId,
       // Extended Register Cow fields. Coerce empty strings → null so
@@ -177,12 +192,28 @@ export const getCowByTag = async (tag) => {
 export const updateCow = async (tag, data) => {
   const normalizedTag =
     tag.trim().charAt(0).toUpperCase() + tag.trim().slice(1).toLowerCase();
+
+  // If status is being changed to SICK / DRY_OFF, require a reason.
+  // Use the incoming statusReason if provided, otherwise fall back to
+  // whatever is already on the row so an existing reason isn't lost.
+  if (data.status !== undefined && STATUSES_REQUIRING_REASON.has(data.status)) {
+    const incomingReason =
+      data.statusReason !== undefined
+        ? data.statusReason
+        : (await prisma.cow.findUnique({
+            where: { tag: normalizedTag },
+            select: { statusReason: true },
+          }))?.statusReason;
+    assertStatusReasonIfRequired(data.status, incomingReason);
+  }
+
   // Only forward known fields so updates can't sneak past validation.
   const safe = {};
   for (const key of [
     "breed",
     "dateOfBirth",
     "status",
+    "statusReason",
     "houseId",
     "workerId",
     // Extended Register Cow fields — same allowlist on update.

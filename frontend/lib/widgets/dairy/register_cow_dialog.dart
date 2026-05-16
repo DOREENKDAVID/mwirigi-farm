@@ -65,6 +65,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
   late final TextEditingController _tag;
   late final TextEditingController _nickname;
   late final TextEditingController _notes;
+  late final TextEditingController _statusReason;
 
   Breed? _breed;
   BreedOrigin? _breedOrigin;
@@ -94,6 +95,9 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
 
   bool get _isEdit => widget.cow != null;
 
+  bool get _statusRequiresReason =>
+      _status == CowStatus.sick || _status == CowStatus.dryOff;
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +105,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
     _tag = TextEditingController(text: c?.tag ?? '');
     _nickname = TextEditingController(text: c?.nickname ?? '');
     _notes = TextEditingController(text: c?.healthNotes ?? '');
+    _statusReason = TextEditingController(text: c?.statusReason ?? '');
     _breed = c?.breed;
     _breedOrigin = BreedOrigin.fromWire(c?.breedOrigin);
     _status = c?.status ?? CowStatus.milking;
@@ -119,6 +124,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
     _tag.dispose();
     _nickname.dispose();
     _notes.dispose();
+    _statusReason.dispose();
     super.dispose();
   }
 
@@ -192,11 +198,20 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
   Future<void> _submit() async {
     final ok = _formKey.currentState?.validate() ?? false;
     if (!ok) return;
+    if (_dob == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Date of birth is required')),
+      );
+      return;
+    }
     if (!await _uploadIfNeeded()) return;
 
     final body = <String, dynamic>{
       'tag': _tag.text.trim(),
       'status': _status.wire,
+      'statusReason': _statusRequiresReason
+          ? _statusReason.text.trim()
+          : null,
       'nickname': _nickname.text.trim().isEmpty ? null : _nickname.text.trim(),
       'imageUrl': _imageUrl,
       'breedOrigin': _breedOrigin?.wire,
@@ -346,7 +361,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
                 const SizedBox(height: 14),
                 _TwoCol(
                   left: _Field(
-                    label: 'DATE OF BIRTH',
+                    label: 'DATE OF BIRTH *',
                     child: _DatePickerField(
                       value: _dob,
                       format: dateFmt,
@@ -364,7 +379,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
                     ),
                   ),
                   right: _Field(
-                    label: 'BREED',
+                    label: 'BREED *',
                     child: DropdownButtonFormField<Breed>(
                       initialValue: _breed,
                       decoration: _decoration(),
@@ -376,6 +391,7 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
                       onChanged: _submitting
                           ? null
                           : (v) => setState(() => _breed = v),
+                      validator: (v) => v == null ? 'Breed is required' : null,
                     ),
                   ),
                 ),
@@ -415,6 +431,28 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
                     ),
                   ),
                 ),
+                if (_statusRequiresReason) ...[
+                  const SizedBox(height: 14),
+                  _Field(
+                    label: _status == CowStatus.sick
+                        ? 'REASON / DIAGNOSIS *'
+                        : 'REASON FOR DRY *',
+                    child: TextFormField(
+                      controller: _statusReason,
+                      enabled: !_submitting,
+                      maxLines: 2,
+                      decoration: _decoration(
+                        hint: _status == CowStatus.sick
+                            ? 'e.g. Mastitis, lameness, retained placenta…'
+                            : 'e.g. End of lactation, recovery, low production…',
+                      ),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty)
+                              ? 'A reason is required for ${_status.label}'
+                              : null,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 _ThreeCol(
                   a: _Field(

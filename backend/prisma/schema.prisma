@@ -315,6 +315,12 @@ model Cow {
   dateOfBirth DateTime
   status      CowStatus
 
+  // Required when status transitions to SICK or DRY_OFF. Captures the
+  // why behind the state change so the herd table and reports can
+  // surface it without a join into Treatment. Validated at the API
+  // layer; null is allowed for other statuses.
+  statusReason String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

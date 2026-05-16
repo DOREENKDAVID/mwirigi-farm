@@ -191,6 +191,7 @@ class CropRegisterTableState extends State<CropRegisterTable> {
     if (saved == true) {
       _toast('Irrigation event logged');
       widget.onChanged();
+      await reload();
     }
   }
 
@@ -206,6 +207,7 @@ class CropRegisterTableState extends State<CropRegisterTable> {
     if (saved == true) {
       _toast('Dispatch recorded');
       widget.onChanged();
+      await reload();
     }
   }
 
