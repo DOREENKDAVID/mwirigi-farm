@@ -4,6 +4,10 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Mwirigi Farm needs camera access to take photos of cows.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mwirigi Farm needs photo library access to attach cow photos.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

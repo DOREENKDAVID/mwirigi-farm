@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/cow.dart';
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
+import '../../core/utils/image_picker_helper.dart';
 
 /// Register / edit a cow. Mirrors the v4.1 HTML "Register New Cow" /
 /// "Edit Cow" dialog exactly:
@@ -148,29 +148,13 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
   }
 
   Future<void> _pickPhoto() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final f = result.files.first;
-    if (!mounted) return;
-    if (f.bytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not read the selected image.')),
-      );
-      return;
-    }
-    final ext = (f.extension ?? '').toLowerCase();
-    final mime = switch (ext) {
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      _ => 'image/jpeg',
-    };
+    final picked = await pickCowImage(context);
+    if (picked == null || !mounted) return;
     setState(() {
-      _pendingBytes = f.bytes;
-      _pendingFilename = f.name;
-      _pendingContentType = mime;
+      _pendingBytes = picked.bytes;
+      _pendingFilename = picked.filename;
+      _pendingContentType = picked.contentType;
+      _imageUrl = null;
     });
   }
 
