@@ -81,6 +81,7 @@ class Cow {
     required this.todayLitres,
     required this.weekAvg,
     this.calvesLifetime = 0,
+    this.statusReason,
     this.nickname,
     this.imageUrl,
     this.breedOrigin,
@@ -103,6 +104,7 @@ class Cow {
   final Breed breed;
   final DateTime dateOfBirth;
   final CowStatus status;
+  final String? statusReason;
   final num todayLitres;
   final num weekAvg;
   final int calvesLifetime;
@@ -137,6 +139,7 @@ class Cow {
       breed: Breed.fromWire(j['breed']?.toString()) ?? Breed.crossbreed,
       dateOfBirth: DateTime.parse(j['dateOfBirth'].toString()),
       status: CowStatus.fromWire(j['status']?.toString()) ?? CowStatus.milking,
+      statusReason: _toStr(j['statusReason']),
       todayLitres: _toNum(j['todayLitres']),
       weekAvg: _toNum(j['weekAvg']),
       calvesLifetime: _toInt(j['calvesLifetime']),

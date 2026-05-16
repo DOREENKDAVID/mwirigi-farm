@@ -50,6 +50,10 @@ export const cowSchema = z.object({
     errorMap: () => ({ message: `Status must be one of: ${COW_STATUSES.join(", ")}` }),
   }),
 
+  // Free-text. Required at the service layer when status is SICK or
+  // DRY_OFF (assertStatusReasonIfRequired in dairy.service.js).
+  statusReason: z.string().trim().max(2000).nullable().optional(),
+
   houseId: z
     .string()
     .uuid("Invalid house ID")
