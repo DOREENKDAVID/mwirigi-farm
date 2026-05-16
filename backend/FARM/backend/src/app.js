@@ -14,7 +14,6 @@ import remindersRoutes from "./modules/reminders/reminders.routes.js";
 import financeRoutes from "./modules/finance/finance.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import uploadsRoutes from "./modules/uploads/uploads.routes.js";
-import { UPLOAD_STATIC_ROOT } from "./middleware/upload.middleware.js";
 import cors from "cors";
 import express from "express";
 
@@ -23,10 +22,14 @@ app.use(express.json());
 
 app.use(cors());
 
-// Static serving for uploaded images (cow photos etc.). The matching
-// public URL pattern is `/uploads/cows/<file>` — emitted by
-// upload.middleware.js so the API and the static URL stay in sync.
-app.use("/uploads", express.static(UPLOAD_STATIC_ROOT));
+// Image hosting moved to Cloudinary — uploads now return absolute
+// secure_url values stored directly in Cow.imageUrl. The local
+// /uploads/ static handler is retained as a comment below for
+// reference; old DB rows with relative /uploads/cows/... paths will
+// no longer resolve once this is disabled.
+//
+// import { UPLOAD_STATIC_ROOT } from "./middleware/upload.middleware.js";
+// app.use("/uploads", express.static(UPLOAD_STATIC_ROOT));
 
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportsRoutes);

@@ -1,23 +1,29 @@
-import path from "node:path";
-import fs from "node:fs";
-import crypto from "node:crypto";
+import "dotenv/config";
 import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 
-// Where uploaded files live. We resolve from the project root so the
-// path stays correct regardless of which subdirectory the dev server
-// was launched from.
+// =====================================================================
+// IMAGE UPLOAD — Cloudinary backend
+// =====================================================================
+// Previous approach (local disk via multer.diskStorage + Express static)
+// is preserved as a comment block at the bottom for reference. New flow:
 //
-// Layout on disk:
-//   <repo>/backend/uploads/cows/<uuid>.<ext>
+//   1. multer.memoryStorage() keeps the file in RAM as a Buffer
+//   2. uploadBufferToCloudinary() streams that buffer to Cloudinary
+//   3. We persist Cloudinary's `secure_url` in the Cow.imageUrl column
 //
-// Express serves these via `app.use('/uploads', express.static(...))`
-// so the public URL is `/uploads/cows/<uuid>.<ext>`.
-const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
-const COWS_DIR = path.join(UPLOAD_ROOT, "cows");
+// `Cow.imageUrl` is a free-form String? in the schema, so the migration
+// is transparent: new rows store https://res.cloudinary.com/...; old
+// rows with /uploads/cows/... paths remain readable but won't resolve
+// once the static handler is disabled.
 
-// Ensure the cow upload directory exists before multer tries to write
-// into it. Idempotent.
-fs.mkdirSync(COWS_DIR, { recursive: true });
+// Configure once at module load. Credentials live in backend/.env.
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -25,23 +31,6 @@ const ALLOWED_MIME = new Set([
   "image/webp",
 ]);
 
-const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
-
-// Generate a stable, opaque filename. We don't trust the client name
-// (could contain path traversal, spaces, weird chars).
-const newFilename = (original) => {
-  const ext = path.extname(original).toLowerCase();
-  const safeExt = ALLOWED_EXT.has(ext) ? ext : ".jpg";
-  return `${crypto.randomUUID()}${safeExt}`;
-};
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, COWS_DIR),
-  filename: (_req, file, cb) => cb(null, newFilename(file.originalname)),
-});
-
-// Reject anything that isn't a supported image MIME. multer will pass
-// the error to the route handler so the client gets a clean 400.
 const fileFilter = (_req, file, cb) => {
   if (!ALLOWED_MIME.has(file.mimetype)) {
     return cb(
@@ -53,17 +42,72 @@ const fileFilter = (_req, file, cb) => {
   cb(null, true);
 };
 
-// 4 MB ceiling — generous for a phone photo, conservative enough to
-// keep the static-served directory small.
+// Hold the file in memory; we hand the Buffer straight to Cloudinary
+// rather than writing to disk first.
 export const cowImageUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 4 * 1024 * 1024 },
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4 MB
 });
 
-// Public path for a stored file. Combined with API_BASE_URL on the
-// frontend to render the photo.
-export const cowImagePublicPath = (filename) => `/uploads/cows/${filename}`;
+// Streams `buffer` to Cloudinary under `folder` and resolves with the
+// upload result (we use `secure_url` + `public_id` downstream).
+// `cloudinary.uploader.upload` only accepts a path; for in-memory
+// buffers we use `upload_stream` and pipe the buffer in.
+export const uploadBufferToCloudinary = (buffer, { folder = "mwirigi/cows" } = {}) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+        // Cloudinary auto-derives the extension; we keep our own UUID
+        // off the request to avoid trusting client filenames.
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result);
+      },
+    );
+    stream.end(buffer);
+  });
 
-// Used by app.js to wire `app.use('/uploads', express.static(UPLOAD_ROOT))`.
-export const UPLOAD_STATIC_ROOT = UPLOAD_ROOT;
+// Re-exported so callers don't have to import from `cloudinary` directly
+// (e.g. delete endpoints that need to clean up by public_id).
+export { cloudinary };
+
+// =====================================================================
+// LEGACY: local-disk storage. Kept as a comment per migration request —
+// uncomment + revert uploads.routes.js / app.js to restore the previous
+// behaviour. The `uploads/` folder is also no longer required at
+// runtime; existing files there are orphaned but harmless.
+// =====================================================================
+//
+// import path from "node:path";
+// import fs from "node:fs";
+// import crypto from "node:crypto";
+//
+// const UPLOAD_ROOT = path.resolve(process.cwd(), "uploads");
+// const COWS_DIR = path.join(UPLOAD_ROOT, "cows");
+// fs.mkdirSync(COWS_DIR, { recursive: true });
+//
+// const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+//
+// const newFilename = (original) => {
+//   const ext = path.extname(original).toLowerCase();
+//   const safeExt = ALLOWED_EXT.has(ext) ? ext : ".jpg";
+//   return `${crypto.randomUUID()}${safeExt}`;
+// };
+//
+// const storage = multer.diskStorage({
+//   destination: (_req, _file, cb) => cb(null, COWS_DIR),
+//   filename: (_req, file, cb) => cb(null, newFilename(file.originalname)),
+// });
+//
+// export const cowImageUpload = multer({
+//   storage,
+//   fileFilter,
+//   limits: { fileSize: 4 * 1024 * 1024 },
+// });
+//
+// export const cowImagePublicPath = (filename) => `/uploads/cows/${filename}`;
+// export const UPLOAD_STATIC_ROOT = UPLOAD_ROOT;
