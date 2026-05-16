@@ -19,17 +19,7 @@ import express from "express";
 
 const app = express();
 app.use(express.json());
-
 app.use(cors());
-
-// Image hosting moved to Cloudinary — uploads now return absolute
-// secure_url values stored directly in Cow.imageUrl. The local
-// /uploads/ static handler is retained as a comment below for
-// reference; old DB rows with relative /uploads/cows/... paths will
-// no longer resolve once this is disabled.
-//
-// import { UPLOAD_STATIC_ROOT } from "./middleware/upload.middleware.js";
-// app.use("/uploads", express.static(UPLOAD_STATIC_ROOT));
 
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportsRoutes);
@@ -48,4 +38,9 @@ app.use("/api/finance", financeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/uploads", uploadsRoutes);
 
+app.get("/", (req, res) => {
+  res.json({ message: "Mwirigi Farm API is running" });
+});
+
 export default app;
+
