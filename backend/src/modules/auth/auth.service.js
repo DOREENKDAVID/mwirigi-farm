@@ -5,15 +5,7 @@ const { Role, OtpType } = prismaPkg;
 import { hashPassword, comparePassword } from "../../utils/password.js";
 import { generateAccessToken, generateRefreshToken } from "../../utils/jwt.js";
 import { generateOTP, hashOTP, compareOTP } from "../../utils/otp.js";
-
-// Email utilities are not wired yet in this codebase; keep no-op placeholders.
-const sendVerificationEmail = async (email, otp) => {
-  console.info(`[auth] verification OTP for ${email}: ${otp}`);
-};
-
-const sendResetEmail = async (email, otp) => {
-  console.info(`[auth] reset OTP for ${email}: ${otp}`);
-};
+import { sendVerificationEmail, sendResetEmail } from "../../utils/email.js";
 
 // Register user — role is always VET; never accept role from the client.
 export const registerUser = async ({ userName, email, password }) => {
