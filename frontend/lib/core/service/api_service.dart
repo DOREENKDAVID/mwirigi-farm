@@ -18,7 +18,8 @@ class ApiService {
   //   • Physical Android/iOS phone on same Wi-Fi → dev machine's LAN IP
   //   • Android emulator                          → 10.0.2.2 (its host alias)
   //   • iOS simulator / Web (Chrome) on this PC   → localhost
-  static String get baseUrl => 'http://192.168.0.97:5000/api';
+  static String get baseUrl =>'http://mwirigi-farm.vercel.app/api';
+  //static String get baseUrl => 'http://192.168.0.97:5000/api';
   //static String get baseUrl => 'http://10.0.2.2:5000/api';   // Android emulator
   //static String get baseUrl => 'http://localhost:5000/api';  // simulator / web
 
