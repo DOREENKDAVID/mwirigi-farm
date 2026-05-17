@@ -252,6 +252,8 @@ model User {
   taskReassignmentsFrom TaskReassignment[]  @relation("TaskReassignmentFrom")
   taskReassignmentsTo   TaskReassignment[]  @relation("TaskReassignmentTo")
   taskReassignmentsBy   TaskReassignment[]  @relation("TaskReassignmentBy")
+  authoredAllocations   AllocationPlan[]    @relation("AllocationAuthor")
+  auditLogs             AuditLog[]          @relation("AuditActor")
 }
 
 model RefreshToken {
@@ -703,10 +705,50 @@ model AllocationPlan {
   // "Replace Houses A & B (2,000 each)").
   description String
 
+  // Author of this revision — required for the audit trail. Older
+  // seed rows may be null until backfilled.
+  createdById String?
+  createdBy   User?   @relation("AllocationAuthor", fields: [createdById], references: [id])
+
   createdAt DateTime @default(now())
 
   @@index([brooderId])
   @@index([cycleId])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+// Generic audit log row. Captures who did what to which entity with
+// an optional JSON snapshot of the new state. Designed so other
+// modules (cow release, bull sale, task reassign) can be migrated
+// onto this table later if a unified audit feed is wanted.
+model AuditLog {
+  id String @id @default(uuid())
+
+  entity   String // e.g. "AllocationPlan", "Cow", "Bull"
+  entityId String
+  action   AuditAction
+
+  // Free-text reason captured in the UI before the change committed.
+  // Optional but encouraged so reviewers can read intent without
+  // diffing snapshots.
+  reason String?
+
+  // JSON snapshot of the new state. Stored as a string column so the
+  // shape can vary per entity without further schema work.
+  snapshot String?
+
+  actorId String?
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
 }
 
 // ===================================================
