@@ -2,6 +2,7 @@ import * as feedlotService from "./feedlot.service.js";
 import {
   createBullSchema,
   updateBullSchema,
+  sellBullSchema,
   createWeightSchema,
   createSheepSchema,
   updateSheepSchema,
@@ -83,6 +84,23 @@ export const deleteBull = async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const sellBull = async (req, res) => {
+  try {
+    const body = sellBullSchema.parse(req.body);
+    const bull = await feedlotService.sellBull(req.params.id, body);
+    res.status(200).json(bull);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Bull not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message === "Bull is already sold") {
+      return res.status(409).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
   }
 };
 

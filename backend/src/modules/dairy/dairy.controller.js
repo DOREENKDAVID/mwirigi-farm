@@ -1,6 +1,7 @@
 import * as dairyService from "./dairy.service.js";
 import {
   cowSchema,
+  releaseCowSchema,
   milkRecordSchema,
   dairyInventorySchema,
   dairyInventoryPatchSchema,
@@ -69,6 +70,32 @@ export const deleteCow = async (req, res) => {
     res.json({ message: "Cow deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const releaseCow = async (req, res) => {
+  try {
+    const body = releaseCowSchema.parse(req.body);
+    const cow = await dairyService.releaseCow(
+      req.params.tag,
+      body,
+      req.user?.id,
+    );
+    res.json(cow);
+  } catch (err) {
+    if (err?.issues) {
+      return res.status(400).json({
+        error: "Validation error",
+        issues: err.issues.map((i) => ({ path: i.path, message: i.message })),
+      });
+    }
+    if (err.message === "Cow not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message === "Cow is already released") {
+      return res.status(409).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
   }
 };
 

@@ -7,6 +7,7 @@ import '../../core/models/cow.dart';
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
 import 'register_cow_dialog.dart';
+import 'release_cow_dialog.dart';
 import 'report_sick_dialog.dart';
 
 /// Cow Records card. Two independent filter pill rows + a search bar +
@@ -155,6 +156,19 @@ class CowRecordsTableState extends State<CowRecordsTable> {
     );
     if (saved == true) {
       _toast('${cow.tag} updated');
+      await reload();
+      widget.onChanged();
+    }
+  }
+
+  Future<void> _openRelease(Cow cow) async {
+    final released = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReleaseCowDialog(cow: cow),
+    );
+    if (released == true) {
+      _toast('${cow.tag} released from active herd');
       await reload();
       widget.onChanged();
     }
@@ -397,11 +411,13 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                             cows: cows,
                             onEdit: _openEdit,
                             onDelete: _confirmDelete,
+                            onRelease: _openRelease,
                           )
                         : _MobileList(
                             cows: cows,
                             onEdit: _openEdit,
                             onDelete: _confirmDelete,
+                            onRelease: _openRelease,
                           );
                   },
                 ),
@@ -642,10 +658,12 @@ class _DesktopTable extends StatelessWidget {
     required this.cows,
     required this.onEdit,
     required this.onDelete,
+    required this.onRelease,
   });
   final List<Cow> cows;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
+  final void Function(Cow) onRelease;
 
   // Flex weights — sum 28. CROP-style flex distribution so the table
   // uses the full card width rather than bunching at the left.
@@ -774,6 +792,7 @@ class _DesktopTable extends StatelessWidget {
                       cow: cows[i],
                       onEdit: onEdit,
                       onDelete: onDelete,
+                      onRelease: onRelease,
                     ),
                   ),
                 ),
@@ -842,10 +861,12 @@ class _MobileList extends StatelessWidget {
     required this.cows,
     required this.onEdit,
     required this.onDelete,
+    required this.onRelease,
   });
   final List<Cow> cows;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
+  final void Function(Cow) onRelease;
 
   @override
   Widget build(BuildContext context) {
@@ -911,7 +932,12 @@ class _MobileList extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _RowActions(cow: c, onEdit: onEdit, onDelete: onDelete),
+                  _RowActions(
+                    cow: c,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                    onRelease: onRelease,
+                  ),
                 ],
               ),
             ),
@@ -928,10 +954,12 @@ class _RowActions extends StatelessWidget {
     required this.cow,
     required this.onEdit,
     required this.onDelete,
+    required this.onRelease,
   });
   final Cow cow;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
+  final void Function(Cow) onRelease;
 
   @override
   Widget build(BuildContext context) {
@@ -942,6 +970,17 @@ class _RowActions extends StatelessWidget {
           tooltip: 'Edit',
           icon: const Icon(Icons.edit_outlined, size: 18),
           onPressed: () => onEdit(cow),
+          padding: const EdgeInsets.all(6),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+        IconButton(
+          tooltip: 'Release (Sell / Transfer / Died)',
+          icon: const Icon(
+            Icons.exit_to_app,
+            size: 18,
+            color: Color(0xFF854F0B),
+          ),
+          onPressed: () => onRelease(cow),
           padding: const EdgeInsets.all(6),
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         ),

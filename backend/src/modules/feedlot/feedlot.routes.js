@@ -41,6 +41,13 @@ router.delete(
 );
 
 router.post(
+  "/bulls/:id/sell",
+  authMiddleware,
+  authorizeRoles("CEO", "VET"),
+  controller.sellBull,
+);
+
+router.post(
   "/weights",
   authMiddleware,
   authorizeRoles("CEO", "VET"),

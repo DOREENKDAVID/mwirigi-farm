@@ -18,7 +18,7 @@ class ApiService {
   //   • Physical Android/iOS phone on same Wi-Fi → dev machine's LAN IP
   //   • Android emulator                          → 10.0.2.2 (its host alias)
   //   • iOS simulator / Web (Chrome) on this PC   → localhost
-  static String get baseUrl =>'http://mwirigi-farm.vercel.app/api';
+  static String get baseUrl =>'https://mwirigi-farm.vercel.app/api';
   //static String get baseUrl => 'http://192.168.0.97:5000/api';
   //static String get baseUrl => 'http://10.0.2.2:5000/api';   // Android emulator
   //static String get baseUrl => 'http://localhost:5000/api';  // simulator / web
@@ -425,6 +425,14 @@ class ApiService {
   static Future<void> deleteCow(String tag) async {
     await _delete('/dairy/cows/tag/$tag');
   }
+
+  // POST /dairy/cows/tag/:tag/release (CEO/DAIRY_MANAGER)
+  // Body: { releaseType, releaseDate?, destination?, reason?, documentUrl? }
+  static Future<Map<String, dynamic>> releaseCow(
+    String tag,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/dairy/cows/tag/$tag/release', body: data));
 
   // Milk records
   static Future<List<dynamic>> getMilkRecords() async =>
@@ -837,6 +845,15 @@ class ApiService {
   static Future<void> deleteBull(String id) async {
     await _delete('/feedlot/bulls/$id');
   }
+
+  // POST /feedlot/bulls/:id/sell (CEO/VET)
+  // Body: { saleDate?, soldWeightKg, salePrice, buyerName, buyerPhone?,
+  //         paymentMethod?, saleNotes?, receiptUrl? }
+  static Future<Map<String, dynamic>> sellBull(
+    String id,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/feedlot/bulls/$id/sell', body: data));
 
   // GET /feedlot/sheep -> [{ id, tag, category, entryDate, entryWeight }]
   static Future<List<dynamic>> getFeedlotSheep() async =>

@@ -82,6 +82,29 @@ export const cowSchema = z.object({
   healthNotes: z.string().trim().max(2000).nullable().optional(),
 });
 
+// POST /api/dairy/cows/tag/:tag/release — remove cow from active herd.
+// authorizedById is taken from req.user, not the request body.
+const RELEASE_TYPES = [
+  "SOLD",
+  "TRANSFERRED",
+  "SLAUGHTERED",
+  "DIED",
+  "DONATED",
+  "OTHER",
+];
+
+export const releaseCowSchema = z.object({
+  releaseType: z.enum(RELEASE_TYPES, {
+    errorMap: () => ({
+      message: `releaseType must be one of: ${RELEASE_TYPES.join(", ")}`,
+    }),
+  }),
+  releaseDate: z.coerce.date().optional(),
+  destination: z.string().trim().max(200).nullable().optional(),
+  reason: z.string().trim().max(2000).nullable().optional(),
+  documentUrl: z.string().trim().max(500).nullable().optional(),
+});
+
 //////////////////////////////////////////////////////
 // MILK RECORD SCHEMA
 //////////////////////////////////////////////////////
