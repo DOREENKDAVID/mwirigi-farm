@@ -22,6 +22,19 @@ enum SheepCategory {
   final String label;
 }
 
+/// Payment method captured on the Sell Feedlot dialog.
+enum PaymentMethod {
+  cash('CASH', 'Cash'),
+  mpesa('MPESA', 'M-Pesa'),
+  bankTransfer('BANK_TRANSFER', 'Bank transfer'),
+  cheque('CHEQUE', 'Cheque'),
+  other('OTHER', 'Other');
+
+  const PaymentMethod(this.wire, this.label);
+  final String wire;
+  final String label;
+}
+
 int _toInt(dynamic v) {
   if (v is int) return v;
   if (v is num) return v.round();

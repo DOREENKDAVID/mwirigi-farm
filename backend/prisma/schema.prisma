@@ -163,6 +163,15 @@ enum CowStatus {
   OPEN
 }
 
+enum CowReleaseType {
+  SOLD
+  TRANSFERRED
+  SLAUGHTERED
+  DIED
+  DONATED
+  OTHER
+}
+
 enum ReproductionEventType {
   AI
   CALVING
@@ -238,6 +247,7 @@ model User {
   createdExpenses   Expense[]          @relation("FinanceCreatedExpense")
   payrollAdjustments    PayrollAdjustment[] @relation("StaffAdjustments")
   approvedAdjustments   PayrollAdjustment[] @relation("ApprovedAdjustments")
+  authorizedCowReleases Cow[]               @relation("CowReleaseAuthorizer")
 }
 
 model RefreshToken {
@@ -320,6 +330,21 @@ model Cow {
   // surface it without a join into Treatment. Validated at the API
   // layer; null is allowed for other statuses.
   statusReason String?
+
+  // Release / disposition. Set together when a cow leaves the active
+  // herd — sold, transferred, slaughtered, died, donated. releasedAt
+  // drives the active-vs-archived filter: cow listings default to
+  // releasedAt = null. authorizedBy is the user who recorded the
+  // release; pulled from the JWT, not the request body.
+  releasedAt          DateTime?
+  releaseType         CowReleaseType?
+  releaseDate         DateTime?
+  releaseDestination  String?
+  releaseReason       String?
+  releaseDocumentUrl  String?
+
+  authorizedById String?
+  authorizedBy   User?   @relation("CowReleaseAuthorizer", fields: [authorizedById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -789,6 +814,19 @@ model Bull {
   entryWeight   Float
   currentWeight Float
 
+  // Sale disposition. Set together when a bull is sold out of the
+  // feedlot. soldAt drives the active-vs-archived filter: lists
+  // default to soldAt = null. receiptUrl is a Cloudinary URL of the
+  // attached receipt photo.
+  soldAt         DateTime?
+  soldWeightKg   Float?
+  salePrice      Float?
+  buyerName      String?
+  buyerPhone     String?
+  paymentMethod  String?
+  saleNotes      String?
+  receiptUrl     String?
+
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -797,6 +835,7 @@ model Bull {
 
   @@index([entryDate])
   @@index([deletedAt])
+  @@index([soldAt])
 }
 
 model WeightRecord {

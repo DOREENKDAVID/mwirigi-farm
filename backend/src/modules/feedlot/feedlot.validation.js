@@ -32,6 +32,23 @@ export const updateBullSchema = z
     message: "At least one field must be provided",
   });
 
+// POST /api/feedlot/bulls/:id/sell — record a sale and archive the bull.
+// Required fields mirror the v4.6 "Sell Feedlot" dialog: buyer + price +
+// weight. receiptUrl is the Cloudinary URL returned from /uploads/cow.
+export const sellBullSchema = z.object({
+  saleDate: z.coerce.date().optional(),
+  soldWeightKg: z.number().positive("Sale weight must be > 0").max(2000),
+  salePrice: z.number().nonnegative("Sale price cannot be negative"),
+  buyerName: z.string().trim().min(1, "Buyer name is required").max(120),
+  buyerPhone: z.string().trim().max(40).nullable().optional(),
+  paymentMethod: z
+    .enum(["CASH", "MPESA", "BANK_TRANSFER", "CHEQUE", "OTHER"])
+    .nullable()
+    .optional(),
+  saleNotes: z.string().trim().max(2000).nullable().optional(),
+  receiptUrl: z.string().trim().max(500).nullable().optional(),
+});
+
 // POST /api/feedlot/sheep — register one tagged sheep.
 export const createSheepSchema = z.object({
   tag: z.string().min(1, "Tag is required").max(20, "Tag too long"),

@@ -102,7 +102,7 @@ export const getKpis = async () => {
 // Soft-deleted bulls are excluded.
 export const listBulls = async () => {
   const bulls = await prisma.bull.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, soldAt: null },
     orderBy: { entryDate: "asc" },
   });
   const now = new Date();
@@ -198,6 +198,30 @@ export const softDeleteBull = async (id) => {
   return prisma.bull.update({
     where: { id },
     data: { deletedAt: new Date() },
+  });
+};
+
+// Record a bull sale. Sets soldAt and the sale columns together —
+// after this call the bull falls out of listBulls and KPIs since
+// those filter on soldAt = null. Idempotency: re-selling an already
+// sold bull is rejected so accidental double-tap doesn't overwrite
+// the first sale record.
+export const sellBull = async (id, sale) => {
+  const bull = await prisma.bull.findUnique({ where: { id } });
+  if (!bull || bull.deletedAt) throw new Error("Bull not found");
+  if (bull.soldAt) throw new Error("Bull is already sold");
+  return prisma.bull.update({
+    where: { id },
+    data: {
+      soldAt: sale.saleDate ?? new Date(),
+      soldWeightKg: sale.soldWeightKg,
+      salePrice: sale.salePrice,
+      buyerName: sale.buyerName,
+      buyerPhone: sale.buyerPhone ?? null,
+      paymentMethod: sale.paymentMethod ?? null,
+      saleNotes: sale.saleNotes ?? null,
+      receiptUrl: sale.receiptUrl ?? null,
+    },
   });
 };
 

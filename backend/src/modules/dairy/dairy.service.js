@@ -102,7 +102,8 @@ export const getAllCows = async ({
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  const where = {};
+  // Active herd only — released cows live in history reports.
+  const where = { releasedAt: null };
   if (workerId === "unassigned") {
     where.workerId = null;
   } else if (workerId) {
@@ -247,6 +248,31 @@ export const deleteCow = async (tag) => {
   tag.trim().charAt(0).toUpperCase() + tag.trim().slice(1).toLowerCase();
   return await prisma.cow.delete({
     where: { tag: normalizedTag },
+  });
+};
+
+// Mark a cow as released from the active herd. The cow row stays
+// (for milk-history reports) but releasedAt + releaseType etc. are
+// set, so getAllCows / dashboards filter it out. authorizedById is
+// taken from the JWT (controller passes req.user.id), not the body.
+export const releaseCow = async (tag, payload, authorizedById) => {
+  const normalizedTag =
+    tag.trim().charAt(0).toUpperCase() + tag.trim().slice(1).toLowerCase();
+  const cow = await prisma.cow.findUnique({ where: { tag: normalizedTag } });
+  if (!cow) throw new Error("Cow not found");
+  if (cow.releasedAt) throw new Error("Cow is already released");
+
+  return prisma.cow.update({
+    where: { tag: normalizedTag },
+    data: {
+      releasedAt: new Date(),
+      releaseType: payload.releaseType,
+      releaseDate: payload.releaseDate ?? new Date(),
+      releaseDestination: trimOrNull(payload.destination),
+      releaseReason: trimOrNull(payload.reason),
+      releaseDocumentUrl: trimOrNull(payload.documentUrl),
+      authorizedById,
+    },
   });
 };
 

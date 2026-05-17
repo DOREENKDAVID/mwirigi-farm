@@ -42,6 +42,13 @@ dairyRoutes.delete(
   dairyController.deleteCow,
 );
 
+dairyRoutes.post(
+  "/cows/tag/:tag/release",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.releaseCow,
+);
+
 //////////////////////////////////////////////////////
 // 🥛 MILK RECORD ROUTES
 //////////////////////////////////////////////////////

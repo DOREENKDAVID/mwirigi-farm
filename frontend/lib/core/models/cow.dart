@@ -50,6 +50,21 @@ enum CowStatus {
   }
 }
 
+/// How a cow leaves the active herd. Drives the Release Cow dialog
+/// dropdown. Stored as `Cow.releaseType` on the server.
+enum CowReleaseType {
+  sold('SOLD', 'Sold'),
+  transferred('TRANSFERRED', 'Transferred'),
+  slaughtered('SLAUGHTERED', 'Slaughtered'),
+  died('DIED', 'Died'),
+  donated('DONATED', 'Donated'),
+  other('OTHER', 'Other');
+
+  const CowReleaseType(this.wire, this.label);
+  final String wire;
+  final String label;
+}
+
 /// Breed origin classifier per the cattle registry — F (Foreign /
 /// Exotic), L (Local), X (Crossbreed / Grade). Stored as a single-
 /// character string on the Cow model (`breedOrigin`).
