@@ -6,6 +6,7 @@ import '../../core/models/cow.dart';
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
 import '../../core/utils/image_picker_helper.dart';
+import '../../offline/repositories/cow_repository.dart';
 
 /// Register / edit a cow. Mirrors the v4.1 HTML "Register New Cow" /
 /// "Edit Cow" dialog exactly:
@@ -225,13 +226,29 @@ class _RegisterCowDialogState extends State<RegisterCowDialog> {
 
     setState(() => _submitting = true);
     try {
-      if (_isEdit) {
-        await ApiService.updateCow(widget.cow!.tag, body);
-      } else {
-        await ApiService.createCow(body);
-      }
+      final actorId = await ApiService.readUserId() ?? '';
+      final result = _isEdit
+          ? await CowRepository.instance.updateCow(
+              tag: widget.cow!.tag,
+              payload: body,
+              actorId: actorId,
+            )
+          : await CowRepository.instance.createCow(
+              payload: body,
+              actorId: actorId,
+            );
       if (!mounted) return;
       Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result == WriteResult.savedOffline
+                ? 'Saved offline — will sync when you reconnect.'
+                : (_isEdit ? 'Cow updated' : 'Cow registered'),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
