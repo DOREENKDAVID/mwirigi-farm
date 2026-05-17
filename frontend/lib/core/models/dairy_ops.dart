@@ -94,6 +94,31 @@ class DairyHouseOverview {
       );
 }
 
+/// Operational availability flag on a Worker. AVAILABLE is the default;
+/// any other value greys the worker out in task / shift pickers.
+enum WorkerAvailability {
+  available('AVAILABLE', 'Available'),
+  sickLeave('SICK_LEAVE', 'Sick leave'),
+  offDay('OFF_DAY', 'Off day'),
+  vacation('VACATION', 'Vacation'),
+  emergency('EMERGENCY', 'Emergency'),
+  otherUnavailable('OTHER_UNAVAILABLE', 'Other (unavailable)');
+
+  const WorkerAvailability(this.wire, this.label);
+  final String wire;
+  final String label;
+
+  bool get isAvailable => this == WorkerAvailability.available;
+
+  static WorkerAvailability fromWire(String? s) {
+    if (s == null) return WorkerAvailability.available;
+    for (final v in values) {
+      if (v.wire == s) return v;
+    }
+    return WorkerAvailability.available;
+  }
+}
+
 class DairyWorkerSummary {
   DairyWorkerSummary({
     required this.id,
@@ -101,12 +126,16 @@ class DairyWorkerSummary {
     required this.cowCount,
     this.role,
     this.houseName,
+    this.availability = WorkerAvailability.available,
+    this.availabilityNote,
   });
   final String id;
   final String name;
   final int cowCount;
   final String? role;
   final String? houseName;
+  final WorkerAvailability availability;
+  final String? availabilityNote;
 
   factory DairyWorkerSummary.fromJson(Map<String, dynamic> j) {
     final house = j['house'];
@@ -116,6 +145,10 @@ class DairyWorkerSummary {
       cowCount: _toInt(j['cowCount']),
       role: j['role']?.toString(),
       houseName: house is Map ? house['name']?.toString() : null,
+      availability: WorkerAvailability.fromWire(
+        j['availabilityStatus']?.toString(),
+      ),
+      availabilityNote: j['availabilityNote']?.toString(),
     );
   }
 }

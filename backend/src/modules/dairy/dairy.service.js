@@ -438,6 +438,9 @@ export const getDairyWorkers = async () => {
     role: w.role,
     house: w.house,
     cowCount: w._count.cows,
+    availabilityStatus: w.availabilityStatus,
+    availabilityNote: w.availabilityNote,
+    availabilityChangedAt: w.availabilityChangedAt,
   }));
 };
 

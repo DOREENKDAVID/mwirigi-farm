@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/layers_unit.dart';
 import 'allocation_plan.dart';
 import 'brooder_occurrence_dialog.dart';
+import 'brooder_weekly_report.dart';
 import 'vaccination_timeline.dart';
 
 /// "Brooder house" card — combines the population/age/transfer KPIs with a
@@ -81,6 +82,10 @@ class BrooderHouseCard extends StatelessWidget {
               _MiniKpis(brooder: brooder),
               const SizedBox(height: 14),
               _ProgressBar(brooder: brooder),
+              const _Divider(),
+              const _SectionLabel('This week — occurrences logged'),
+              const SizedBox(height: 6),
+              BrooderWeeklyReport(brooderId: brooder.id),
               const _Divider(),
               const _SectionLabel('Vaccination schedule (per vet protocol)'),
               const SizedBox(height: 10),
