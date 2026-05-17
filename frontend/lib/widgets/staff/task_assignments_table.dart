@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/models/staff.dart';
 import '../../core/service/api_service.dart';
 import 'assign_task_dialog.dart';
+import 'reassign_task_dialog.dart';
 
 /// Task assignments table. 6 columns:
 ///   Assigned · Unit · Task · Priority · Status · Actions
@@ -33,6 +34,22 @@ class TaskAssignmentsTable extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Task assigned')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openReassign(BuildContext context, TaskRow t) async {
+    final reassigned = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReassignTaskDialog(task: t, staff: staff),
+    );
+    if (reassigned == true) {
+      onChanged();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${t.title} reassigned')),
         );
       }
     }
@@ -202,6 +219,17 @@ class TaskAssignmentsTable extends StatelessWidget {
                             onPressed: () => _cycleStatus(context, t),
                             icon: const Icon(Icons.edit_outlined, size: 16),
                             color: const Color(0xFF27500A),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Reassign',
+                            onPressed: () => _openReassign(context, t),
+                            icon: const Icon(Icons.swap_horiz, size: 16),
+                            color: const Color(0xFF1976D2),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                               minWidth: 28,

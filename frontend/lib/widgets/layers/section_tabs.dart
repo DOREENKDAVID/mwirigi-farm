@@ -185,6 +185,7 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
             brooder: brooder,
             vaccination: unit.vaccination,
             allocation: unit.allocation,
+            onChanged: widget.onSubmittedDailyEntry,
           ),
         ];
       case LayersTab.houses:

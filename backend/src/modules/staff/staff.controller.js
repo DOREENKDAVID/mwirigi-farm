@@ -5,6 +5,8 @@ import {
   markAttendanceSchema,
   createTaskSchema,
   updateTaskSchema,
+  reassignTaskSchema,
+  workerAvailabilitySchema,
   payrollQuerySchema,
 } from "./staff.validation.js";
 
@@ -152,6 +154,47 @@ export const deleteTask = async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const reassignTask = async (req, res) => {
+  try {
+    const body = reassignTaskSchema.parse(req.body);
+    const task = await staffService.reassignTask(
+      req.params.id,
+      body,
+      req.user?.id,
+    );
+    res.json(task);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (
+      err.message === "Task not found" ||
+      err.message === "Replacement staff not found"
+    ) {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message === "Task is already assigned to this user") {
+      return res.status(409).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const setWorkerAvailability = async (req, res) => {
+  try {
+    const body = workerAvailabilitySchema.parse(req.body);
+    const worker = await staffService.setWorkerAvailability(
+      req.params.id,
+      body,
+    );
+    res.json(worker);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Worker not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
   }
 };
 

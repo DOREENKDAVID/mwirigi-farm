@@ -1,6 +1,7 @@
 import express from "express";
 import * as controller from "./layers.controller.js";
 import * as inventory from "./inventory/layersInventory.controller.js";
+import * as brooder from "./brooder.controller.js";
 import {
   authMiddleware,
   authorizeRoles,
@@ -54,6 +55,20 @@ router.delete(
   authMiddleware,
   authorizeRoles("CEO", "LAYERS_MANAGER"),
   inventory.softDelete,
+);
+
+// ------- Brooder Occurrences -------
+router.get("/brooder/occurrences", authMiddleware, brooder.listOccurrences);
+router.get(
+  "/brooder/occurrences/weekly",
+  authMiddleware,
+  brooder.weeklyReport,
+);
+router.post(
+  "/brooder/occurrences",
+  authMiddleware,
+  authorizeRoles("CEO", "LAYERS_MANAGER", "VET"),
+  brooder.logOccurrence,
 );
 
 export default router;

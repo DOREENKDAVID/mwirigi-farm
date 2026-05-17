@@ -1002,6 +1002,41 @@ class ApiService {
     await _delete('/staff/tasks/$id');
   }
 
+  // POST /staff/tasks/:id/reassign — swap a task to a new assignee with
+  // an audit row. Body: { toUserId, reason, duration?, effectiveDate?,
+  //                       notes?, approvalRequired? }
+  static Future<Map<String, dynamic>> reassignStaffTask(
+    String id,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/staff/tasks/$id/reassign', body: data));
+
+  // PATCH /staff/workers/:id/availability — flip a worker's status to
+  // SICK_LEAVE / OFF_DAY / etc. so the assignment UI greys them out.
+  static Future<Map<String, dynamic>> setWorkerAvailability(
+    String workerId,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _patch('/staff/workers/$workerId/availability', body: data));
+
+  // POST /layers/brooder/occurrences — log a brooder incident
+  static Future<Map<String, dynamic>> logBrooderOccurrence(
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/layers/brooder/occurrences', body: data));
+
+  // GET /layers/brooder/occurrences?brooderId=...
+  static Future<List<dynamic>> getBrooderOccurrences(String brooderId) async =>
+      _asList(await _get('/layers/brooder/occurrences?brooderId=$brooderId'));
+
+  // GET /layers/brooder/occurrences/weekly?brooderId=...
+  static Future<Map<String, dynamic>> getBrooderWeeklyReport(
+    String brooderId,
+  ) async =>
+      _asMap(
+        await _get('/layers/brooder/occurrences/weekly?brooderId=$brooderId'),
+      );
+
   // POST /staff/payroll/process (ADMIN/CEO) — marks all rows PAID
   static Future<Map<String, dynamic>> processStaffPayroll() async =>
       _asMap(await _post('/staff/payroll/process'));

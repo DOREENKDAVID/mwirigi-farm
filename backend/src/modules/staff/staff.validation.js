@@ -86,3 +86,38 @@ export const payrollQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
 });
+
+// POST /api/staff/tasks/:id/reassign
+const REASSIGN_REASONS = [
+  "SICK_LEAVE",
+  "OFF_DAY",
+  "VACATION",
+  "EMERGENCY",
+  "SHIFT_BALANCING",
+  "OTHER",
+];
+const REASSIGN_DURATIONS = ["TODAY", "THIS_SHIFT", "PERMANENT", "OTHER"];
+
+export const reassignTaskSchema = z.object({
+  toUserId: z.string().uuid("Invalid replacement staff ID"),
+  reason: z.enum(REASSIGN_REASONS),
+  duration: z.enum(REASSIGN_DURATIONS).optional(),
+  effectiveDate: z.coerce.date().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+  approvalRequired: z.boolean().optional(),
+});
+
+// PATCH /api/staff/workers/:id/availability
+const WORKER_AVAILABILITY = [
+  "AVAILABLE",
+  "SICK_LEAVE",
+  "OFF_DAY",
+  "VACATION",
+  "EMERGENCY",
+  "OTHER_UNAVAILABLE",
+];
+
+export const workerAvailabilitySchema = z.object({
+  availabilityStatus: z.enum(WORKER_AVAILABILITY),
+  availabilityNote: z.string().trim().max(200).nullable().optional(),
+});
