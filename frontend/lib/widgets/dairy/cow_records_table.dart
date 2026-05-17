@@ -8,6 +8,7 @@ import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
 import 'register_cow_dialog.dart';
 import 'release_cow_dialog.dart';
+import 'worker_availability_dialog.dart';
 import 'report_sick_dialog.dart';
 
 /// Cow Records card. Two independent filter pill rows + a search bar +
@@ -161,6 +162,16 @@ class CowRecordsTableState extends State<CowRecordsTable> {
     }
   }
 
+  Future<void> _openAvailability() async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => WorkerAvailabilityDialog(workers: widget.workers),
+    );
+    if (changed == true) {
+      widget.onChanged();
+    }
+  }
+
   Future<void> _openRelease(Cow cow) async {
     final released = await showDialog<bool>(
       context: context,
@@ -258,6 +269,24 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                       ),
                     ),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: _openAvailability,
+                    icon: const Icon(Icons.manage_accounts, size: 14),
+                    label: const Text('Availability'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1976D2),
+                      side: const BorderSide(color: Color(0x551976D2)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: _openReportSick,
                     icon: const Icon(
