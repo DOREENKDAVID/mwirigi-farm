@@ -248,6 +248,10 @@ model User {
   payrollAdjustments    PayrollAdjustment[] @relation("StaffAdjustments")
   approvedAdjustments   PayrollAdjustment[] @relation("ApprovedAdjustments")
   authorizedCowReleases Cow[]               @relation("CowReleaseAuthorizer")
+  reportedOccurrences   BrooderOccurrence[] @relation("BrooderOccurrenceReporter")
+  taskReassignmentsFrom TaskReassignment[]  @relation("TaskReassignmentFrom")
+  taskReassignmentsTo   TaskReassignment[]  @relation("TaskReassignmentTo")
+  taskReassignmentsBy   TaskReassignment[]  @relation("TaskReassignmentBy")
 }
 
 model RefreshToken {
@@ -292,6 +296,15 @@ model House {
 // WORKERS / STAFF
 // ===================================================
 
+enum WorkerAvailability {
+  AVAILABLE
+  SICK_LEAVE
+  OFF_DAY
+  VACATION
+  EMERGENCY
+  OTHER_UNAVAILABLE
+}
+
 model Worker {
   id   String @id @default(uuid())
   name String
@@ -300,6 +313,14 @@ model Worker {
 
   payType PayType // MONTHLY or DAILY
   payRate Float? // nullable (e.g CEO)
+
+  // Operational availability used by the assignment UI. AVAILABLE is
+  // the default; any other value greys the worker out in task / shift
+  // pickers. availabilityNote is free-text shown in the tooltip
+  // (e.g. "Back Mon 18 May").
+  availabilityStatus     WorkerAvailability @default(AVAILABLE)
+  availabilityNote       String?
+  availabilityChangedAt  DateTime?
 
   houseId String? @unique
   house   House?  @relation(fields: [houseId], references: [id])
@@ -580,6 +601,7 @@ model Brooder {
   vaccinations        BrooderVaccination[]
   vaccinationRecords  VaccinationRecord[]
   allocations         AllocationPlan[]
+  occurrences         BrooderOccurrence[]
 
   @@index([receivedDate])
 }
@@ -605,6 +627,56 @@ model BrooderVaccination {
 
   @@unique([brooderId, dayOffset])
   @@index([brooderId])
+}
+
+// Categorical reason for a brooder occurrence — matches the v4.6
+// "Log Occurrence" dialog dropdown.
+enum BrooderOccurrenceType {
+  MORTALITY
+  DISEASE
+  TEMPERATURE_ISSUE
+  FEED_ISSUE
+  WATER_ISSUE
+  EQUIPMENT_FAILURE
+  VACCINATION
+  THEFT
+  OTHER
+}
+
+enum BrooderOccurrenceSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Per-incident log under a brooder cycle. Mortality / disease /
+// temperature / equipment etc. Aggregates roll up into the weekly
+// report. The cumulative Brooder.mortality column is kept in sync
+// only for MORTALITY rows (service-layer addition).
+model BrooderOccurrence {
+  id        String  @id @default(uuid())
+  brooderId String
+  brooder   Brooder @relation(fields: [brooderId], references: [id], onDelete: Cascade)
+
+  type           BrooderOccurrenceType
+  severity       BrooderOccurrenceSeverity @default(LOW)
+  occurredAt     DateTime
+  numberAffected Int                        @default(0)
+  description    String?
+  actionTaken    String?
+  imageUrl       String?
+  followUpNeeded Boolean                    @default(false)
+
+  reportedById String?
+  reportedBy   User?   @relation("BrooderOccurrenceReporter", fields: [reportedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brooderId])
+  @@index([occurredAt])
+  @@index([type])
 }
 
 enum AllocationType {
@@ -1401,11 +1473,61 @@ model Task {
   assignedTo User @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: Cascade)
   assignedBy User @relation("CreatedTasks", fields: [assignedById], references: [id], onDelete: Cascade)
 
+  reassignments TaskReassignment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([assignedToId])
   @@index([dueDate])
+}
+
+enum TaskReassignmentReason {
+  SICK_LEAVE
+  OFF_DAY
+  VACATION
+  EMERGENCY
+  SHIFT_BALANCING
+  OTHER
+}
+
+enum TaskReassignmentDuration {
+  TODAY
+  THIS_SHIFT
+  PERMANENT
+  OTHER
+}
+
+// Audit row for every task reassignment. Created alongside the
+// Task.assignedToId mutation by the /tasks/:id/reassign endpoint.
+// Lets the UI surface "previously assigned to X — moved on date Y
+// because Z" without losing data when a task hops between staff.
+model TaskReassignment {
+  id     String @id @default(uuid())
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  fromUserId String
+  fromUser   User   @relation("TaskReassignmentFrom", fields: [fromUserId], references: [id])
+
+  toUserId String
+  toUser   User   @relation("TaskReassignmentTo", fields: [toUserId], references: [id])
+
+  byUserId String
+  byUser   User   @relation("TaskReassignmentBy", fields: [byUserId], references: [id])
+
+  reason        TaskReassignmentReason
+  duration      TaskReassignmentDuration @default(TODAY)
+  effectiveDate DateTime
+  notes         String?
+
+  approvalRequired Boolean @default(false)
+  approvedAt       DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([effectiveDate])
 }
 
 // One Payroll row per (user, month, year). `status: PAID` is set after the

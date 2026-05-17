@@ -269,6 +269,63 @@ export const updateTask = async (id, patch) => {
   });
 };
 
+// Reassign a task to a different user, creating a TaskReassignment
+// audit row alongside the assignedToId mutation. Both writes go in
+// a single transaction so the audit trail can't fall out of sync
+// with the actual assignment.
+export const reassignTask = async (taskId, input, byUserId) => {
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!task) throw new Error("Task not found");
+
+  const newAssignee = await prisma.user.findUnique({
+    where: { id: input.toUserId },
+  });
+  if (!newAssignee) throw new Error("Replacement staff not found");
+
+  if (task.assignedToId === input.toUserId) {
+    throw new Error("Task is already assigned to this user");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    await tx.taskReassignment.create({
+      data: {
+        taskId,
+        fromUserId: task.assignedToId,
+        toUserId: input.toUserId,
+        byUserId,
+        reason: input.reason,
+        duration: input.duration ?? "TODAY",
+        effectiveDate: input.effectiveDate ?? new Date(),
+        notes: input.notes ?? null,
+        approvalRequired: input.approvalRequired ?? false,
+      },
+    });
+    return tx.task.update({
+      where: { id: taskId },
+      data: { assignedToId: input.toUserId },
+      include: {
+        assignedTo: { select: { id: true, userName: true } },
+      },
+    });
+  });
+};
+
+// Update a worker's availability flag and optional note. Drives the
+// task / shift picker UI — workers in non-AVAILABLE states are greyed
+// out so dispatchers don't accidentally assign to someone off-duty.
+export const setWorkerAvailability = async (workerId, input) => {
+  const worker = await prisma.worker.findUnique({ where: { id: workerId } });
+  if (!worker) throw new Error("Worker not found");
+  return prisma.worker.update({
+    where: { id: workerId },
+    data: {
+      availabilityStatus: input.availabilityStatus,
+      availabilityNote: input.availabilityNote ?? null,
+      availabilityChangedAt: new Date(),
+    },
+  });
+};
+
 export const deleteTask = async (id) => {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) throw new Error("Task not found");

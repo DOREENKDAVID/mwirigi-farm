@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/layers_unit.dart';
 import 'allocation_plan.dart';
+import 'brooder_occurrence_dialog.dart';
 import 'vaccination_timeline.dart';
 
 /// "Brooder house" card — combines the population/age/transfer KPIs with a
@@ -21,11 +22,34 @@ class BrooderHouseCard extends StatelessWidget {
     required this.brooder,
     required this.vaccination,
     required this.allocation,
+    this.onChanged,
   });
 
   final BrooderSection brooder;
   final List<VaccinationStep> vaccination;
   final List<AllocationRow> allocation;
+  /// Called after a successful "Log Occurrence" submission so the parent
+  /// can refetch the unit payload (mortality counter etc. may shift).
+  final VoidCallback? onChanged;
+
+  Future<void> _logOccurrence(BuildContext context) async {
+    final logged = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => BrooderOccurrenceDialog(
+        brooderId: brooder.id,
+        brooderLabel: brooder.label ?? 'Brooder house',
+      ),
+    );
+    if (logged == true) {
+      onChanged?.call();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Occurrence logged')),
+        );
+      }
+    }
+  }
 
   static const _amber = Color(0xFFD9A640);
   static const _amberBg = Color(0xFFFFF1DD);
@@ -49,7 +73,10 @@ class BrooderHouseCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Header(brooder: brooder),
+              _Header(
+                brooder: brooder,
+                onLogOccurrence: () => _logOccurrence(context),
+              ),
               const SizedBox(height: 14),
               _MiniKpis(brooder: brooder),
               const SizedBox(height: 14),
@@ -88,8 +115,9 @@ class BrooderHouseCard extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.brooder});
+  const _Header({required this.brooder, required this.onLogOccurrence});
   final BrooderSection brooder;
+  final VoidCallback onLogOccurrence;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +135,22 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
+        TextButton.icon(
+          onPressed: onLogOccurrence,
+          icon: const Icon(Icons.report_outlined, size: 14),
+          label: const Text('Log occurrence'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF854F0B),
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            minimumSize: const Size(0, 28),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(

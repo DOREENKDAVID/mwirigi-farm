@@ -95,6 +95,20 @@ router.delete(
   controller.deleteTask,
 );
 
+router.post(
+  "/tasks/:id/reassign",
+  authMiddleware,
+  authorizeRoles(...TASK_WRITERS),
+  controller.reassignTask,
+);
+
+router.patch(
+  "/workers/:id/availability",
+  authMiddleware,
+  authorizeRoles(...TASK_WRITERS),
+  controller.setWorkerAvailability,
+);
+
 // ===== Payroll =====
 router.get(
   "/payroll",
