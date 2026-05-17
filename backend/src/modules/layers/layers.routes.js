@@ -71,4 +71,20 @@ router.post(
   brooder.logOccurrence,
 );
 
+// ------- Allocation Plans -------
+// Write access is strictly CEO + LAYERS_MANAGER per Wave 4 governance.
+// Every write goes through createAllocationPlan which also appends an
+// AuditLog row in the same transaction.
+router.post(
+  "/brooder/allocations",
+  authMiddleware,
+  authorizeRoles("CEO", "LAYERS_MANAGER"),
+  brooder.createAllocation,
+);
+router.get(
+  "/brooder/allocations/history",
+  authMiddleware,
+  brooder.allocationHistory,
+);
+
 export default router;

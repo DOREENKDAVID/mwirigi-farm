@@ -1,4 +1,5 @@
 import prisma from "../../prisma/client.js";
+import { writeAuditLog } from "../../utils/audit.js";
 
 // MORTALITY occurrences add to the brooder's cumulative mortality
 // counter so the layers dashboard stays consistent without forcing
@@ -43,6 +44,44 @@ export const listOccurrencesForBrooder = async (brooderId) => {
     include: {
       reportedBy: { select: { id: true, userName: true } },
     },
+  });
+};
+
+// Append a new allocation plan revision for a brooder. The schema
+// keeps every historical row — the latest one per type wins on read
+// (buildAllocationView in layersUnit.service). Wrapped in a
+// transaction with the audit-log write so the trail can't fall out
+// of sync with the actual data.
+export const createAllocationPlan = async (input, actorId) => {
+  const brooder = await prisma.brooder.findUnique({
+    where: { id: input.brooderId },
+  });
+  if (!brooder) throw new Error("Brooder not found");
+
+  return prisma.$transaction(async (tx) => {
+    const plan = await tx.allocationPlan.create({
+      data: {
+        brooderId: input.brooderId,
+        cycleId: input.brooderId,
+        type: input.type,
+        birds: input.birds,
+        description: input.description,
+        createdById: actorId ?? null,
+      },
+    });
+    await writeAuditLog(tx, {
+      entity: "AllocationPlan",
+      entityId: input.brooderId,
+      action: "CREATE",
+      actorId,
+      reason: input.reason ?? null,
+      snapshot: {
+        type: plan.type,
+        birds: plan.birds,
+        description: plan.description,
+      },
+    });
+    return plan;
   });
 };
 

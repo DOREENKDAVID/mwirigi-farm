@@ -1,5 +1,6 @@
 import { z } from "zod";
 import * as service from "./brooder.service.js";
+import { listAuditLogs } from "../../utils/audit.js";
 
 const OCCURRENCE_TYPES = [
   "MORTALITY",
@@ -58,6 +59,47 @@ export const listOccurrences = async (req, res) => {
       return res.status(400).json({ error: "brooderId query is required" });
     }
     res.json(await service.listOccurrencesForBrooder(brooderId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const ALLOCATION_TYPES = ["POL_SALE", "REPLACEMENT"];
+
+const allocationSchema = z.object({
+  brooderId: z.string().uuid("Invalid brooderId"),
+  type: z.enum(ALLOCATION_TYPES),
+  birds: z.number().int().positive().max(1_000_000),
+  description: z.string().trim().min(1).max(400),
+  reason: z.string().trim().max(2000).nullable().optional(),
+});
+
+export const createAllocation = async (req, res) => {
+  try {
+    const body = allocationSchema.parse(req.body);
+    const plan = await service.createAllocationPlan(body, req.user?.id);
+    res.status(201).json(plan);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Brooder not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const allocationHistory = async (req, res) => {
+  try {
+    const brooderId = req.query.brooderId;
+    if (typeof brooderId !== "string" || !brooderId) {
+      return res.status(400).json({ error: "brooderId query is required" });
+    }
+    const logs = await listAuditLogs({
+      entity: "AllocationPlan",
+      entityId: brooderId,
+      limit: 100,
+    });
+    res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

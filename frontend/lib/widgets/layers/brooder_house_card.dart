@@ -93,7 +93,11 @@ class BrooderHouseCard extends StatelessWidget {
               const _Divider(),
               const _SectionLabel('Allocation plan when chicks reach 3 months'),
               const SizedBox(height: 10),
-              AllocationPlan(rows: allocation),
+              AllocationPlan(
+                rows: allocation,
+                brooderId: brooder.id,
+                onChanged: onChanged,
+              ),
             ],
           ),
         ),

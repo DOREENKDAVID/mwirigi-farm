@@ -1037,6 +1037,21 @@ class ApiService {
         await _get('/layers/brooder/occurrences/weekly?brooderId=$brooderId'),
       );
 
+  // POST /layers/brooder/allocations (CEO, LAYERS_MANAGER)
+  // Body: { brooderId, type: 'POL_SALE'|'REPLACEMENT', birds, description, reason? }
+  static Future<Map<String, dynamic>> createAllocationPlan(
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/layers/brooder/allocations', body: data));
+
+  // GET /layers/brooder/allocations/history?brooderId=...
+  static Future<List<dynamic>> getAllocationHistory(String brooderId) async =>
+      _asList(
+        await _get(
+          '/layers/brooder/allocations/history?brooderId=$brooderId',
+        ),
+      );
+
   // POST /staff/payroll/process (ADMIN/CEO) — marks all rows PAID
   static Future<Map<String, dynamic>> processStaffPayroll() async =>
       _asMap(await _post('/staff/payroll/process'));
