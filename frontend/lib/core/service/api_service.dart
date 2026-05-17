@@ -37,6 +37,7 @@ class ApiService {
   static const _tokenKey = 'auth_token';
   static const _refreshKey = 'refresh_token';
   static const _roleKey = 'auth_role';
+  static const _userIdKey = 'auth_user_id';
 
   // ---------- token storage ----------
   static Future<void> saveToken(String token) =>
@@ -57,6 +58,14 @@ class ApiService {
       _secureStorage.write(key: _roleKey, value: role);
   static Future<String?> readRole() => _secureStorage.read(key: _roleKey);
   static Future<void> _deleteRole() => _secureStorage.delete(key: _roleKey);
+
+  // User id — persisted on login alongside role so the offline
+  // SyncQueue can attach an actor to each queued action.
+  static Future<void> _saveUserId(String id) =>
+      _secureStorage.write(key: _userIdKey, value: id);
+  static Future<String?> readUserId() => _secureStorage.read(key: _userIdKey);
+  static Future<void> _deleteUserId() =>
+      _secureStorage.delete(key: _userIdKey);
 
   // ---------- HTTP plumbing ----------
   static Future<Map<String, String>> _headers({bool auth = false}) async {
@@ -123,6 +132,7 @@ class ApiService {
       await deleteToken();
       await _deleteRefresh();
       await _deleteRole();
+      await _deleteUserId();
 
       // 2. Redirect to the login screen, removing all routes underneath so
       //    the user can't back-button into a protected page. The
@@ -200,6 +210,31 @@ class ApiService {
     return _decode(r);
   }
 
+  /// Public dispatcher used by the offline SyncQueue. Replays a
+  /// previously-queued mutation against the live API exactly as if it
+  /// had been issued at the time. Returns the decoded body on 2xx;
+  /// raises [ApiException] otherwise.
+  static Future<dynamic> rawRequest({
+    required String method,
+    required String path,
+    Map<String, dynamic>? body,
+  }) {
+    switch (method.toUpperCase()) {
+      case 'GET':
+        return _get(path);
+      case 'POST':
+        return _post(path, body: body);
+      case 'PUT':
+        return _put(path, body: body);
+      case 'PATCH':
+        return _patch(path, body: body);
+      case 'DELETE':
+        return _delete(path);
+      default:
+        throw ApiException('Unsupported method: $method');
+    }
+  }
+
   static Map<String, dynamic> _asMap(dynamic v) {
     if (v is Map<String, dynamic>) return v;
     if (v is Map) return v.cast<String, dynamic>();
@@ -223,8 +258,13 @@ class ApiService {
       await _saveRefresh(res['refreshToken'] as String);
     }
     final user = res['user'];
-    if (user is Map && user['role'] is String) {
-      await _saveRole(user['role'] as String);
+    if (user is Map) {
+      if (user['role'] is String) {
+        await _saveRole(user['role'] as String);
+      }
+      if (user['id'] is String) {
+        await _saveUserId(user['id'] as String);
+      }
     }
     return res;
   }
@@ -240,8 +280,13 @@ class ApiService {
       await _saveRefresh(res['refreshToken'] as String);
     }
     final user = res['user'];
-    if (user is Map && user['role'] is String) {
-      await _saveRole(user['role'] as String);
+    if (user is Map) {
+      if (user['role'] is String) {
+        await _saveRole(user['role'] as String);
+      }
+      if (user['id'] is String) {
+        await _saveUserId(user['id'] as String);
+      }
     }
     return res;
   }
@@ -255,8 +300,13 @@ class ApiService {
       await _saveRefresh(res['refreshToken'] as String);
     }
     final user = res['user'];
-    if (user is Map && user['role'] is String) {
-      await _saveRole(user['role'] as String);
+    if (user is Map) {
+      if (user['role'] is String) {
+        await _saveRole(user['role'] as String);
+      }
+      if (user['id'] is String) {
+        await _saveUserId(user['id'] as String);
+      }
     }
     return res;
   }
@@ -342,6 +392,7 @@ class ApiService {
     await deleteToken();
     await _deleteRefresh();
     await _deleteRole();
+    await _deleteUserId();
   }
 
   // GET /auth/admin (CEO only)
