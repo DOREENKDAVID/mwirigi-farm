@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/models/cow.dart';
 import '../../core/service/api_service.dart';
+import '../../offline/repositories/cow_repository.dart';
 
 /// Modal `m-repro` from the HTML mockup, replicated exactly:
 ///
@@ -43,6 +45,19 @@ class _LogAiCalvingDialogState extends State<LogAiCalvingDialog> {
   _EventChoice _choice = _EventChoice.artificialInsemination;
   DateTime _date = DateTime.now();
   bool _submitting = false;
+  List<Cow> _cows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCows();
+  }
+
+  Future<void> _loadCows() async {
+    final cows = await CowRepository.instance.listLocal();
+    if (!mounted) return;
+    setState(() => _cows = cows);
+  }
 
   @override
   void dispose() {
@@ -136,23 +151,96 @@ class _LogAiCalvingDialogState extends State<LogAiCalvingDialog> {
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 const SizedBox(height: 18),
-                // Row 1: Cow tag + Event type
+                // Row 1: Cow tag (autocomplete from herd) + Event type
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
-                        controller: _tagController,
-                        textCapitalization: TextCapitalization.characters,
-                        autocorrect: false,
-                        decoration: const InputDecoration(
-                          labelText: 'Cow tag',
-                          hintText: 'MW-100',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          final v = value?.trim() ?? '';
-                          if (v.isEmpty) return 'Cow tag is required';
-                          return null;
+                      child: Autocomplete<Cow>(
+                        optionsBuilder: (text) {
+                          final q = text.text.trim().toLowerCase();
+                          if (q.isEmpty) return _cows;
+                          return _cows.where((c) {
+                            return c.tag.toLowerCase().contains(q) ||
+                                (c.nickname ?? '').toLowerCase().contains(q);
+                          });
+                        },
+                        displayStringForOption: (c) => c.tag,
+                        onSelected: (c) {
+                          _tagController.text = c.tag;
+                        },
+                        fieldViewBuilder: (
+                          context,
+                          textController,
+                          focusNode,
+                          onFieldSubmitted,
+                        ) {
+                          // Keep our own _tagController in sync with the
+                          // internal one so the existing _submit() code
+                          // doesn't need to change.
+                          textController.addListener(() {
+                            if (_tagController.text != textController.text) {
+                              _tagController.text = textController.text;
+                            }
+                          });
+                          return TextFormField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            textCapitalization: TextCapitalization.characters,
+                            autocorrect: false,
+                            decoration: InputDecoration(
+                              labelText: 'Cow tag',
+                              hintText: _cows.isEmpty
+                                  ? 'Type or pick…'
+                                  : 'Pick from ${_cows.length} cows',
+                              border: const OutlineInputBorder(),
+                              suffixIcon: const Icon(
+                                Icons.arrow_drop_down,
+                                size: 20,
+                              ),
+                            ),
+                            validator: (value) {
+                              final v = value?.trim() ?? '';
+                              if (v.isEmpty) return 'Cow tag is required';
+                              return null;
+                            },
+                          );
+                        },
+                        optionsViewBuilder: (context, onSelected, options) {
+                          final list = options.toList();
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              borderRadius: BorderRadius.circular(8),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxHeight: 260,
+                                  maxWidth: 320,
+                                ),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  itemCount: list.length,
+                                  itemBuilder: (_, i) {
+                                    final c = list[i];
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(c.tag),
+                                      subtitle: c.nickname == null
+                                          ? null
+                                          : Text(
+                                              c.nickname!,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                      onTap: () => onSelected(c),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          );
                         },
                       ),
                     ),
