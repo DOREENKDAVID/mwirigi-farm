@@ -92,10 +92,14 @@ class _HealthPageState extends State<HealthPage> {
     if (result == true) await _refresh();
   }
 
-  Future<void> _openAddTreatment() async {
+  Future<void> _openAddTreatment({TreatmentRow? prefillFrom}) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (_) => const AddTreatmentDialog(),
+      builder: (_) => AddTreatmentDialog(
+        initialTag: prefillFrom?.tag,
+        initialUnit: prefillFrom?.unit,
+        initialDiagnosis: prefillFrom?.diagnosis,
+      ),
     );
     if (result == true) await _refresh();
   }
@@ -176,6 +180,7 @@ class _HealthPageState extends State<HealthPage> {
           ActiveTreatmentsTable(
             rows: data.treatments,
             onAdd: _openAddTreatment,
+            onRowTap: (row) => _openAddTreatment(prefillFrom: row),
           ),
         ];
       case HealthTab.protocols:

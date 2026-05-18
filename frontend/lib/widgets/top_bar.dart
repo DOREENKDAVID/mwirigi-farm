@@ -123,17 +123,17 @@ class _SignOutButtonState extends State<_SignOutButton> {
 
   @override
   Widget build(BuildContext context) {
+    const primary = Color(0xFF27500A);
     return Material(
-      color: Colors.transparent,
+      color: primary,
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: Color(0x33000000), width: 0.5),
         borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
         onTap: _confirmAndSignOut,
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -143,17 +143,17 @@ class _SignOutButtonState extends State<_SignOutButton> {
                       height: 12,
                       child: CircularProgressIndicator(
                         strokeWidth: 1.5,
-                        color: Colors.black54,
+                        color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.logout, size: 14, color: Colors.black54),
-              const SizedBox(width: 4),
+                  : const Icon(Icons.logout, size: 14, color: Colors.white),
+              const SizedBox(width: 6),
               const Text(
                 'Sign out',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black54,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ],
