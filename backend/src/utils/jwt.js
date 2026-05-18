@@ -10,7 +10,7 @@ export const generateAccessToken = (user) => {
         email: user.email
       },
       process.env.JWT_SECRET,
-      { expiresIn: "15m" } // short-lived
+      { expiresIn: "1h" } // short-lived
     );
     console.info(`Access token generated for user ${user.id}`);
     return token;
