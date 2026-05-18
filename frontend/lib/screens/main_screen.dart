@@ -31,18 +31,10 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   FarmSection _selected = FarmSection.overview;
-  bool _simulating = false;
 
   void _handleSelect(FarmSection s) {
     if (s == _selected) return;
     setState(() => _selected = s);
-  }
-
-  void _toggleSimulate() {
-    // UI-only at this phase. Wired up so the button shows feedback;
-    // real simulation logic belongs in a later session once trend
-    // endpoints exist on the backend.
-    setState(() => _simulating = !_simulating);
   }
 
   @override
@@ -57,8 +49,6 @@ class _MainScreenState extends State<MainScreen> {
       backgroundColor: const Color(0xFFF5F4F0),
       appBar: FarmTopBar(
         title: farmSectionTitle(_selected),
-        simulating: _simulating,
-        onToggleSimulate: _toggleSimulate,
         // Hide the hamburger menu when the sidebar is permanent.
         showMenuButton: !wide,
       ),
