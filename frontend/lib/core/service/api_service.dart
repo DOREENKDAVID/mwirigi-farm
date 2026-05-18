@@ -899,12 +899,23 @@ class ApiService {
 
   // POST /feedlot/bulls/:id/sell (CEO/VET)
   // Body: { saleDate?, soldWeightKg, salePrice, buyerName, buyerPhone?,
-  //         paymentMethod?, saleNotes?, receiptUrl? }
+  //         paymentMethod?, saleNotes? }
+  // Backend auto-creates a Revenue row (ANIMAL_SALES, Feedlot) in the
+  // same transaction so the finance cashflow updates atomically.
   static Future<Map<String, dynamic>> sellBull(
     String id,
     Map<String, dynamic> data,
   ) async =>
       _asMap(await _post('/feedlot/bulls/$id/sell', body: data));
+
+  // POST /feedlot/sheep/:id/sell (CEO/VET) — mirror of sellBull.
+  // Same auto-Revenue side-effect but unit Doopers. Weight is optional
+  // for sheep since lambs aren't always weighed at sale.
+  static Future<Map<String, dynamic>> sellSheep(
+    String id,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/feedlot/sheep/$id/sell', body: data));
 
   // GET /feedlot/sheep -> [{ id, tag, category, entryDate, entryWeight }]
   static Future<List<dynamic>> getFeedlotSheep() async =>

@@ -6,21 +6,22 @@ import '../../core/models/feedlot.dart';
 import '../../core/service/api_service.dart';
 import '../../core/utils/sale_receipt_pdf.dart';
 
-/// Sell a bull out of the feedlot. Captures buyer + price + weight,
-/// posts to /feedlot/bulls/:id/sell, then immediately offers to
-/// preview the auto-generated PDF receipt. The backend creates a
-/// Revenue row in the same transaction so the finance cashflow
-/// updates atomically — no separate finance-entry step required.
-class SellBullDialog extends StatefulWidget {
-  const SellBullDialog({super.key, required this.bull});
+/// Sell a sheep (dooper) out of the flock. Mirrors SellBullDialog
+/// but treats `soldWeightKg` as optional — lambs and culls aren't
+/// always weighed at sale. Posts to /feedlot/sheep/:id/sell which
+/// also writes a Revenue row (ANIMAL_SALES, unit Doopers) so the
+/// finance cashflow ledger picks up the income in the same
+/// transaction.
+class SellDopperDialog extends StatefulWidget {
+  const SellDopperDialog({super.key, required this.sheep});
 
-  final BullView bull;
+  final SheepView sheep;
 
   @override
-  State<SellBullDialog> createState() => _SellBullDialogState();
+  State<SellDopperDialog> createState() => _SellDopperDialogState();
 }
 
-class _SellBullDialogState extends State<SellBullDialog> {
+class _SellDopperDialogState extends State<SellDopperDialog> {
   final _formKey = GlobalKey<FormState>();
   final _buyerName = TextEditingController();
   final _buyerPhone = TextEditingController();
@@ -35,9 +36,11 @@ class _SellBullDialogState extends State<SellBullDialog> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill sale weight with the current weight so the user can
-    // confirm or adjust at the time of sale.
-    _saleWeight.text = widget.bull.currentWeight.toString();
+    // Pre-fill the weight when one is recorded so the user can
+    // confirm or adjust. Lambs often have no entry / current weight
+    // — leave blank in that case.
+    final w = widget.sheep.currentWeight ?? widget.sheep.entryWeight;
+    if (w != null) _saleWeight.text = w.toString();
   }
 
   @override
@@ -66,10 +69,12 @@ class _SellBullDialogState extends State<SellBullDialog> {
     setState(() => _submitting = true);
     try {
       final salePrice = double.parse(_salePrice.text);
-      final soldWeightKg = double.parse(_saleWeight.text);
-      await ApiService.sellBull(widget.bull.id, {
+      final weightText = _saleWeight.text.trim();
+      final soldWeightKg = weightText.isEmpty ? null : double.parse(weightText);
+
+      await ApiService.sellSheep(widget.sheep.id, {
         'saleDate': _saleDate.toIso8601String(),
-        'soldWeightKg': soldWeightKg,
+        if (soldWeightKg != null) 'soldWeightKg': soldWeightKg,
         'salePrice': salePrice,
         'buyerName': _buyerName.text.trim(),
         'buyerPhone':
@@ -78,15 +83,10 @@ class _SellBullDialogState extends State<SellBullDialog> {
         'saleNotes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       });
       if (!mounted) return;
-      // Hand the parent the success signal first so it can refetch
-      // immediately; the receipt preview happens after on the same
-      // navigator context.
       Navigator.of(context).pop(true);
-      // Fire-and-forget PDF preview — uses Printing.layoutPdf which
-      // opens the system share/print sheet.
       previewSaleReceipt(SaleReceiptData(
-        kind: 'Bull',
-        animalTag: widget.bull.tag,
+        kind: widget.sheep.category.label, // "Ewe" / "Ram" / "Lamb"
+        animalTag: widget.sheep.tag,
         saleDate: _saleDate,
         salePrice: salePrice,
         soldWeightKg: soldWeightKg,
@@ -115,7 +115,8 @@ class _SellBullDialogState extends State<SellBullDialog> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Sell ${widget.bull.tag}',
+              'Sell ${widget.sheep.tag}'
+              ' (${widget.sheep.category.label.toLowerCase()})',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
@@ -139,7 +140,7 @@ class _SellBullDialogState extends State<SellBullDialog> {
                   child: const Text(
                     'A PDF receipt is generated automatically after save '
                     'and a matching Revenue entry is posted to the finance '
-                    'cashflow ledger.',
+                    'cashflow ledger (unit: Doopers).',
                     style: TextStyle(fontSize: 11, color: Color(0xFF27500A)),
                   ),
                 ),
@@ -192,21 +193,39 @@ class _SellBullDialogState extends State<SellBullDialog> {
                 ]),
                 const SizedBox(height: 14),
                 _row([
-                  _field('SALE WEIGHT (KG) *', TextFormField(
+                  _field('SALE WEIGHT (KG)', TextFormField(
                     controller: _saleWeight,
                     enabled: !_submitting,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                    decoration: _inputDec(hint: 'e.g. 480'),
-                    validator: _validatePositive,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
+                    decoration: _inputDec(hint: 'Optional — e.g. 32'),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final n = double.tryParse(v);
+                      if (n == null || n <= 0 || n > 500) {
+                        return 'Must be 0-500';
+                      }
+                      return null;
+                    },
                   )),
                   _field('SALE PRICE *', TextFormField(
                     controller: _salePrice,
                     enabled: !_submitting,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    ],
                     decoration: _inputDec(hint: 'KES'),
-                    validator: _validatePositive,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      final n = double.tryParse(v);
+                      if (n == null || n <= 0) return 'Must be > 0';
+                      return null;
+                    },
                   )),
                 ]),
                 const SizedBox(height: 14),
@@ -215,8 +234,9 @@ class _SellBullDialogState extends State<SellBullDialog> {
                   controller: _notes,
                   enabled: !_submitting,
                   maxLines: 3,
-                  decoration:
-                      _inputDec(hint: 'Optional — buyer reference, condition, etc.'),
+                  decoration: _inputDec(
+                    hint: 'Optional — buyer reference, condition, etc.',
+                  ),
                 ),
               ],
             ),
@@ -249,13 +269,6 @@ class _SellBullDialogState extends State<SellBullDialog> {
         ),
       ],
     );
-  }
-
-  String? _validatePositive(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Required';
-    final n = double.tryParse(v);
-    if (n == null || n <= 0) return 'Must be > 0';
-    return null;
   }
 
   Widget _row(List<Widget> children) => Row(

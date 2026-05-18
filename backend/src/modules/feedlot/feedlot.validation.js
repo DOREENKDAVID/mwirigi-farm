@@ -34,7 +34,8 @@ export const updateBullSchema = z
 
 // POST /api/feedlot/bulls/:id/sell — record a sale and archive the bull.
 // Required fields mirror the v4.6 "Sell Feedlot" dialog: buyer + price +
-// weight. receiptUrl is the Cloudinary URL returned from /uploads/cow.
+// weight. receiptUrl is kept for backward compat with older clients,
+// but new builds auto-generate a PDF receipt and skip the upload.
 export const sellBullSchema = z.object({
   saleDate: z.coerce.date().optional(),
   soldWeightKg: z.number().positive("Sale weight must be > 0").max(2000),
@@ -47,6 +48,22 @@ export const sellBullSchema = z.object({
     .optional(),
   saleNotes: z.string().trim().max(2000).nullable().optional(),
   receiptUrl: z.string().trim().max(500).nullable().optional(),
+});
+
+// POST /api/feedlot/sheep/:id/sell — mirror of sellBullSchema.
+// soldWeightKg is optional for lambs / culls where a weigh-in isn't
+// always recorded; salePrice + buyer name are still required.
+export const sellSheepSchema = z.object({
+  saleDate: z.coerce.date().optional(),
+  soldWeightKg: z.number().positive().max(500).nullable().optional(),
+  salePrice: z.number().nonnegative("Sale price cannot be negative"),
+  buyerName: z.string().trim().min(1, "Buyer name is required").max(120),
+  buyerPhone: z.string().trim().max(40).nullable().optional(),
+  paymentMethod: z
+    .enum(["CASH", "MPESA", "BANK_TRANSFER", "CHEQUE", "OTHER"])
+    .nullable()
+    .optional(),
+  saleNotes: z.string().trim().max(2000).nullable().optional(),
 });
 
 // POST /api/feedlot/sheep — register one tagged sheep.

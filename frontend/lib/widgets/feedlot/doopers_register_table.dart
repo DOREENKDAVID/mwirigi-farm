@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/feedlot.dart';
 import '../../core/service/api_service.dart';
 import 'edit_dooper_dialog.dart';
+import 'sell_dooper_dialog.dart';
 
 /// Doopers Register card. One row per non-deleted sheep with edit + delete
 /// actions. Editing exposes `category` and `currentWeight`; the server
@@ -160,6 +161,22 @@ class _DooperActions extends StatelessWidget {
     }
   }
 
+  Future<void> _sell(BuildContext context) async {
+    final sold = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => SellDopperDialog(sheep: sheep),
+    );
+    if (sold == true) {
+      onChanged();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${sheep.tag} sold and archived')),
+        );
+      }
+    }
+  }
+
   Future<void> _delete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -215,6 +232,14 @@ class _DooperActions extends StatelessWidget {
           onPressed: () => _edit(context),
           icon: const Icon(Icons.edit_outlined, size: 16),
           color: const Color(0xFF27500A),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+        ),
+        IconButton(
+          tooltip: 'Sell',
+          onPressed: () => _sell(context),
+          icon: const Icon(Icons.point_of_sale, size: 16),
+          color: const Color(0xFF2E7D32),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
         ),

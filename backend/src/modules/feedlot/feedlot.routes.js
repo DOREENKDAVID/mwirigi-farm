@@ -48,6 +48,13 @@ router.post(
 );
 
 router.post(
+  "/sheep/:id/sell",
+  authMiddleware,
+  authorizeRoles("CEO", "VET"),
+  controller.sellSheep,
+);
+
+router.post(
   "/weights",
   authMiddleware,
   authorizeRoles("CEO", "VET"),

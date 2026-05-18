@@ -6,6 +6,7 @@ import {
   createWeightSchema,
   createSheepSchema,
   updateSheepSchema,
+  sellSheepSchema,
   lambingSchema,
   lambingQuerySchema,
 } from "./feedlot.validation.js";
@@ -90,7 +91,11 @@ export const deleteBull = async (req, res) => {
 export const sellBull = async (req, res) => {
   try {
     const body = sellBullSchema.parse(req.body);
-    const bull = await feedlotService.sellBull(req.params.id, body);
+    const bull = await feedlotService.sellBull(
+      req.params.id,
+      body,
+      req.user?.id,
+    );
     res.status(200).json(bull);
   } catch (err) {
     if (handleZodError(res, err)) return;
@@ -98,6 +103,27 @@ export const sellBull = async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     if (err.message === "Bull is already sold") {
+      return res.status(409).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const sellSheep = async (req, res) => {
+  try {
+    const body = sellSheepSchema.parse(req.body);
+    const sheep = await feedlotService.sellSheep(
+      req.params.id,
+      body,
+      req.user?.id,
+    );
+    res.status(200).json(sheep);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Sheep not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message === "Sheep is already sold") {
       return res.status(409).json({ error: err.message });
     }
     res.status(400).json({ error: err.message });

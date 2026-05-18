@@ -978,12 +978,24 @@ model Sheep {
   entryWeight   Float?
   currentWeight Float?
 
+  // Sale disposition. Mirrors the Bull schema. listSheep filters on
+  // soldAt = null so sold animals drop out of active views; the
+  // auto-generated receipt and finance Revenue row keep the trail.
+  soldAt         DateTime?
+  soldWeightKg   Float?
+  salePrice      Float?
+  buyerName      String?
+  buyerPhone     String?
+  paymentMethod  String?
+  saleNotes      String?
+
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@index([category])
   @@index([deletedAt])
+  @@index([soldAt])
 }
 
 model LambingRecord {
