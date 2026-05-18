@@ -397,7 +397,7 @@ export const getSummary = async () => {
     where: { date: { gte: start, lte: end } },
     _sum: { litres: true },
   });
-  const sessions = { AM: 0, MID: 0, PM: 0 };
+  const sessions = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
   for (const r of sessionRows) {
     sessions[r.session] = r._sum.litres ?? 0;
   }
@@ -638,14 +638,14 @@ export const getTodaySessions = async ({
     },
   });
 
-  const SESSIONS = ["AM", "MID", "PM"];
+  const SESSIONS = ["DAWN", "AM", "MID", "PM"];
 
   const workerViews = workers.map((w) => {
     const cowViews = w.cows.map((cow) => {
       // Bucket records into today vs prior week, and per session.
-      const entries = { AM: null, MID: null, PM: null };
-      const weekTotals = { AM: 0, MID: 0, PM: 0 };
-      const weekCounts = { AM: 0, MID: 0, PM: 0 };
+      const entries = { DAWN: null, AM: null, MID: null, PM: null };
+      const weekTotals = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
+      const weekCounts = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
       for (const r of cow.milkRecords) {
         if (r.date >= dayStart && r.date <= dayEnd) {
           // Most-recent record for this session wins (idempotent upsert).
@@ -684,11 +684,12 @@ export const getTodaySessions = async ({
     });
 
     const progress = {
+      DAWN: { logged: 0, total: cowViews.length },
       AM: { logged: 0, total: cowViews.length },
       MID: { logged: 0, total: cowViews.length },
       PM: { logged: 0, total: cowViews.length },
     };
-    const totals = { AM: 0, MID: 0, PM: 0 };
+    const totals = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
     for (const c of cowViews) {
       for (const s of SESSIONS) {
         if (c.entries[s] !== null) {
@@ -697,7 +698,7 @@ export const getTodaySessions = async ({
         }
       }
     }
-    const dayTotal = totals.AM + totals.MID + totals.PM;
+    const dayTotal = totals.DAWN + totals.AM + totals.MID + totals.PM;
 
     return {
       id: w.id,
@@ -865,11 +866,11 @@ export const getTodayNetSummary = async () => {
     autoCalfCountUnder4mo(),
   ]);
 
-  const gross = { AM: 0, MID: 0, PM: 0 };
+  const gross = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
   for (const r of aggs) {
     gross[r.session] = r._sum.litres ?? 0;
   }
-  const dayGross = gross.AM + gross.MID + gross.PM;
+  const dayGross = gross.DAWN + gross.AM + gross.MID + gross.PM;
 
   const storedCalf = config?.calfDeduction;
   const calfDeduction = storedCalf && storedCalf > 0

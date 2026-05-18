@@ -264,10 +264,10 @@ export const updateMilkDeductions = async (req, res) => {
 export const submitMilkSession = async (req, res) => {
   try {
     const { workerId, session, date, entries } = req.body ?? {};
-    if (!session || !["AM", "MID", "PM"].includes(session)) {
+    if (!session || !["DAWN", "AM", "MID", "PM"].includes(session)) {
       return res
         .status(400)
-        .json({ error: "session must be one of AM, MID, PM" });
+        .json({ error: "session must be one of DAWN, AM, MID, PM" });
     }
     if (!Array.isArray(entries) || entries.length === 0) {
       return res

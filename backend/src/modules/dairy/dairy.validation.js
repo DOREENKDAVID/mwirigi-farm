@@ -127,8 +127,8 @@ export const milkRecordSchema = z.object({
     .positive("Litres must be greater than 0")
     .max(100, "Unrealistic milk value"),
 
-  // Must match Prisma SessionType enum exactly (AM | MID | PM).
-  session: z.enum(["AM", "MID", "PM"]),
+  // Must match Prisma SessionType enum exactly (DAWN | AM | MID | PM).
+  session: z.enum(["DAWN", "AM", "MID", "PM"]),
 
   date: z.coerce.date(),
 

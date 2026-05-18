@@ -38,16 +38,14 @@ class DairyDayTotalsCardState extends State<DairyDayTotalsCard> {
   Future<DayNetSummary> _load() async {
     final raw = await ApiService.getDairyTodayNet();
     final parsed = DayNetSummary.fromJson(raw);
-    // Auto-select the most recent session that has activity so the card
-    // shows the most relevant context after the morning pass.
-    final pmHas = (parsed.sessions[MilkSession.pm] ?? 0) > 0;
-    final midHas = (parsed.sessions[MilkSession.mid] ?? 0) > 0;
-    if (pmHas) {
-      _session = MilkSession.pm;
-    } else if (midHas) {
-      _session = MilkSession.mid;
-    } else {
-      _session = MilkSession.am;
+    // Auto-select the latest session that has any activity so the card
+    // shows the most relevant context after each milking pass. Falls
+    // back to AM when nothing has been logged yet today.
+    _session = MilkSession.am;
+    for (final s in MilkSession.values) {
+      if ((parsed.sessions[s] ?? 0) > 0) {
+        _session = s;
+      }
     }
     return parsed;
   }

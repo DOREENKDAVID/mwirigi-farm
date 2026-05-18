@@ -1238,26 +1238,25 @@ class _ManagerView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        // Header row.
+        // Header row. Column labels come from MilkSession.values so a
+        // new session (e.g. Dawn) lands in the right column without a
+        // separate copy-paste in the header.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
-            children: const [
-              Expanded(flex: 5, child: _MgrCell('WORKER', isHeader: true)),
-              Expanded(flex: 2, child: _MgrCell('COWS', isHeader: true)),
-              Expanded(
-                flex: 3,
-                child: _MgrCell('AM', isHeader: true, alignEnd: true),
-              ),
-              Expanded(
-                flex: 3,
-                child: _MgrCell('MIDDAY', isHeader: true, alignEnd: true),
-              ),
-              Expanded(
-                flex: 3,
-                child: _MgrCell('PM', isHeader: true, alignEnd: true),
-              ),
-              Expanded(
+            children: [
+              const Expanded(flex: 5, child: _MgrCell('WORKER', isHeader: true)),
+              const Expanded(flex: 2, child: _MgrCell('COWS', isHeader: true)),
+              for (final s in MilkSession.values)
+                Expanded(
+                  flex: 3,
+                  child: _MgrCell(
+                    s.label.toUpperCase(),
+                    isHeader: true,
+                    alignEnd: true,
+                  ),
+                ),
+              const Expanded(
                 flex: 3,
                 child: _MgrCell('TOTAL', isHeader: true, alignEnd: true),
               ),

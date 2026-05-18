@@ -33,6 +33,9 @@ double? _toDoubleNullable(dynamic v) {
 
 // Session enum — matches the backend SessionType (AM | MID | PM).
 enum MilkSession {
+  // Order here drives the order of pills in the session tab row.
+  // Dawn is the 3am milking, AM the 9am, Midday the 12pm, PM the 5pm.
+  dawn('DAWN', 'Dawn'),
   am('AM', 'AM'),
   mid('MID', 'Midday'),
   pm('PM', 'PM');
