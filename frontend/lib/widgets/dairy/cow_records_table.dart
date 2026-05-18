@@ -59,9 +59,16 @@ class CowRecordsTable extends StatefulWidget {
 class CowRecordsTableState extends State<CowRecordsTable> {
   static const _primary = Color(0xFF27500A);
 
+  // Roles that can register, edit, release, or delete cows. Mirrors
+  // the backend authorizeRoles gate on POST/PUT/DELETE /dairy/cows.
+  // For other roles (VET, WORKER, …) the buttons are hidden so we
+  // don't queue offline actions the server will reject as 403.
+  static const _cowEditorRoles = {'CEO', 'DAIRY_MANAGER', 'ADMIN'};
+
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
   String _search = '';
+  bool _canEditCows = false;
 
   Future<List<Cow>>? _future;
 
@@ -69,6 +76,13 @@ class CowRecordsTableState extends State<CowRecordsTable> {
   void initState() {
     super.initState();
     _future = _load();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await ApiService.readRole();
+    if (!mounted) return;
+    setState(() => _canEditCows = _cowEditorRoles.contains(role));
   }
 
   @override
@@ -242,33 +256,39 @@ class CowRecordsTableState extends State<CowRecordsTable> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header — count + register button.
-              Row(
-                children: [
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(color: Colors.black54),
-                        children: [
-                          const TextSpan(
-                            text: 'COW RECORDS',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.6,
-                            ),
-                          ),
-                          TextSpan(
-                            text: '  —  ${cows.length} cow${cows.length == 1 ? '' : 's'}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+              // Header — count label on its own row so it doesn't
+              // get squeezed into a vertical sliver when the action
+              // buttons need horizontal space. Buttons flow with Wrap
+              // so they cascade to a second line on narrow phones
+              // instead of clipping or overflowing.
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(color: Colors.black54),
+                  children: [
+                    const TextSpan(
+                      text: 'COW RECORDS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
                       ),
                     ),
-                  ),
+                    TextSpan(
+                      text: '  —  ${cows.length} cow${cows.length == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.start,
+                children: [
                   OutlinedButton.icon(
                     onPressed: _openAvailability,
                     icon: const Icon(Icons.manage_accounts, size: 14),
@@ -286,7 +306,6 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: _openReportSick,
                     icon: const Icon(
@@ -307,24 +326,24 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: _openRegister,
-                    icon: const Icon(Icons.add, size: 14),
-                    label: const Text('Register cow'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _primary,
-                      side: const BorderSide(color: Color(0x33000000)),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                  if (_canEditCows)
+                    OutlinedButton.icon(
+                      onPressed: _openRegister,
+                      icon: const Icon(Icons.add, size: 14),
+                      label: const Text('Register cow'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _primary,
+                        side: const BorderSide(color: Color(0x33000000)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -441,12 +460,14 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                             onEdit: _openEdit,
                             onDelete: _confirmDelete,
                             onRelease: _openRelease,
+                            canEdit: _canEditCows,
                           )
                         : _MobileList(
                             cows: cows,
                             onEdit: _openEdit,
                             onDelete: _confirmDelete,
                             onRelease: _openRelease,
+                            canEdit: _canEditCows,
                           );
                   },
                 ),
@@ -688,11 +709,13 @@ class _DesktopTable extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRelease,
+    required this.canEdit,
   });
   final List<Cow> cows;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
   final void Function(Cow) onRelease;
+  final bool canEdit;
 
   // Flex weights — sum 28. CROP-style flex distribution so the table
   // uses the full card width rather than bunching at the left.
@@ -822,6 +845,7 @@ class _DesktopTable extends StatelessWidget {
                       onEdit: onEdit,
                       onDelete: onDelete,
                       onRelease: onRelease,
+                      canEdit: canEdit,
                     ),
                   ),
                 ),
@@ -891,11 +915,13 @@ class _MobileList extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRelease,
+    required this.canEdit,
   });
   final List<Cow> cows;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
   final void Function(Cow) onRelease;
+  final bool canEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -966,6 +992,7 @@ class _MobileList extends StatelessWidget {
                     onEdit: onEdit,
                     onDelete: onDelete,
                     onRelease: onRelease,
+                    canEdit: canEdit,
                   ),
                 ],
               ),
@@ -984,14 +1011,17 @@ class _RowActions extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onRelease,
+    required this.canEdit,
   });
   final Cow cow;
   final void Function(Cow) onEdit;
   final void Function(Cow) onDelete;
   final void Function(Cow) onRelease;
+  final bool canEdit;
 
   @override
   Widget build(BuildContext context) {
+    if (!canEdit) return const SizedBox.shrink();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

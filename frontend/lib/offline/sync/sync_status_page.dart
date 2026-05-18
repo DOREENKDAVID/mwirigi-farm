@@ -43,6 +43,40 @@ class _SyncStatusPageState extends State<SyncStatusPage> {
     if (mounted) setState(() => _rows = rows);
   }
 
+  Future<void> _confirmDiscardFailed() async {
+    final n = _state.failed;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard failed?'),
+        content: Text(
+          'Permanently remove $n failed action${n == 1 ? '' : 's'} from the queue. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB42318),
+            ),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final removed = await SyncQueue.instance.discardFailed();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Removed $removed failed action${removed == 1 ? '' : 's'}')),
+    );
+    await _refreshRows();
+  }
+
   @override
   void dispose() {
     _sub.cancel();
@@ -67,6 +101,11 @@ class _SyncStatusPageState extends State<SyncStatusPage> {
                 : () async {
                     await SyncQueue.instance.retryFailed();
                   },
+          ),
+          IconButton(
+            tooltip: 'Discard all failed',
+            icon: const Icon(Icons.delete_sweep_outlined),
+            onPressed: _state.failed == 0 ? null : _confirmDiscardFailed,
           ),
         ],
       ),

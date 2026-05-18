@@ -41,21 +41,34 @@ class DairyPillTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Horizontally scrollable on small screens — wrapping pills break
-    // the visual grouping, so we let it scroll instead.
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          for (final t in DairyTab.values) ...[
-            _Pill(
-              label: t.label,
-              selected: selected == t,
-              onTap: () => onSelect(t),
-            ),
-            if (t != DairyTab.values.last) const SizedBox(width: 8),
+    // the visual grouping, so we let it scroll instead. A right-edge
+    // fade hints at the scroll affordance so users on narrow phones
+    // realize they can swipe to reach the trailing pills.
+    return ShaderMask(
+      shaderCallback: (bounds) {
+        return const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          stops: [0.0, 0.85, 1.0],
+          colors: [Colors.black, Colors.black, Colors.transparent],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            for (final t in DairyTab.values) ...[
+              _Pill(
+                label: t.label,
+                selected: selected == t,
+                onTap: () => onSelect(t),
+              ),
+              if (t != DairyTab.values.last) const SizedBox(width: 6),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -83,7 +96,7 @@ class _Pill extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(999),
@@ -91,8 +104,11 @@ class _Pill extends StatelessWidget {
         ),
         child: Text(
           label,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: FontWeight.w700,
             color: fg,
           ),

@@ -150,6 +150,17 @@ class SyncQueue {
     await _refreshState();
   }
 
+  /// Wipe every FAILED row at once. Useful when a role mismatch
+  /// caused several actions to permanently fail and the user wants
+  /// to start clean rather than discard each row individually.
+  Future<int> discardFailed() async {
+    final n = await (_db.delete(_db.pendingSyncActions)
+          ..where((t) => t.syncStatus.equals('FAILED')))
+        .go();
+    await _refreshState();
+    return n;
+  }
+
   /// Top-level drain. Walks pending rows in createdAt order so a cow
   /// create lands before any edits that depend on its serverId.
   Future<void> _drain() async {
