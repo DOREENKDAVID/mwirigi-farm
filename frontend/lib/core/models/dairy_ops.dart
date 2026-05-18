@@ -327,13 +327,23 @@ class DayNetSummary {
   DayNetSummary({
     required this.sessions,
     required this.calfDeduction,
+    required this.calfCount,
+    required this.calfOverridden,
     required this.householdDeduction,
     required this.dayGross,
     required this.dayNet,
   });
 
   final Map<MilkSession, double> sessions;
+  /// Total litres deducted for calves. Either auto = `calfCount * 1L`
+  /// or a manual override saved on FarmConfig.
   final double calfDeduction;
+  /// Live count of CALVING events in the last 120 days. Surfaced as
+  /// a hint next to the override field so a manager can see what the
+  /// auto-detect would say.
+  final int calfCount;
+  /// True when FarmConfig has a non-zero override for the calf deduction.
+  final bool calfOverridden;
   final double householdDeduction;
   final double dayGross;
   final double dayNet;
@@ -350,6 +360,8 @@ class DayNetSummary {
           s: _toDouble(sessRaw[s.wire]),
       },
       calfDeduction: _toDouble(dedRaw['calf']),
+      calfCount: _toInt(dedRaw['calfCount']),
+      calfOverridden: dedRaw['calfOverridden'] == true,
       householdDeduction: _toDouble(dedRaw['household']),
       dayGross: _toDouble(j['dayGross']),
       dayNet: _toDouble(j['dayNet']),
