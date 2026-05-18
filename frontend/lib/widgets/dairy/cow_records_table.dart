@@ -691,6 +691,9 @@ class _StatusPill extends StatelessWidget {
           BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
       child: Text(
         label,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.visible,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -896,6 +899,9 @@ class _TagChip extends StatelessWidget {
         ),
         child: Text(
           tag,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
@@ -1022,37 +1028,57 @@ class _RowActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!canEdit) return const SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Edit',
-          icon: const Icon(Icons.edit_outlined, size: 18),
-          onPressed: () => onEdit(cow),
-          padding: const EdgeInsets.all(6),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        ),
-        IconButton(
-          tooltip: 'Release (Sell / Transfer / Died)',
-          icon: const Icon(
-            Icons.exit_to_app,
-            size: 18,
-            color: Color(0xFF854F0B),
+    // Collapse the 3-icon row into a single overflow menu. On a
+    // narrow phone the trio was eating ~96px of horizontal room and
+    // squeezing the tag/name/status chips into vertically-wrapped
+    // text. A 32px kebab keeps the same actions one tap deeper.
+    return PopupMenuButton<String>(
+      tooltip: 'Actions',
+      icon: const Icon(Icons.more_vert, size: 20),
+      padding: EdgeInsets.zero,
+      onSelected: (v) {
+        switch (v) {
+          case 'edit':
+            onEdit(cow);
+            break;
+          case 'release':
+            onRelease(cow);
+            break;
+          case 'delete':
+            onDelete(cow);
+            break;
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 16),
+              SizedBox(width: 10),
+              Text('Edit'),
+            ],
           ),
-          onPressed: () => onRelease(cow),
-          padding: const EdgeInsets.all(6),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         ),
-        IconButton(
-          tooltip: 'Delete',
-          icon: const Icon(
-            Icons.delete_outline,
-            size: 18,
-            color: Color(0xFFB42318),
+        PopupMenuItem(
+          value: 'release',
+          child: Row(
+            children: [
+              Icon(Icons.exit_to_app, size: 16, color: Color(0xFF854F0B)),
+              SizedBox(width: 10),
+              Text('Release / Sell'),
+            ],
           ),
-          onPressed: () => onDelete(cow),
-          padding: const EdgeInsets.all(6),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 16, color: Color(0xFFB42318)),
+              SizedBox(width: 10),
+              Text('Delete', style: TextStyle(color: Color(0xFFB42318))),
+            ],
+          ),
         ),
       ],
     );

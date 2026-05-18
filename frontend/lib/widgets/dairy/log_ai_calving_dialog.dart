@@ -151,149 +151,13 @@ class _LogAiCalvingDialogState extends State<LogAiCalvingDialog> {
                   style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
                 const SizedBox(height: 18),
-                // Row 1: Cow tag (autocomplete from herd) + Event type
-                Row(
-                  children: [
-                    Expanded(
-                      child: Autocomplete<Cow>(
-                        optionsBuilder: (text) {
-                          final q = text.text.trim().toLowerCase();
-                          if (q.isEmpty) return _cows;
-                          return _cows.where((c) {
-                            return c.tag.toLowerCase().contains(q) ||
-                                (c.nickname ?? '').toLowerCase().contains(q);
-                          });
-                        },
-                        displayStringForOption: (c) => c.tag,
-                        onSelected: (c) {
-                          _tagController.text = c.tag;
-                        },
-                        fieldViewBuilder: (
-                          context,
-                          textController,
-                          focusNode,
-                          onFieldSubmitted,
-                        ) {
-                          // Keep our own _tagController in sync with the
-                          // internal one so the existing _submit() code
-                          // doesn't need to change.
-                          textController.addListener(() {
-                            if (_tagController.text != textController.text) {
-                              _tagController.text = textController.text;
-                            }
-                          });
-                          return TextFormField(
-                            controller: textController,
-                            focusNode: focusNode,
-                            textCapitalization: TextCapitalization.characters,
-                            autocorrect: false,
-                            decoration: InputDecoration(
-                              labelText: 'Cow tag',
-                              hintText: _cows.isEmpty
-                                  ? 'Type or pick…'
-                                  : 'Pick from ${_cows.length} cows',
-                              border: const OutlineInputBorder(),
-                              suffixIcon: const Icon(
-                                Icons.arrow_drop_down,
-                                size: 20,
-                              ),
-                            ),
-                            validator: (value) {
-                              final v = value?.trim() ?? '';
-                              if (v.isEmpty) return 'Cow tag is required';
-                              return null;
-                            },
-                          );
-                        },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          final list = options.toList();
-                          return Align(
-                            alignment: Alignment.topLeft,
-                            child: Material(
-                              elevation: 4,
-                              borderRadius: BorderRadius.circular(8),
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxHeight: 260,
-                                  maxWidth: 320,
-                                ),
-                                child: ListView.builder(
-                                  padding: EdgeInsets.zero,
-                                  shrinkWrap: true,
-                                  itemCount: list.length,
-                                  itemBuilder: (_, i) {
-                                    final c = list[i];
-                                    return ListTile(
-                                      dense: true,
-                                      title: Text(c.tag),
-                                      subtitle: c.nickname == null
-                                          ? null
-                                          : Text(
-                                              c.nickname!,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                      onTap: () => onSelected(c),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<_EventChoice>(
-                        initialValue: _choice,
-                        decoration: const InputDecoration(
-                          labelText: 'Event type',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: [
-                          for (final c in _EventChoice.values)
-                            DropdownMenuItem(value: c, child: Text(c.label)),
-                        ],
-                        onChanged: _submitting
-                            ? null
-                            : (v) => setState(
-                                () => _choice = v ?? _choice),
-                      ),
-                    ),
-                  ],
-                ),
+                // Two-up on tablets / web, stacked on narrow phones.
+                // Side-by-side gave the dropdown label "Cow tag" and
+                // the date text "18 May 2026" only ~140dp each, which
+                // wrapped to 2-3 lines and looked broken.
+                _pair(_buildCowTagField(), _buildEventTypeField()),
                 const SizedBox(height: 14),
-                // Row 2: Date + Semen / Bull
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: _submitting ? null : _pickDate,
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Date',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today, size: 18),
-                          ),
-                          child: Text(DateFormat('d MMM yyyy').format(_date)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _bullController,
-                        decoration: const InputDecoration(
-                          labelText: 'Semen / Bull',
-                          hintText: 'Semen code or bull tag',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                _pair(_buildDateField(), _buildBullField()),
               ],
             ),
           ),
@@ -319,6 +183,167 @@ class _LogAiCalvingDialogState extends State<LogAiCalvingDialog> {
               : const Text('Save'),
         ),
       ],
+    );
+  }
+
+  /// Renders two form fields side-by-side on tablets / web and
+  /// stacked on narrow phones. The 420dp breakpoint matches the
+  /// dialog's content max-width of 540dp minus a margin.
+  Widget _pair(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth >= 420) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: first),
+              const SizedBox(width: 12),
+              Expanded(child: second),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            first,
+            const SizedBox(height: 12),
+            second,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCowTagField() {
+    return Autocomplete<Cow>(
+      optionsBuilder: (text) {
+        final q = text.text.trim().toLowerCase();
+        if (q.isEmpty) return _cows;
+        return _cows.where((c) {
+          return c.tag.toLowerCase().contains(q) ||
+              (c.nickname ?? '').toLowerCase().contains(q);
+        });
+      },
+      displayStringForOption: (c) => c.tag,
+      onSelected: (c) {
+        _tagController.text = c.tag;
+      },
+      fieldViewBuilder: (
+        context,
+        textController,
+        focusNode,
+        onFieldSubmitted,
+      ) {
+        // Keep our own _tagController in sync with the Autocomplete's
+        // internal one so _submit() doesn't need to know about it.
+        textController.addListener(() {
+          if (_tagController.text != textController.text) {
+            _tagController.text = textController.text;
+          }
+        });
+        return TextFormField(
+          controller: textController,
+          focusNode: focusNode,
+          textCapitalization: TextCapitalization.characters,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: 'Cow tag',
+            hintText: _cows.isEmpty
+                ? 'Type or pick…'
+                : 'Pick from ${_cows.length} cows',
+            border: const OutlineInputBorder(),
+            suffixIcon: const Icon(Icons.arrow_drop_down, size: 20),
+          ),
+          validator: (value) {
+            final v = value?.trim() ?? '';
+            if (v.isEmpty) return 'Cow tag is required';
+            return null;
+          },
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        final list = options.toList();
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 260,
+                maxWidth: 320,
+              ),
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final c = list[i];
+                  return ListTile(
+                    dense: true,
+                    title: Text(c.tag),
+                    subtitle: c.nickname == null
+                        ? null
+                        : Text(
+                            c.nickname!,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                    onTap: () => onSelected(c),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEventTypeField() {
+    return DropdownButtonFormField<_EventChoice>(
+      initialValue: _choice,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Event type',
+        border: OutlineInputBorder(),
+      ),
+      items: [
+        for (final c in _EventChoice.values)
+          DropdownMenuItem(value: c, child: Text(c.label)),
+      ],
+      onChanged:
+          _submitting ? null : (v) => setState(() => _choice = v ?? _choice),
+    );
+  }
+
+  Widget _buildDateField() {
+    return InkWell(
+      onTap: _submitting ? null : _pickDate,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Date',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today, size: 18),
+        ),
+        child: Text(
+          DateFormat('d MMM yyyy').format(_date),
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBullField() {
+    return TextFormField(
+      controller: _bullController,
+      enabled: !_submitting,
+      decoration: const InputDecoration(
+        labelText: 'Semen / Bull',
+        hintText: 'Semen code or bull tag',
+        border: OutlineInputBorder(),
+      ),
     );
   }
 }
