@@ -14,10 +14,16 @@ class ActiveTreatmentsTable extends StatefulWidget {
     super.key,
     required this.rows,
     required this.onAdd,
+    this.onRowTap,
   });
 
   final List<TreatmentRow> rows;
   final VoidCallback onAdd;
+  /// Optional: tapping a row hands the row back to the parent so it
+  /// can open the Add Treatment dialog with tag / unit / diagnosis
+  /// pre-filled. Lets a vet skip retyping context when a herd manager
+  /// has already reported a sick animal.
+  final void Function(TreatmentRow row)? onRowTap;
 
   @override
   State<ActiveTreatmentsTable> createState() => _ActiveTreatmentsTableState();
@@ -118,9 +124,15 @@ class _ActiveTreatmentsTableState extends State<ActiveTreatmentsTable> {
             LayoutBuilder(
               builder: (context, constraints) {
                 if (constraints.maxWidth >= 760) {
-                  return _DesktopTable(rows: filtered);
+                  return _DesktopTable(
+                    rows: filtered,
+                    onRowTap: widget.onRowTap,
+                  );
                 }
-                return _MobileCards(rows: filtered);
+                return _MobileCards(
+                  rows: filtered,
+                  onRowTap: widget.onRowTap,
+                );
               },
             ),
         ],
@@ -130,61 +142,58 @@ class _ActiveTreatmentsTableState extends State<ActiveTreatmentsTable> {
 }
 
 class _DesktopTable extends StatelessWidget {
-  const _DesktopTable({required this.rows});
+  const _DesktopTable({required this.rows, this.onRowTap});
   final List<TreatmentRow> rows;
+  final void Function(TreatmentRow row)? onRowTap;
 
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('d MMM yyyy');
-    return Table(
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      columnWidths: const {
-        0: FlexColumnWidth(1.0), // Tag
-        1: FlexColumnWidth(1.0), // Unit
-        2: FlexColumnWidth(1.8), // Diagnosis
-        3: FlexColumnWidth(2.2), // Treatment
-        4: FlexColumnWidth(1.4), // Start
-        5: FlexColumnWidth(1.2), // Status
-      },
+    // Render as a Column of InkWell rows instead of Table so the whole
+    // row is tappable — Table doesn't support row-level gesture
+    // detection, and per-cell taps feel inconsistent for the user.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const TableRow(
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0x14000000))),
-          ),
-          children: [
-            _Th('Tag'),
-            _Th('Unit'),
-            _Th('Diagnosis'),
-            _Th('Treatment'),
-            _Th('Start'),
-            _Th('Status'),
-          ],
-        ),
-        for (final r in rows)
-          TableRow(
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Color(0x0F000000))),
-            ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: _TagPill(tag: r.tag),
-              ),
-              _Td(r.unit),
-              _Td(r.diagnosis),
-              _Td(r.medication),
-              _Td(fmt.format(r.startDate)),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: StatusBadgeWithLabel(
-                    status: r.status,
-                    label: r.statusLabel,
-                  ),
-                ),
-              ),
+              Expanded(flex: 10, child: _Th('Tag')),
+              Expanded(flex: 10, child: _Th('Unit')),
+              Expanded(flex: 18, child: _Th('Diagnosis')),
+              Expanded(flex: 22, child: _Th('Treatment')),
+              Expanded(flex: 14, child: _Th('Start')),
+              Expanded(flex: 12, child: _Th('Status')),
             ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0x14000000)),
+        for (final r in rows)
+          InkWell(
+            onTap: onRowTap == null ? null : () => onRowTap!(r),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(flex: 10, child: _TagPill(tag: r.tag)),
+                  Expanded(flex: 10, child: _Td(r.unit)),
+                  Expanded(flex: 18, child: _Td(r.diagnosis)),
+                  Expanded(flex: 22, child: _Td(r.medication)),
+                  Expanded(flex: 14, child: _Td(fmt.format(r.startDate))),
+                  Expanded(
+                    flex: 12,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: StatusBadgeWithLabel(
+                        status: r.status,
+                        label: r.statusLabel,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
       ],
     );
@@ -192,8 +201,9 @@ class _DesktopTable extends StatelessWidget {
 }
 
 class _MobileCards extends StatelessWidget {
-  const _MobileCards({required this.rows});
+  const _MobileCards({required this.rows, this.onRowTap});
   final List<TreatmentRow> rows;
+  final void Function(TreatmentRow row)? onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -201,53 +211,59 @@ class _MobileCards extends StatelessWidget {
     return Column(
       children: [
         for (final r in rows) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAF9F4),
+          Material(
+            color: const Color(0xFFFAF9F4),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              onTap: onRowTap == null ? null : () => onRowTap!(r),
               borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _TagPill(tag: r.tag),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        r.unit,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.black54,
+                    Row(
+                      children: [
+                        _TagPill(tag: r.tag),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            r.unit,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.black54,
+                            ),
+                          ),
                         ),
+                        StatusBadgeWithLabel(
+                          status: r.status,
+                          label: r.statusLabel,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      r.diagnosis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    StatusBadgeWithLabel(
-                      status: r.status,
-                      label: r.statusLabel,
+                    const SizedBox(height: 2),
+                    Text(
+                      r.medication,
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Started ${fmt.format(r.startDate)}',
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.black45),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  r.diagnosis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  r.medication,
-                  style: const TextStyle(fontSize: 12, color: Colors.black87),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Started ${fmt.format(r.startDate)}',
-                  style: const TextStyle(fontSize: 11, color: Colors.black45),
-                ),
-              ],
+              ),
             ),
           ),
           if (r != rows.last) const SizedBox(height: 8),

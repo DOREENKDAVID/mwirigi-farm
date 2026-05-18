@@ -4,8 +4,22 @@ import '../../core/service/api_service.dart';
 
 /// "Add Treatment" modal — matches the HTML mockup field-for-field:
 ///   Animal tag · Unit (dropdown) · Diagnosis · Treatment · Start date · Attending vet
+///
+/// When opened from the Active Treatments table by tapping a "Pending
+/// vet review" row, [initialTag] / [initialUnit] / [initialDiagnosis]
+/// pre-populate the form so a vet doesn't have to retype what the
+/// herd manager already entered.
 class AddTreatmentDialog extends StatefulWidget {
-  const AddTreatmentDialog({super.key});
+  const AddTreatmentDialog({
+    super.key,
+    this.initialTag,
+    this.initialUnit,
+    this.initialDiagnosis,
+  });
+
+  final String? initialTag;
+  final String? initialUnit;
+  final String? initialDiagnosis;
 
   @override
   State<AddTreatmentDialog> createState() => _AddTreatmentDialogState();
@@ -21,14 +35,27 @@ class _AddTreatmentDialogState extends State<AddTreatmentDialog> {
   ];
 
   final _formKey = GlobalKey<FormState>();
-  final _tagController = TextEditingController();
-  final _diagnosisController = TextEditingController();
+  late final TextEditingController _tagController;
+  late final TextEditingController _diagnosisController;
   final _medicationController = TextEditingController();
   final _vetController = TextEditingController();
 
-  String _unit = 'Dairy';
+  late String _unit;
   DateTime _startDate = DateTime.now();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tagController = TextEditingController(text: widget.initialTag ?? '');
+    _diagnosisController =
+        TextEditingController(text: widget.initialDiagnosis ?? '');
+    // Snap to a recognized unit; fall back to Dairy so the dropdown
+    // doesn't hit assertion errors with an unknown value.
+    _unit = _units.contains(widget.initialUnit)
+        ? widget.initialUnit!
+        : 'Dairy';
+  }
 
   @override
   void dispose() {
