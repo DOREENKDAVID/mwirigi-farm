@@ -6,6 +6,7 @@ import {
   trendQuerySchema,
   sowSearchSchema,
   farrowingQuerySchema,
+  farmersChoiceDeliverySchema,
 } from "./piggery.validation.js";
 
 const handleZodError = (res, err) => {
@@ -361,6 +362,41 @@ export const updateInventory = async (req, res) => {
 export const deleteInventory = async (req, res) => {
   try {
     await piggeryService.softDeletePiggeryInventoryItem(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+//////////////////////////////////////////////////////
+// FARMERS CHOICE DISPATCH LOG
+//////////////////////////////////////////////////////
+
+export const listFcDeliveries = async (_req, res) => {
+  try {
+    res.json(await piggeryService.listFarmersChoiceDeliveries());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const createFcDelivery = async (req, res) => {
+  try {
+    const body = farmersChoiceDeliverySchema.parse(req.body);
+    const row = await piggeryService.createFarmersChoiceDelivery(
+      body,
+      req.user?.id,
+    );
+    res.status(201).json(row);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const deleteFcDelivery = async (req, res) => {
+  try {
+    await piggeryService.softDeleteFarmersChoiceDelivery(req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

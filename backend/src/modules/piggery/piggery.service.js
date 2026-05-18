@@ -716,3 +716,75 @@ export const softDeletePiggeryInventoryItem = async (id) => {
     data: { deletedAt: new Date() },
   });
 };
+
+//////////////////////////////////////////////////////
+// 🚚 FARMERS CHOICE DISPATCH LOG
+//////////////////////////////////////////////////////
+//
+// Each row is one truck-load delivered to Farmers Choice. Saving a
+// delivery auto-creates a Revenue row in the same transaction so the
+// finance cashflow ledger reflects the dispatch immediately. `pens`,
+// `category`, and `ageRange` are free-text labels mirroring what's
+// printed on the FC waybill — we don't try to enforce a FK back to
+// FattenPen because the operational record is "what was loaded onto
+// the truck", which can include pens that were merged or split since.
+
+export const listFarmersChoiceDeliveries = async () =>
+  prisma.farmersChoiceDelivery.findMany({
+    where: { deletedAt: null },
+    orderBy: { date: "desc" },
+  });
+
+export const createFarmersChoiceDelivery = async (input, actorId) => {
+  const date = input.date ?? new Date();
+  // Revenue side-effect is optional. Most FC deliveries have a price
+  // and want a Revenue row; deliveries logged before payment is known
+  // (no amount) skip the side-effect and the user reconciles later.
+  const amount = input.amount ?? 0;
+
+  return prisma.$transaction(async (tx) => {
+    let revenueId = null;
+    if (amount > 0) {
+      const rev = await tx.revenue.create({
+        data: {
+          unit: "Piggery",
+          category: "ANIMAL_SALES",
+          amount,
+          quantity: input.count,
+          unitLabel: "head",
+          date,
+          notes: [
+            `FC dispatch ${input.ref}`,
+            `${input.count} ${input.category.toLowerCase()}`,
+            input.pens ? `from ${input.pens}` : null,
+            input.driver ? `handled by ${input.driver}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          createdById: actorId ?? null,
+        },
+      });
+      revenueId = rev.id;
+    }
+    return tx.farmersChoiceDelivery.create({
+      data: {
+        date,
+        ref: input.ref,
+        pens: input.pens,
+        count: input.count,
+        category: input.category,
+        ageRange: input.ageRange ?? null,
+        driver: input.driver,
+        notes: input.notes ?? null,
+        revenueId,
+        recordedById: actorId ?? null,
+      },
+    });
+  });
+};
+
+export const softDeleteFarmersChoiceDelivery = async (id) =>
+  prisma.farmersChoiceDelivery.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });

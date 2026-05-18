@@ -213,4 +213,31 @@ dairyRoutes.delete(
   dairyController.deleteDairyInventoryItem,
 );
 
+//////////////////////////////////////////////////////
+// 📊 DAIRY REPORTS — analytics dashboard (Phase 1: milk)
+//////////////////////////////////////////////////////
+
+// Read-only — any authenticated user can hit it, the controller scopes
+// the payload by role (WORKER sees only their own production).
+dairyRoutes.get(
+  "/reports/milk",
+  authMiddleware,
+  dairyController.getMilkProductionReport,
+);
+dairyRoutes.get(
+  "/reports/reproduction",
+  authMiddleware,
+  dairyController.getReproductionReport,
+);
+dairyRoutes.get(
+  "/reports/health",
+  authMiddleware,
+  dairyController.getHealthReport,
+);
+dairyRoutes.get(
+  "/reports/vaccinations",
+  authMiddleware,
+  dairyController.getVaccinationReport,
+);
+
 export default dairyRoutes;

@@ -24,11 +24,20 @@ const FALLBACK_TARGETS = {
 };
 
 // Map each unit's display row to the role that manages it. Used to look up
-// the manager's userName from the User table.
+// the manager's userName from the User table. Feedlot + Doopers share one
+// manager (FEEDLOT_MANAGER owns both bulls and the sheep flock).
 const UNIT_MANAGER_ROLES = {
   Dairy: "DAIRY_MANAGER",
   Layers: "LAYERS_MANAGER",
   Piggery: "PIGGERY_MANAGER",
+  Feedlot: "FEEDLOT_MANAGER",
+  Doopers: "FEEDLOT_MANAGER",
+  Feeds: "FEEDS_MANAGER",
+  // Ngushish (horticulture) has no dedicated role in the enum today.
+  // The frontend will fall back to "—" until a NGUSHISH_MANAGER role
+  // is added or A. Wangari is given a department field on User.
+  Ngushish: null,
+  Health: "VET",
 };
 
 const startOfDay = (d) => {
@@ -120,6 +129,8 @@ export const getOverview = async () => {
   const nextMonth = startOfNextMonth(now);
   const sevenDaysAgo = startOfDay(now);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  const thirtyDaysAgo = startOfDay(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
   const fourteenDaysFromNow = endOfDay(now);
   fourteenDaysFromNow.setDate(fourteenDaysFromNow.getDate() + 14);
 
@@ -129,8 +140,12 @@ export const getOverview = async () => {
     layerToday,
     pigletsMtdAgg,
     bullsOnFeed,
+    sheepCount,
     milkLast7,
     layerLast7,
+    milkLast30Agg,
+    layerLast30Agg,
+    pigletsLast30Agg,
     managers,
     reminders,
     activeTreatments,
@@ -152,6 +167,9 @@ export const getOverview = async () => {
       _sum: { pigletsBorn: true },
     }),
     prisma.bull.count({ where: { deletedAt: null } }),
+    // Sheep count for the Doopers row. Soft-delete via `deletedAt`
+    // matches the rest of the feedlot model.
+    prisma.sheep.count({ where: { deletedAt: null } }).catch(() => 0),
     prisma.milkRecord.findMany({
       where: { date: { gte: sevenDaysAgo, lte: todayEnd } },
       select: { date: true, litres: true },
@@ -160,9 +178,28 @@ export const getOverview = async () => {
       where: { date: { gte: sevenDaysAgo, lte: todayEnd } },
       select: { date: true, eggsCollected: true },
     }),
+    // 30-day windows. Aggregations only — no need for per-day buckets
+    // because the unit-performance table just shows the average.
+    prisma.milkRecord.aggregate({
+      where: { date: { gte: thirtyDaysAgo, lte: todayEnd } },
+      _sum: { litres: true },
+    }),
+    prisma.layerProduction.aggregate({
+      where: { date: { gte: thirtyDaysAgo, lte: todayEnd } },
+      _sum: { eggsCollected: true },
+    }),
+    prisma.farrowingRecord.aggregate({
+      where: {
+        date: { gte: thirtyDaysAgo, lte: todayEnd },
+        sow: { deletedAt: null },
+      },
+      _sum: { pigletsBorn: true },
+    }),
     prisma.user.findMany({
       where: {
-        role: { in: Object.values(UNIT_MANAGER_ROLES) },
+        role: {
+          in: Object.values(UNIT_MANAGER_ROLES).filter(Boolean),
+        },
       },
       select: { userName: true, role: true },
     }),
@@ -272,19 +309,30 @@ export const getOverview = async () => {
   const milkTrend = milkTrendRows.map(({ day, value }) => ({ day, value }));
   const eggsTrend = eggsTrendRows.map(({ day, value }) => ({ day, value }));
 
-  // 7-day averages used in the unit performance table.
+  // 7- and 30-day averages used in the unit performance table.
   const milk7Total = milkTrend.reduce((s, t) => s + t.value, 0);
   const milk7Avg = Math.round(milk7Total / 7);
 
   const crates7Total = eggsTrend.reduce((s, t) => s + t.value, 0);
   const crates7Avg = Math.round(crates7Total / 7);
 
+  const milk30Avg = Math.round((milkLast30Agg._sum.litres ?? 0) / 30);
+  const crates30Avg = Math.round(
+    (layerLast30Agg._sum.eggsCollected ?? 0) / EGGS_PER_TRAY / 30,
+  );
+  // Piglets MTD already averages across the month; show it as
+  // "per 30 days" so the row reads consistently with the others.
+  const piglets30 = pigletsLast30Agg._sum.pigletsBorn ?? 0;
+
   // ---------- unit performance ----------
   const managerByRole = Object.fromEntries(
     managers.map((m) => [m.role, m.userName]),
   );
-  const managerFor = (unit) =>
-    managerByRole[UNIT_MANAGER_ROLES[unit]] ?? "—";
+  const managerFor = (unit) => {
+    const roleKey = UNIT_MANAGER_ROLES[unit];
+    if (!roleKey) return "—";
+    return managerByRole[roleKey] ?? "—";
+  };
 
   const unitPerformance = [
     {
@@ -293,6 +341,7 @@ export const getOverview = async () => {
       metric: "Milk litres",
       today: `${milkToday} L`,
       average: `${milk7Avg} L`,
+      average30d: `${milk30Avg} L`,
       status: `${pct(milkToday, milkTarget)}% of target`,
     },
     {
@@ -301,6 +350,7 @@ export const getOverview = async () => {
       metric: "Egg crates",
       today: `${eggCrates}`,
       average: `${crates7Avg}`,
+      average30d: `${crates30Avg}`,
       status: `${pct(eggCrates, cratesTarget)}% of target`,
     },
     {
@@ -309,18 +359,56 @@ export const getOverview = async () => {
       metric: "Piglets MTD",
       today: "—",
       average: `${pigletsMTD}/mo`,
+      average30d: `${piglets30}/mo`,
       status: `${pct(pigletsMTD, pigletTarget)}% of target`,
     },
     {
       unit: "Feedlot",
-      manager: "—",
+      manager: managerFor("Feedlot"),
       metric: "Bulls on feed",
       today: `${bullsOnFeed}`,
       average: "—",
+      average30d: "—",
       status:
         bullsOnFeed === 0
           ? "Empty"
           : `${pct(bullsOnFeed, feedlotTarget)}% of target`,
+    },
+    {
+      unit: "Doopers",
+      manager: managerFor("Doopers"),
+      metric: "Sheep flock",
+      today: `${sheepCount}`,
+      average: "—",
+      average30d: "—",
+      status: sheepCount === 0 ? "Empty" : "Active",
+    },
+    {
+      unit: "Feeds",
+      manager: managerFor("Feeds"),
+      metric: "Inventory",
+      today: "—",
+      average: "—",
+      average30d: "—",
+      status: "Active",
+    },
+    {
+      unit: "Ngushish",
+      manager: managerFor("Ngushish"),
+      metric: "Produce dispatched",
+      today: "—",
+      average: "—",
+      average30d: "—",
+      status: "Active",
+    },
+    {
+      unit: "Health",
+      manager: managerFor("Health"),
+      metric: "Active treatments",
+      today: `${activeTreatments.length}`,
+      average: "—",
+      average30d: "—",
+      status: activeTreatments.length === 0 ? "All clear" : "Monitoring",
     },
   ];
 

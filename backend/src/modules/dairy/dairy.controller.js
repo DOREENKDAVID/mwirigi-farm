@@ -1,4 +1,5 @@
 import * as dairyService from "./dairy.service.js";
+import * as dairyReportsService from "./dairy.reports.service.js";
 import {
   cowSchema,
   releaseCowSchema,
@@ -429,5 +430,86 @@ export const deleteDairyInventoryItem = async (req, res) => {
     res.json({ success: true, message: "Inventory item deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+//////////////////////////////////////////////////////
+// 📊 DAIRY REPORTS — analytics dashboard
+//////////////////////////////////////////////////////
+
+// Pulls the milk production report. Query params:
+//   animalId, houseId, workerId,
+//   period   = today | week | month | quarter | halfyear | annual | custom,
+//   startDate, endDate (required when period=custom)
+//
+// RBAC layer on top of the route's authMiddleware: a WORKER may only
+// see their own production — we force-override workerId to their JWT
+// id, so a worker can't grab another worker's numbers by passing a
+// different query param. Everyone else (CEO, ADMIN, DAIRY_MANAGER,
+// VET) sees the full payload subject to whatever filters they pass.
+const scopeFiltersForUser = (user, raw) => {
+  const out = { ...raw };
+  if (user?.role === "WORKER") {
+    // Workers in this codebase are User rows (not Worker rows directly,
+    // though the seed mirrors them). The JWT carries `user.id`; we
+    // resolve a matching Worker row at the service layer if needed.
+    out.workerId = user.workerId ?? user.id ?? out.workerId;
+  }
+  return out;
+};
+
+// Pulls the standard filter set off the request and applies WORKER
+// scoping. Centralised so every report controller is one line.
+const readFilters = (req) =>
+  scopeFiltersForUser(req.user, {
+    animalId: req.query.animalId,
+    houseId: req.query.houseId,
+    workerId: req.query.workerId,
+    period: req.query.period,
+    startDate: req.query.startDate,
+    endDate: req.query.endDate,
+  });
+
+export const getMilkProductionReport = async (req, res) => {
+  try {
+    const report = await dairyReportsService.getMilkProductionReport(
+      readFilters(req),
+    );
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const getReproductionReport = async (req, res) => {
+  try {
+    const report = await dairyReportsService.getReproductionReport(
+      readFilters(req),
+    );
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const getHealthReport = async (req, res) => {
+  try {
+    const report = await dairyReportsService.getHealthReport(
+      readFilters(req),
+    );
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const getVaccinationReport = async (req, res) => {
+  try {
+    const report = await dairyReportsService.getVaccinationReport(
+      readFilters(req),
+    );
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 };

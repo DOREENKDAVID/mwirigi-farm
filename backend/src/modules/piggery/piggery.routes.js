@@ -133,4 +133,27 @@ router.delete(
   controller.deleteInventory,
 );
 
+// ------- Farmers Choice dispatch log -------
+// Read open to any authenticated user; write restricted to roles that
+// can actually load the truck. Soft-delete behind CEO/ADMIN since FC
+// records are operational + financial — manager can't quietly erase
+// what shipped.
+router.get(
+  "/fc-deliveries",
+  authMiddleware,
+  controller.listFcDeliveries,
+);
+router.post(
+  "/fc-deliveries",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER", "ADMIN"),
+  controller.createFcDelivery,
+);
+router.delete(
+  "/fc-deliveries/:id",
+  authMiddleware,
+  authorizeRoles("CEO", "ADMIN"),
+  controller.deleteFcDelivery,
+);
+
 export default router;

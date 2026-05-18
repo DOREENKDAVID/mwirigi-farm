@@ -91,9 +91,30 @@ export const listTreatments = async (req, res) => {
 // ---------------------------------------------------------------------
 // POST /api/health/treatments
 // ---------------------------------------------------------------------
+// Unit managers can only file a treatment for their own unit. CEO,
+// VET and ADMIN are not gated — they triage cross-unit. The mapping
+// is intentionally local to this controller: it's the only place
+// where role-to-unit ownership matters today, and centralising it
+// in middleware would tangle the auth layer with a single workflow's
+// rules. FEEDLOT_MANAGER owns both Feedlot bulls and Doopers sheep.
+const UNIT_OWNERSHIP = {
+  DAIRY_MANAGER: ["Dairy"],
+  PIGGERY_MANAGER: ["Piggery"],
+  LAYERS_MANAGER: ["Layers"],
+  FEEDLOT_MANAGER: ["Feedlot", "Doopers"],
+};
+
 export const createTreatment = async (req, res) => {
   try {
     const body = createTreatmentSchema.parse(req.body);
+
+    const allowed = UNIT_OWNERSHIP[req.user?.role];
+    if (allowed && !allowed.includes(body.unit)) {
+      return res.status(403).json({
+        error: `${req.user.role} can only report sick animals for unit(s): ${allowed.join(", ")}`,
+      });
+    }
+
     const treatment = await healthService.createTreatment(body);
     res.status(201).json(treatment);
   } catch (err) {

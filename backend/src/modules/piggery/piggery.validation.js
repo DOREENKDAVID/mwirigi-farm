@@ -88,3 +88,21 @@ export const sowSearchSchema = z.object({
 export const farrowingQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(200).optional().default(50),
 });
+
+// FC dispatch log. `amount` is optional — most deliveries log a price
+// the moment they leave so the finance ledger updates atomically, but
+// deliveries where payment is still being negotiated can save with
+// amount omitted and reconcile later.
+const FC_CATEGORIES = ["Beaconners", "Fatteners", "Winners", "Mixed"];
+
+export const farmersChoiceDeliverySchema = z.object({
+  date: z.coerce.date().optional(),
+  ref: z.string().trim().min(1, "Reference is required").max(80),
+  pens: z.string().trim().min(1, "Pens label is required").max(120),
+  count: z.coerce.number().int().positive().max(10000),
+  category: z.enum(FC_CATEGORIES),
+  ageRange: z.string().trim().max(40).nullable().optional(),
+  driver: z.string().trim().min(1, "Driver is required").max(80),
+  notes: z.string().trim().max(500).nullable().optional(),
+  amount: z.coerce.number().nonnegative().optional(),
+});

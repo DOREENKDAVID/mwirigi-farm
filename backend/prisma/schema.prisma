@@ -237,15 +237,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  milkRecords   MilkRecord[]
-  refreshTokens RefreshToken[]
-  attendance    Attendance[]
-  assignedTasks Task[]         @relation("AssignedTasks")
-  createdTasks  Task[]         @relation("CreatedTasks")
-  payrolls      Payroll[]
-  completedReminders ReminderOverride[] @relation("CompletedReminders")
-  createdRevenues   Revenue[]          @relation("FinanceCreatedRevenue")
-  createdExpenses   Expense[]          @relation("FinanceCreatedExpense")
+  milkRecords           MilkRecord[]
+  refreshTokens         RefreshToken[]
+  attendance            Attendance[]
+  assignedTasks         Task[]              @relation("AssignedTasks")
+  createdTasks          Task[]              @relation("CreatedTasks")
+  payrolls              Payroll[]
+  completedReminders    ReminderOverride[]  @relation("CompletedReminders")
+  createdRevenues       Revenue[]           @relation("FinanceCreatedRevenue")
+  createdExpenses       Expense[]           @relation("FinanceCreatedExpense")
   payrollAdjustments    PayrollAdjustment[] @relation("StaffAdjustments")
   approvedAdjustments   PayrollAdjustment[] @relation("ApprovedAdjustments")
   authorizedCowReleases Cow[]               @relation("CowReleaseAuthorizer")
@@ -321,9 +321,9 @@ model Worker {
   // the default; any other value greys the worker out in task / shift
   // pickers. availabilityNote is free-text shown in the tooltip
   // (e.g. "Back Mon 18 May").
-  availabilityStatus     WorkerAvailability @default(AVAILABLE)
-  availabilityNote       String?
-  availabilityChangedAt  DateTime?
+  availabilityStatus    WorkerAvailability @default(AVAILABLE)
+  availabilityNote      String?
+  availabilityChangedAt DateTime?
 
   houseId String? @unique
   house   House?  @relation(fields: [houseId], references: [id])
@@ -360,12 +360,12 @@ model Cow {
   // drives the active-vs-archived filter: cow listings default to
   // releasedAt = null. authorizedBy is the user who recorded the
   // release; pulled from the JWT, not the request body.
-  releasedAt          DateTime?
-  releaseType         CowReleaseType?
-  releaseDate         DateTime?
-  releaseDestination  String?
-  releaseReason       String?
-  releaseDocumentUrl  String?
+  releasedAt         DateTime?
+  releaseType        CowReleaseType?
+  releaseDate        DateTime?
+  releaseDestination String?
+  releaseReason      String?
+  releaseDocumentUrl String?
 
   authorizedById String?
   authorizedBy   User?   @relation("CowReleaseAuthorizer", fields: [authorizedById], references: [id])
@@ -434,11 +434,11 @@ model ReproductionRecord {
   expectedCalvingDate DateTime?
 
   // CALVING-only fields
-  calfTag             String?
-  calfSex             String? // "M" | "F"
-  calfBirthWeightKg   Float?
-  calvingEase         Int?    // 1 (easy) … 5 (hard)
-  calvingFate         String? // free text: "Heifer to herd", "Bull → feedlot", "Stillborn"
+  calfTag           String?
+  calfSex           String? // "M" | "F"
+  calfBirthWeightKg Float?
+  calvingEase       Int? // 1 (easy) … 5 (hard)
+  calvingFate       String? // free text: "Heifer to herd", "Bull → feedlot", "Stillborn"
 
   notes     String?
   deletedAt DateTime?
@@ -472,9 +472,9 @@ model MilkRecord {
 // concentrate stock specific to the feedlot/doopers unit. Mirrors
 // `DairyInventoryItem` so the frontend card pattern is identical.
 model FeedlotInventoryItem {
-  id        String  @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  category  String  // "Bedding" | "Equipment" | "Veterinary" | "Feed"
+  category  String // "Bedding" | "Equipment" | "Veterinary" | "Feed"
   quantity  Float
   unit      String?
   location  String?
@@ -492,9 +492,9 @@ model FeedlotInventoryItem {
 // Dairy unit inventory — bedding, equipment, veterinary supplies. Grouped
 // by category in the UI. Soft-delete via `deletedAt`.
 model DairyInventoryItem {
-  id        String  @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  category  String  // "Bedding" | "Equipment" | "Veterinary"
+  category  String // "Bedding" | "Equipment" | "Veterinary"
   quantity  Float
   unit      String? // "bags", "pcs", "L", etc.
   location  String? // "House A,B,C" / "Parlour" / "Cold room" / "Vet store" / "Maternity"
@@ -516,13 +516,13 @@ model DairyInventoryItem {
 // `lowThreshold` powers the "⚠ low stock" alert. `expiresAt` powers the
 // "⚠ vaccine expiring soon" alert. Soft-delete via `deletedAt`.
 model LayersInventoryItem {
-  id           String  @id @default(uuid())
+  id           String    @id @default(uuid())
   name         String
-  category     String  // "Feed" | "Vaccines" | "Consumables"
+  category     String // "Feed" | "Vaccines" | "Consumables"
   subCategory  String? // "Layer mash" | "Grower mash" | "Starter mash" | "Supplements" | etc.
   quantity     Float
   unit         String? // "kg", "L", "doses", "pcs", "bags", etc.
-  lowThreshold Float?  // when quantity <= this, the row gets the LOW badge
+  lowThreshold Float? // when quantity <= this, the row gets the LOW badge
   location     String?
   condition    String? // "Good" | "Fair" | "Poor"
   expiresAt    DateTime?
@@ -601,10 +601,10 @@ model Brooder {
   // Legacy: brooder-only vaccination records, kept for backward compat
   // during the Health-module migration. New code reads/writes from
   // `vaccinationRecords` (the unified VaccinationRecord table) instead.
-  vaccinations        BrooderVaccination[]
-  vaccinationRecords  VaccinationRecord[]
-  allocations         AllocationPlan[]
-  occurrences         BrooderOccurrence[]
+  vaccinations       BrooderVaccination[]
+  vaccinationRecords VaccinationRecord[]
+  allocations        AllocationPlan[]
+  occurrences        BrooderOccurrence[]
 
   @@index([receivedDate])
 }
@@ -665,11 +665,11 @@ model BrooderOccurrence {
   type           BrooderOccurrenceType
   severity       BrooderOccurrenceSeverity @default(LOW)
   occurredAt     DateTime
-  numberAffected Int                        @default(0)
+  numberAffected Int                       @default(0)
   description    String?
   actionTaken    String?
   imageUrl       String?
-  followUpNeeded Boolean                    @default(false)
+  followUpNeeded Boolean                   @default(false)
 
   reportedById String?
   reportedBy   User?   @relation("BrooderOccurrenceReporter", fields: [reportedById], references: [id])
@@ -801,8 +801,8 @@ model Pig {
   serviceDate DateTime?
   expFarrow   DateTime?
   breed       String?
-  age         String?  // free-text: "~5mo", "Mature", "5-6mo"
-  role        String?  // boars: "Active", "CASTRATED", "Young — coming into service"
+  age         String? // free-text: "~5mo", "Mature", "5-6mo"
+  role        String? // boars: "Active", "CASTRATED", "Young — coming into service"
   note        String?
 
   deletedAt DateTime?
@@ -880,12 +880,12 @@ model NurseryGroup {
 
 // Pen-level head count for Houses E (fattening) and F (finishing).
 model FattenPen {
-  id         String   @id @default(uuid())
-  pen        String   @unique
-  house      String   // "E" or "F"
+  id         String  @id @default(uuid())
+  pen        String  @unique
+  house      String // "E" or "F"
   count      Int
   age        String?
-  saleReady  Boolean  @default(false)
+  saleReady  Boolean @default(false)
   saleWindow String?
 
   deletedAt DateTime?
@@ -896,11 +896,45 @@ model FattenPen {
   @@index([deletedAt])
 }
 
+// Farmers Choice (FC) dispatch log. One row per truck-load delivered
+// to Farmers Choice. Mirrors the HTML mockup's `fcDeliveryLog`:
+// each delivery clears one or more House F pens; slap tattoos are
+// applied at the truck per slaughter-house intake protocol.
+//
+// `pens` is a free-text label ("F2 through F10") rather than a
+// relation array because the operational record is what was loaded
+// onto the truck, not which DB pen rows existed at the time. The
+// audit trail is the receipt/waybill (`ref`), not a FK graph.
+model FarmersChoiceDelivery {
+  id       String   @id @default(uuid())
+  date     DateTime
+  ref      String // FC waybill / receipt #
+  pens     String // e.g. "F2 through F10"
+  count    Int // head count delivered
+  category String // "Beaconners" | "Fatteners" | "Winners" | "Mixed"
+  ageRange String? // e.g. "5-6mo"
+  driver   String // who handled it on the farm side
+  notes    String?
+
+  // Optional link to the auto-created Revenue row so the finance
+  // ledger can be reconciled to the operational record.
+  revenueId String? @unique
+
+  recordedById String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([date])
+  @@index([deletedAt])
+}
+
 // Piggery inventory — bedding · equipment · veterinary · tags · feed.
 model PiggeryInventoryItem {
   id        String    @id @default(uuid())
   name      String
-  category  String    // "Bedding" | "Equipment" | "Veterinary" | "Tags" | "Feed"
+  category  String // "Bedding" | "Equipment" | "Veterinary" | "Tags" | "Feed"
   quantity  Float
   unit      String?
   location  String?
@@ -933,14 +967,14 @@ model Bull {
   // feedlot. soldAt drives the active-vs-archived filter: lists
   // default to soldAt = null. receiptUrl is a Cloudinary URL of the
   // attached receipt photo.
-  soldAt         DateTime?
-  soldWeightKg   Float?
-  salePrice      Float?
-  buyerName      String?
-  buyerPhone     String?
-  paymentMethod  String?
-  saleNotes      String?
-  receiptUrl     String?
+  soldAt        DateTime?
+  soldWeightKg  Float?
+  salePrice     Float?
+  buyerName     String?
+  buyerPhone    String?
+  paymentMethod String?
+  saleNotes     String?
+  receiptUrl    String?
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -981,13 +1015,13 @@ model Sheep {
   // Sale disposition. Mirrors the Bull schema. listSheep filters on
   // soldAt = null so sold animals drop out of active views; the
   // auto-generated receipt and finance Revenue row keep the trail.
-  soldAt         DateTime?
-  soldWeightKg   Float?
-  salePrice      Float?
-  buyerName      String?
-  buyerPhone     String?
-  paymentMethod  String?
-  saleNotes      String?
+  soldAt        DateTime?
+  soldWeightKg  Float?
+  salePrice     Float?
+  buyerName     String?
+  buyerPhone    String?
+  paymentMethod String?
+  saleNotes     String?
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -1079,7 +1113,7 @@ model Crop {
 model NgushishInventoryItem {
   id        String    @id @default(uuid())
   name      String
-  category  String    // "Inputs" | "Equipment" | "Agrochemicals" | "Tags"
+  category  String // "Inputs" | "Equipment" | "Agrochemicals" | "Tags"
   quantity  Float
   unit      String?
   location  String?
@@ -1576,7 +1610,7 @@ model TaskReassignment {
   effectiveDate DateTime
   notes         String?
 
-  approvalRequired Boolean @default(false)
+  approvalRequired Boolean   @default(false)
   approvedAt       DateTime?
 
   createdAt DateTime @default(now())
@@ -1607,7 +1641,6 @@ model Payroll {
   @@unique([userId, month, year])
 }
 
-
 // =============================================================
 // REMINDERS — completion / snooze overrides for synthetic reminders
 // =============================================================
@@ -1626,22 +1659,21 @@ model Payroll {
 // When a generator emits a reminder, it merges the override (if any)
 // onto the synthesized row so the UI shows the correct status.
 model ReminderOverride {
-  id          String   @id @default(uuid())
-  syntheticId String   @unique
-  status      String   // "DONE" | "SNOOZED"
-  completedAt DateTime?
+  id           String    @id @default(uuid())
+  syntheticId  String    @unique
+  status       String // "DONE" | "SNOOZED"
+  completedAt  DateTime?
   snoozedUntil DateTime?
-  notes       String?
+  notes        String?
 
   completedById String?
-  completedBy   User?    @relation("CompletedReminders", fields: [completedById], references: [id], onDelete: SetNull)
+  completedBy   User?   @relation("CompletedReminders", fields: [completedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
 }
-
 
 // =============================================================
 // FINANCE MODULE — revenue, expenses, budgets per farm unit
@@ -1699,16 +1731,16 @@ enum PaymentMethod {
 }
 
 model Revenue {
-  id        String          @id @default(uuid())
-  unit      FinanceUnit
-  category  RevenueCategory
-  amount    Float
-  quantity  Float?
-  unitLabel String?         // free-text unit label e.g. "L", "crates", "kg"
-  date      DateTime
-  notes     String?
+  id          String          @id @default(uuid())
+  unit        FinanceUnit
+  category    RevenueCategory
+  amount      Float
+  quantity    Float?
+  unitLabel   String? // free-text unit label e.g. "L", "crates", "kg"
+  date        DateTime
+  notes       String?
   createdById String?
-  createdBy   User?         @relation("FinanceCreatedRevenue", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?           @relation("FinanceCreatedRevenue", fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1719,18 +1751,18 @@ model Revenue {
 }
 
 model Expense {
-  id        String          @id @default(uuid())
-  unit      FinanceUnit
-  category  ExpenseCategory
-  amount    Float
-  vendor    String?
+  id            String          @id @default(uuid())
+  unit          FinanceUnit
+  category      ExpenseCategory
+  amount        Float
+  vendor        String?
   paymentMethod PaymentMethod?
   receiptUrl    String?
-  approved      Boolean       @default(true)
+  approved      Boolean         @default(true)
   date          DateTime
   notes         String?
   createdById   String?
-  createdBy     User?         @relation("FinanceCreatedExpense", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy     User?           @relation("FinanceCreatedExpense", fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1745,7 +1777,7 @@ model Budget {
   id              String      @id @default(uuid())
   unit            FinanceUnit
   allocatedAmount Float
-  month           Int         // 1..12
+  month           Int // 1..12
   year            Int
   notes           String?
 
@@ -1755,7 +1787,6 @@ model Budget {
   @@unique([unit, month, year])
   @@index([year, month])
 }
-
 
 // =============================================================
 // PAYROLL ADJUSTMENT — advances, bonuses, penalties, overtime
@@ -1796,43 +1827,43 @@ enum AdvancePaymentMethod {
 }
 
 model PayrollAdjustment {
-  id      String                  @id @default(uuid())
-  userId  String
-  user    User                    @relation("StaffAdjustments", fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation("StaffAdjustments", fields: [userId], references: [id], onDelete: Cascade)
 
-  type    PayrollAdjustmentType
-  status  PayrollAdjustmentStatus @default(PENDING)
+  type   PayrollAdjustmentType
+  status PayrollAdjustmentStatus @default(PENDING)
 
-  amount  Float
-  month   Int    // 1..12 — period this adjustment applies to
-  year    Int
+  amount Float
+  month  Int // 1..12 — period this adjustment applies to
+  year   Int
 
-  reason   String?
-  notes    String?
+  reason String?
+  notes  String?
 
   // ---- Advance reference + dates (added in 2026-05) ----
   // referenceNo: ADV-<year>-<5-digit zero-padded counter>. Auto-generated
   // on create when the type is ADVANCE.
-  referenceNo      String? @unique
-  requestDate      DateTime?
+  referenceNo    String?   @unique
+  requestDate    DateTime?
   // approvedDate / disbursedDate are nullable until the corresponding
   // step in the workflow happens. approvedAt (above) stays for backwards
   // compat — it's set when status flips to APPROVED/DEDUCTED.
-  approvedDate     DateTime?
-  disbursedDate    DateTime?
+  approvedDate   DateTime?
+  disbursedDate  DateTime?
   // Month the advance is repaid out of payroll. Defaults to (month, year)
   // of the row itself but can be deferred to a later payroll cycle.
-  repaymentMonth   Int?
-  repaymentYear    Int?
+  repaymentMonth Int?
+  repaymentYear  Int?
 
-  paymentMethod    AdvancePaymentMethod?
+  paymentMethod   AdvancePaymentMethod?
   // Required when paymentMethod = MPESA. Validated by zod schema.
-  transactionCode  String?
+  transactionCode String?
 
-  requestedAt   DateTime  @default(now())
-  approvedAt    DateTime?
-  approvedById  String?
-  approvedBy    User?    @relation("ApprovedAdjustments", fields: [approvedById], references: [id], onDelete: SetNull)
+  requestedAt  DateTime  @default(now())
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("ApprovedAdjustments", fields: [approvedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
