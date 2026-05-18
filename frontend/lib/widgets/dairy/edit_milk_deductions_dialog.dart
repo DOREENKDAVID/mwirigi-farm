@@ -97,7 +97,7 @@ class _EditMilkDeductionsDialogState extends State<EditMilkDeductionsDialog> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Auto-detected: $autoCount calf${autoCount == 1 ? '' : 'ves'} '
+                  'Auto-detected: $autoCount ${autoCount == 1 ? "calf" : "calves"} '
                   'under 4 months. Leave the override blank to use this count.',
                   style: const TextStyle(
                     fontSize: 11,

@@ -450,16 +450,6 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                '3 sessions/day: AM · midday · PM. Tap a worker, enter litres '
-                'per cow, submit. Below-average readings auto-flag.',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                  height: 1.4,
-                ),
-              ),
             ],
           ),
         ),
@@ -500,65 +490,73 @@ class _SessionTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final agg = today.aggregateProgress;
+    // Wrap so 4 sessions (Dawn / AM / Midday / PM) can flow onto two
+    // rows on narrow phones instead of overlapping inside a forced
+    // 4-up Row of Expanded children. Each pill sizes to its content
+    // so labels + count badges never collide.
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFFEFEDE6),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
         children: [
           for (final s in MilkSession.values)
-            Expanded(
-              child: InkWell(
-                onTap: () => onSelect(s),
-                borderRadius: BorderRadius.circular(8),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected == s ? Colors.white : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        s.label,
+            InkWell(
+              onTap: () => onSelect(s),
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                constraints: const BoxConstraints(minHeight: 34),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected == s ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      s.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: selected == s
+                            ? const Color(0xFF27500A)
+                            : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected == s
+                            ? const Color(0xFF27500A)
+                            : const Color(0x22000000),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${agg[s]?.logged ?? 0}/${agg[s]?.total ?? 0}',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: selected == s
-                              ? const Color(0xFF27500A)
+                              ? Colors.white
                               : Colors.black87,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: selected == s
-                              ? const Color(0xFF27500A)
-                              : const Color(0x22000000),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '${agg[s]?.logged ?? 0}/${agg[s]?.total ?? 0}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: selected == s
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -709,7 +707,7 @@ class _WorkerPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(999),
@@ -721,7 +719,7 @@ class _WorkerPill extends StatelessWidget {
             Text(
               worker.name,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: fg,
               ),
@@ -1103,7 +1101,7 @@ class _SubtotalBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'WORKER SUBTOTAL',
+                  'SUBTOTAL',
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 0.6,
@@ -1659,13 +1657,10 @@ class _DeductionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final sessionGross = summary.sessions[session] ?? 0;
-    // Prefer the live calf count for the "(N × 1L)" hint when the
-    // value isn't overridden — that's the auto-detect from CALVING
-    // events in the last 120 days. When overridden, fall back to the
-    // raw litres so the hint matches what's actually deducted.
-    final calfHeadcount = summary.calfOverridden
-        ? summary.calfDeduction.toStringAsFixed(0)
-        : summary.calfCount.toString();
+    // Auto-detected calf count drives the actual litres; the row
+    // label stays clean ("Calves under 4 months") and the litres
+    // total carries the breakdown. The Edit deductions dialog shows
+    // the auto count and the override hint for managers who need it.
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
@@ -1707,8 +1702,7 @@ class _DeductionPanel extends StatelessWidget {
           const SizedBox(height: 8),
           _DedRow(label: 'Gross collected', value: '${_fmtLitres(sessionGross)} L'),
           _DedRow(
-            label: 'Calves under 4mo ($calfHeadcount × 1L)'
-                '${summary.calfOverridden ? "  ·  override" : ""}',
+            label: 'Calves under 4 months',
             value: '− ${_fmtLitres(summary.calfDeduction)} L',
             minus: true,
           ),

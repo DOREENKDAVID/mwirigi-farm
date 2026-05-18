@@ -85,18 +85,19 @@ class _ReproductionTrackerState extends State<ReproductionTracker> {
                   ),
                 ),
               ),
-              OutlinedButton.icon(
+              const SizedBox(width: 12),
+              FilledButton.icon(
                 onPressed: _openDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Log AI / Calving'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: primary,
-                  side: const BorderSide(color: Color(0x33000000)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                      horizontal: 12, vertical: 8),
                   textStyle: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -54,9 +56,26 @@ class _LogAiCalvingDialogState extends State<LogAiCalvingDialog> {
   }
 
   Future<void> _loadCows() async {
-    final cows = await CowRepository.instance.listLocal();
-    if (!mounted) return;
-    setState(() => _cows = cows);
+    // Try the server first so the dropdown is always populated even
+    // when the local Drift mirror hasn't been hydrated yet (e.g. the
+    // user opened the dialog before visiting the Cows tab). Fall
+    // back to the local cache if offline so the dialog still works.
+    try {
+      final raw = await ApiService.getCows();
+      final cows = raw
+          .whereType<Map>()
+          .map((m) => Cow.fromJson(m.cast<String, dynamic>()))
+          .toList();
+      if (!mounted) return;
+      setState(() => _cows = cows);
+      // Opportunistically refresh the local mirror so subsequent
+      // offline opens of this dialog show the same list.
+      unawaited(CowRepository.instance.refreshFromServer());
+    } catch (_) {
+      final cows = await CowRepository.instance.listLocal();
+      if (!mounted) return;
+      setState(() => _cows = cows);
+    }
   }
 
   @override
