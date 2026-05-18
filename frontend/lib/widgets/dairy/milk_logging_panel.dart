@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
+import 'edit_milk_deductions_dialog.dart';
 
 /// "Milk logging" card — the primary daily dairy workflow per the v4.1
 /// HTML mockup. Composition top → bottom:
@@ -270,6 +271,29 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
     }
   }
 
+  /// Open the deductions edit dialog and refetch the day-net summary
+  /// after a save so the calf + household lines reflect the override
+  /// (or the reverted auto-detect) immediately.
+  Future<void> _openEditDeductions(DayNetSummary current) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => EditMilkDeductionsDialog(summary: current),
+    );
+    if (saved != true || !mounted) return;
+    try {
+      final raw = await ApiService.getDairyTodayNet();
+      if (!mounted) return;
+      setState(() {
+        _futureSummary = Future.value(DayNetSummary.fromJson(raw));
+      });
+      widget.onChanged?.call();
+    } catch (_) {
+      // best-effort refresh — the dialog already toasted on its own
+      // error path; nothing to do here.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -355,6 +379,7 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
                     today: today,
                     session: _selectedSession,
                     summary: sumSnap.data!,
+                    onEditDeductions: () => _openEditDeductions(sumSnap.data!),
                   );
                 },
               ),
@@ -1585,18 +1610,24 @@ class _SummaryGrid extends StatelessWidget {
     required this.today,
     required this.session,
     required this.summary,
+    required this.onEditDeductions,
   });
 
   final TodaySessions today;
   final MilkSession session;
   final DayNetSummary summary;
+  final VoidCallback onEditDeductions;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
         final wide = c.maxWidth >= 700;
-        final left = _DeductionPanel(session: session, summary: summary);
+        final left = _DeductionPanel(
+          session: session,
+          summary: summary,
+          onEdit: onEditDeductions,
+        );
         final right = _AcrossSessionsPanel(summary: summary);
         if (wide) {
           return Row(
@@ -1617,13 +1648,25 @@ class _SummaryGrid extends StatelessWidget {
 }
 
 class _DeductionPanel extends StatelessWidget {
-  const _DeductionPanel({required this.session, required this.summary});
+  const _DeductionPanel({
+    required this.session,
+    required this.summary,
+    required this.onEdit,
+  });
   final MilkSession session;
   final DayNetSummary summary;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final sessionGross = summary.sessions[session] ?? 0;
+    // Prefer the live calf count for the "(N × 1L)" hint when the
+    // value isn't overridden — that's the auto-detect from CALVING
+    // events in the last 120 days. When overridden, fall back to the
+    // raw litres so the hint matches what's actually deducted.
+    final calfHeadcount = summary.calfOverridden
+        ? summary.calfDeduction.toStringAsFixed(0)
+        : summary.calfCount.toString();
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
       decoration: BoxDecoration(
@@ -1633,12 +1676,40 @@ class _DeductionPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionLabel('${session.label} SESSION SUMMARY'),
+          Row(
+            children: [
+              Expanded(
+                child: _SectionLabel('${session.label} SESSION SUMMARY'),
+              ),
+              InkWell(
+                onTap: onEdit,
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_outlined, size: 12, color: Color(0xFF1976D2)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Edit deductions',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1976D2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           _DedRow(label: 'Gross collected', value: '${_fmtLitres(sessionGross)} L'),
           _DedRow(
-            label:
-                'Calves under 4mo (${summary.calfDeduction.toStringAsFixed(0)} × 1L)',
+            label: 'Calves under 4mo ($calfHeadcount × 1L)'
+                '${summary.calfOverridden ? "  ·  override" : ""}',
             value: '− ${_fmtLitres(summary.calfDeduction)} L',
             minus: true,
           ),

@@ -232,6 +232,35 @@ export const getTodayNetSummary = async (_req, res) => {
   }
 };
 
+export const updateMilkDeductions = async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const num = (v) =>
+      v === null || v === undefined ? undefined : Number(v);
+    const calf = num(body.calfDeduction);
+    const house = num(body.householdDeduct);
+    if (
+      (calf !== undefined && (Number.isNaN(calf) || calf < 0 || calf > 1000)) ||
+      (house !== undefined &&
+        (Number.isNaN(house) || house < 0 || house > 1000))
+    ) {
+      return res.status(400).json({
+        error: "Deduction values must be numbers between 0 and 1000 litres",
+      });
+    }
+    const row = await dairyService.updateMilkDeductions({
+      calfDeduction: calf,
+      householdDeduct: house,
+    });
+    res.json({
+      calfDeduction: row.calfDeduction,
+      householdDeduct: row.householdDeduct,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 export const submitMilkSession = async (req, res) => {
   try {
     const { workerId, session, date, entries } = req.body ?? {};

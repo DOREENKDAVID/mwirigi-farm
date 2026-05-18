@@ -1426,6 +1426,15 @@ class ApiService {
   static Future<Map<String, dynamic>> getDairyTodayNet() async =>
       _asMap(await _get('/dairy/milk/summary/today'));
 
+  // PATCH /dairy/config/deductions — admin-set the calf + household
+  // deductions used by the session summary. Pass calfDeduction = 0 to
+  // revert the override and use the live count of calving events.
+  // Body: { calfDeduction?, householdDeduct? }.
+  static Future<Map<String, dynamic>> updateMilkDeductions(
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _patch('/dairy/config/deductions', body: data));
+
   // POST /dairy/milk/sessions — atomic bulk submit. Idempotent on
   // (cow, date, session): re-submitting overwrites the prior litres.
   // Returns the refreshed today-sessions slice in `data`.

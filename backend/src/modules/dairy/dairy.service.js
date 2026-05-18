@@ -824,20 +824,45 @@ export const submitMilkSession = async ({
 // TODAY'S NET (deductions applied)
 //////////////////////////////////////////////////////
 
+// Calves under 4 months = CALVING ReproductionRecord events in the
+// last ~120 days. Counted live from the herd so the summary's calf
+// deduction picks up new calvings automatically without an admin
+// editing FarmConfig every time.
+const autoCalfCountUnder4mo = async () => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 120);
+  return prisma.reproductionRecord.count({
+    where: {
+      eventType: "CALVING",
+      deletedAt: null,
+      eventDate: { gte: cutoff },
+    },
+  });
+};
+
 // Pulls calf + household deductions from FarmConfig (fall back to
 // sensible defaults if no config exists yet) and returns gross / net
 // for each session + the day. Used by the summary panel under the
 // session tabs.
+//
+// `calfDeduction` semantics:
+//   - When FarmConfig.calfDeduction is null/0, use the live calf count
+//     (CALVING events in last 120 days) × 1L per calf.
+//   - When a non-zero value is stored, treat it as a manual override
+//     entered through the deductions edit dialog.
+// The auto count is always returned alongside so the UI can show
+// "X calves auto-detected" as a hint next to the override field.
 export const getTodayNetSummary = async () => {
   const { start, end } = todayRange();
 
-  const [aggs, config] = await Promise.all([
+  const [aggs, config, autoCalfCount] = await Promise.all([
     prisma.milkRecord.groupBy({
       by: ["session"],
       where: { date: { gte: start, lte: end } },
       _sum: { litres: true },
     }),
     prisma.farmConfig.findFirst(),
+    autoCalfCountUnder4mo(),
   ]);
 
   const gross = { AM: 0, MID: 0, PM: 0 };
@@ -846,11 +871,12 @@ export const getTodayNetSummary = async () => {
   }
   const dayGross = gross.AM + gross.MID + gross.PM;
 
-  const calfDeduction = config?.calfDeduction ?? 5; // 5 calves × 1L by default
-  const householdDeduct = config?.householdDeduct ?? 35; // ~35 L typical
+  const storedCalf = config?.calfDeduction;
+  const calfDeduction = storedCalf && storedCalf > 0
+    ? storedCalf
+    : autoCalfCount * 1; // 1L per calf default
 
-  // Apply household + calf as a flat day-level deduction (HTML shows
-  // these together in the bottom summary panel).
+  const householdDeduct = config?.householdDeduct ?? 35; // ~35 L typical
   const totalDeductions = calfDeduction + householdDeduct;
   const dayNet = Math.max(0, dayGross - totalDeductions);
 
@@ -858,12 +884,54 @@ export const getTodayNetSummary = async () => {
     sessions: gross,
     deductions: {
       calf: calfDeduction,
+      calfCount: autoCalfCount,
+      calfOverridden: storedCalf && storedCalf > 0,
       household: householdDeduct,
       total: totalDeductions,
     },
     dayGross: Number(dayGross.toFixed(1)),
     dayNet: Number(dayNet.toFixed(1)),
   };
+};
+
+// PATCH /api/dairy/config/deductions — admin-edit override values
+// for the calf + household deductions surfaced on the milk session
+// summary card. Passing { calfDeduction: 0 } clears the override and
+// restores the live calf-count behaviour.
+export const updateMilkDeductions = async (input) => {
+  const existing = await prisma.farmConfig.findFirst();
+  if (!existing) {
+    // Bootstrap with sensible defaults — the dashboard already does
+    // this lazily for other config rows.
+    return prisma.farmConfig.create({
+      data: {
+        farmName: "Mwirigi Farm",
+        version: "v1",
+        location: "",
+        year: String(new Date().getFullYear()),
+        milkTarget: 2000,
+        eggsTarget: 5500,
+        householdDeduct: input.householdDeduct ?? 35,
+        calfDeduction: input.calfDeduction ?? 0,
+        sowCount: 0,
+        gestationDays: 114,
+        weaningDays: 28,
+        saleAgeDays: 180,
+        beaconnersTarget: 0,
+      },
+    });
+  }
+  return prisma.farmConfig.update({
+    where: { id: existing.id },
+    data: {
+      ...(input.householdDeduct !== undefined
+        ? { householdDeduct: input.householdDeduct }
+        : {}),
+      ...(input.calfDeduction !== undefined
+        ? { calfDeduction: input.calfDeduction }
+        : {}),
+    },
+  });
 };
 
 //////////////////////////////////////////////////////

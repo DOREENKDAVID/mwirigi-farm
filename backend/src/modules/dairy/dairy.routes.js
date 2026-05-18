@@ -123,6 +123,17 @@ dairyRoutes.get(
   dairyController.getTodayNetSummary,
 );
 
+// PATCH the calf / household deductions used in the milk session
+// summary. Body: { calfDeduction?: number, householdDeduct?: number }.
+// Pass 0 (or omit) to revert the calf override and fall back to the
+// live count of calving events under 4 months old.
+dairyRoutes.patch(
+  "/config/deductions",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.updateMilkDeductions,
+);
+
 // Atomic bulk submit: { workerId, session, date, entries: [{cowId, litres}] }
 // Idempotent — re-submitting the same (cow, date, session) overwrites.
 dairyRoutes.post(
