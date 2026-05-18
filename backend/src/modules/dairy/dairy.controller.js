@@ -2,6 +2,7 @@ import * as dairyService from "./dairy.service.js";
 import {
   cowSchema,
   releaseCowSchema,
+  calfDispositionSchema,
   milkRecordSchema,
   dairyInventorySchema,
   dairyInventoryPatchSchema,
@@ -194,6 +195,39 @@ export const getCowsByWorker = async (req, res) => {
   }
 };
 
+export const reassignWorkerCows = async (req, res) => {
+  try {
+    const fromWorkerId = req.params.workerId;
+    const toWorkerId = (req.body ?? {}).toWorkerId;
+    if (typeof toWorkerId !== "string" || !toWorkerId) {
+      return res
+        .status(400)
+        .json({ error: "toWorkerId is required in the request body" });
+    }
+    const count = await dairyService.reassignWorkerCows(
+      fromWorkerId,
+      toWorkerId,
+      req.user?.id,
+    );
+    res.json({ reassigned: count });
+  } catch (err) {
+    const msg = err.message ?? "Reassignment failed";
+    if (
+      msg === "Source worker not found" ||
+      msg === "Replacement worker not found"
+    ) {
+      return res.status(404).json({ error: msg });
+    }
+    if (
+      msg === "Cannot reassign cows to the same worker" ||
+      msg === "Both fromWorkerId and toWorkerId are required"
+    ) {
+      return res.status(400).json({ error: msg });
+    }
+    res.status(500).json({ error: msg });
+  }
+};
+
 //////////////////////////////////////////////////////
 // PHASE 2 + 3 — aggregations & bulk submit
 //////////////////////////////////////////////////////
@@ -327,6 +361,29 @@ export const getCalvesRegister = async (_req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const disposeCalf = async (req, res) => {
+  try {
+    const body = calfDispositionSchema.parse(req.body);
+    const updated = await dairyService.disposeCalf(
+      req.params.id,
+      body,
+      req.user?.id,
+    );
+    res.json(updated);
+  } catch (err) {
+    if (err?.issues) {
+      return res.status(400).json({
+        error: "Validation error",
+        issues: err.issues.map((i) => ({ path: i.path, message: i.message })),
+      });
+    }
+    if (err.message === "Calf record not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
   }
 };
 

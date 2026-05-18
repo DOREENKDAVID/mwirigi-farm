@@ -557,6 +557,23 @@ class ApiService {
   static Future<List<dynamic>> getCowsByWorker(String workerId) async =>
       _asList(await _get('/dairy/workers/$workerId/cows'));
 
+  // POST /dairy/workers/:workerId/reassign-cows (CEO/DAIRY_MANAGER)
+  // Bulk-moves every active cow from `fromWorkerId` to the worker in
+  // the body. Used when a worker is flipped to unavailable so their
+  // herd doesn't sit unassigned during the milking session.
+  // Body: { toWorkerId }. Returns { reassigned: <count> }.
+  static Future<int> reassignWorkerCows({
+    required String fromWorkerId,
+    required String toWorkerId,
+  }) async {
+    final res = _asMap(await _post(
+      '/dairy/workers/$fromWorkerId/reassign-cows',
+      body: {'toWorkerId': toWorkerId},
+    ));
+    final n = res['reassigned'];
+    return n is int ? n : (n is num ? n.toInt() : 0);
+  }
+
   // ============== LAYERS UNIT (/api/layers-unit) ==============
   //
   // Unified Layers Unit endpoint — one round-trip returns layers (KPIs +
@@ -1468,6 +1485,16 @@ class ApiService {
   // (and, when matched, the calf cow). Backend computes ageDays + stage.
   static Future<List<dynamic>> getDairyCalves() async =>
       _asList(await _get('/dairy/calves'));
+
+  // POST /dairy/calves/:id/dispose — record a calf disposition (sold,
+  // died, transferred…). Body matches calfDispositionSchema on the
+  // server: { type, date?, party?, amount?, receipt?, witness?, notes? }.
+  // PDF receipt for sales is generated client-side from the same data.
+  static Future<Map<String, dynamic>> disposeCalf(
+    String recordId,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/dairy/calves/$recordId/dispose', body: data));
 
   // GET /dairy/milk/trend/daily — N days of milk totals (default 7).
   // Each row: { date, dow, litres }. Drives the bar chart pill.

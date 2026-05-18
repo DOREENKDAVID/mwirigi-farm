@@ -97,6 +97,18 @@ dairyRoutes.get(
   dairyController.getCowsByWorker,
 );
 
+// Bulk reassign every cow currently assigned to `:workerId` to a
+// replacement worker. Used when a worker is flipped to unavailable
+// (sick / off / vacation / …) so the herd doesn't sit unassigned
+// during the next milking session.
+// Body: { toWorkerId }
+dairyRoutes.post(
+  "/workers/:workerId/reassign-cows",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.reassignWorkerCows,
+);
+
 //////////////////////////////////////////////////////
 // PHASE 2 + 3 — operational aggregation + bulk submit
 //////////////////////////////////////////////////////
@@ -162,6 +174,17 @@ dairyRoutes.get(
 
 // CALVING reproduction records joined with dam and (when matched) calf cow.
 dairyRoutes.get("/calves", authMiddleware, dairyController.getCalvesRegister);
+
+// Record a calf disposition (sold / died / transferred / lost). Updates
+// the underlying CALVING ReproductionRecord with calvingFate + notes,
+// and — when the calf has a Cow row — sets releasedAt in the same
+// transaction. PDF receipt for sales is generated client-side.
+dairyRoutes.post(
+  "/calves/:id/dispose",
+  authMiddleware,
+  authorizeRoles("CEO", "DAIRY_MANAGER"),
+  dairyController.disposeCalf,
+);
 
 //////////////////////////////////////////////////////
 // 📦 DAIRY INVENTORY

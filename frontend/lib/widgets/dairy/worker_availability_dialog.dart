@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
+import 'reassign_cows_dialog.dart';
 
 /// Manage availability for the dairy worker roster. Renders one row
 /// per worker with a status chip + note field; tapping a chip cycles
@@ -61,6 +62,15 @@ class _WorkerAvailabilityDialogState extends State<WorkerAvailabilityDialog> {
         _saving[w.id] = false;
         _changed = true;
       });
+      // If this transition flipped the worker AWAY from AVAILABLE and
+      // they still have cows, prompt to reassign the herd. Skip when
+      // we're just editing the note (status unchanged) or when the
+      // worker had no cows to move.
+      final flippedToUnavailable =
+          !next.isAvailable && w.availability.isAvailable;
+      if (flippedToUnavailable && w.cowCount > 0) {
+        await _promptReassign(w);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving[w.id] = false);
@@ -68,6 +78,47 @@ class _WorkerAvailabilityDialogState extends State<WorkerAvailabilityDialog> {
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
+  }
+
+  /// Open the ReassignCowsDialog right after a worker is marked
+  /// unavailable. On success we update the local roster — source
+  /// worker's cowCount drops to 0, replacement's bumps by the moved
+  /// count — so the picker re-renders without a parent reload.
+  Future<void> _promptReassign(DairyWorkerSummary from) async {
+    final i = _rows.indexWhere((r) => r.id == from.id);
+    final current = i == -1 ? from : _rows[i];
+    final result = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReassignCowsDialog(
+        fromWorker: current,
+        allWorkers: _rows,
+      ),
+    );
+    if (result == null || result <= 0 || !mounted) return;
+    setState(() {
+      final fromIdx = _rows.indexWhere((r) => r.id == from.id);
+      if (fromIdx != -1) {
+        final row = _rows[fromIdx];
+        _rows[fromIdx] = DairyWorkerSummary(
+          id: row.id,
+          name: row.name,
+          cowCount: 0,
+          role: row.role,
+          houseName: row.houseName,
+          availability: row.availability,
+          availabilityNote: row.availabilityNote,
+        );
+      }
+      _changed = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Reassigned $result cow${result == 1 ? '' : 's'} from ${from.name}',
+        ),
+      ),
+    );
   }
 
   @override

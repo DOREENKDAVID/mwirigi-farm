@@ -105,6 +105,29 @@ export const releaseCowSchema = z.object({
   documentUrl: z.string().trim().max(500).nullable().optional(),
 });
 
+// Calf disposition codes mirror the v4.5 HTML dropdown. Stored back
+// on the ReproductionRecord (since calves are CALVING records, not a
+// dedicated table). Sales drive an auto-generated PDF on the client.
+const CALF_DISPOSITION_TYPES = [
+  "SOLD_CASH",
+  "SOLD_CREDIT",
+  "DIED",
+  "TRANSFERRED_OUT",
+  "TRANSFERRED_IN",
+  "LOST",
+  "OTHER",
+];
+
+export const calfDispositionSchema = z.object({
+  type: z.enum(CALF_DISPOSITION_TYPES),
+  date: z.coerce.date().optional(),
+  party: z.string().trim().max(200).nullable().optional(),
+  amount: z.coerce.number().nonnegative().optional(),
+  receipt: z.string().trim().max(400).nullable().optional(),
+  witness: z.string().trim().max(200).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+});
+
 //////////////////////////////////////////////////////
 // MILK RECORD SCHEMA
 //////////////////////////////////////////////////////

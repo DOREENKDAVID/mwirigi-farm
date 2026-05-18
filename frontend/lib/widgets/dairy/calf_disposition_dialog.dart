@@ -1,26 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/models/cow.dart';
+import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
 import '../../core/utils/sale_receipt_pdf.dart';
 
-/// "Record Disposition / Release" dialog for a cow — matches the v4.5
-/// HTML mockup. Captures the end-of-cycle event for the entity and
-/// posts to /dairy/cows/tag/:tag/release. For cash sales we auto-
-/// generate the PDF receipt locally (no more "attach a photo of the
-/// hand-written one"), reusing the SaleReceiptData utility shared
-/// with the feedlot sell flows.
-class ReleaseCowDialog extends StatefulWidget {
-  const ReleaseCowDialog({super.key, required this.cow});
+/// "Record Disposition / Release" dialog for a calf — same layout as
+/// the cow flow, but talks to /api/dairy/calves/:id/dispose and the
+/// disposition type list is calf-appropriate (no "slaughtered" — that
+/// would normally route through the feedlot transfer instead).
+class CalfDispositionDialog extends StatefulWidget {
+  const CalfDispositionDialog({super.key, required this.calf});
 
-  final Cow cow;
+  final CalfRecord calf;
 
   @override
-  State<ReleaseCowDialog> createState() => _ReleaseCowDialogState();
+  State<CalfDispositionDialog> createState() => _CalfDispositionDialogState();
 }
 
-class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
+class _CalfDispositionDialogState extends State<CalfDispositionDialog> {
   final _formKey = GlobalKey<FormState>();
   final _party = TextEditingController();
   final _amount = TextEditingController();
@@ -28,13 +26,9 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
   final _witness = TextEditingController();
   final _notes = TextEditingController();
 
-  // Disposition options mirror the HTML form's `kindExtras['cow']` +
-  // `commonTypes` ordering so the dropdown feels identical.
   static const _options = <_DispOption>[
     _DispOption('SOLD_CASH', '💰 Sold (cash)', isSale: true),
     _DispOption('SOLD_CREDIT', '💳 Sold (credit / on account)', isSale: true),
-    _DispOption('CULLED', '🪦 Culled (vet-recommended)'),
-    _DispOption('SLAUGHTERED', '🔪 Slaughtered for farm'),
     _DispOption('DIED', '⚰ Died (natural / illness)'),
     _DispOption('TRANSFERRED_OUT', '➡ Transferred out of farm'),
     _DispOption('TRANSFERRED_IN', '⬇ Transferred between units'),
@@ -65,50 +59,28 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
     if (picked != null && mounted) setState(() => _date = picked);
   }
 
-  // Map the HTML's fine-grained disposition codes back to the wire
-  // enum the cow-release endpoint accepts. Sales / credit sales both
-  // map to SOLD; transfers in/out both to TRANSFERRED; culled / lost
-  // fall through to OTHER so we don't lose them but also don't lie
-  // about their type.
-  CowReleaseType _wireFor(_DispOption opt) {
-    switch (opt.code) {
-      case 'SOLD_CASH':
-      case 'SOLD_CREDIT':
-        return CowReleaseType.sold;
-      case 'SLAUGHTERED':
-        return CowReleaseType.slaughtered;
-      case 'DIED':
-        return CowReleaseType.died;
-      case 'TRANSFERRED_OUT':
-      case 'TRANSFERRED_IN':
-        return CowReleaseType.transferred;
-      default:
-        return CowReleaseType.other;
-    }
-  }
-
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
     final amount = num.tryParse(_amount.text.trim()) ?? 0;
 
     setState(() => _submitting = true);
     try {
-      await ApiService.releaseCow(widget.cow.tag, {
-        'releaseType': _wireFor(_type).wire,
-        'releaseDate': _date.toIso8601String(),
-        'destination': _party.text.trim().isEmpty ? null : _party.text.trim(),
-        'reason': _composedReason(amount),
-        'documentUrl': null,
+      await ApiService.disposeCalf(widget.calf.id, {
+        'type': _type.code,
+        'date': _date.toIso8601String(),
+        'party': _party.text.trim().isEmpty ? null : _party.text.trim(),
+        'amount': amount,
+        'receipt': _receipt.text.trim().isEmpty ? null : _receipt.text.trim(),
+        'witness': _witness.text.trim().isEmpty ? null : _witness.text.trim(),
+        'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       });
 
-      // Auto-generate the PDF receipt for any sale (cash or credit).
-      // For non-sale dispositions (died, lost, culled…) we skip the
-      // receipt — there's no buyer / amount worth printing.
+      // For any sale, auto-generate the PDF receipt locally — same
+      // utility the feedlot Sell Bull / Sell Dopper flows use.
       if (_type.isSale) {
         await previewSaleReceipt(SaleReceiptData(
-          kind: 'Cow',
-          animalTag: widget.cow.tag,
+          kind: 'Calf',
+          animalTag: widget.calf.calfTag ?? '—',
           saleDate: _date,
           salePrice: amount,
           buyerName: _party.text.trim(),
@@ -135,27 +107,15 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
     }
   }
 
-  // Pack the disposition extras (amount, receipt, witness, notes,
-  // raw type) into the existing `reason` text column so we don't
-  // need a schema change. Reads stay legible because the order is
-  // stable and labelled.
-  String? _composedReason(num amount) {
-    final parts = <String>[];
-    parts.add('Type: ${_type.label}');
-    if (amount > 0) parts.add('Amount: KSh ${amount.toStringAsFixed(0)}');
-    final r = _receipt.text.trim();
-    if (r.isNotEmpty) parts.add('Receipt: $r');
-    final w = _witness.text.trim();
-    if (w.isNotEmpty) parts.add('Witness: $w');
-    final n = _notes.text.trim();
-    if (n.isNotEmpty) parts.add('Notes: $n');
-    return parts.isEmpty ? null : parts.join(' · ');
-  }
-
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('dd/MM/yyyy');
     final isMobile = MediaQuery.of(context).size.width < 560;
+    final c = widget.calf;
+    final entityId = c.calfTag ?? '—';
+    final entityLabel = c.calf?.nickname ?? entityId;
+    final entityLocation =
+        c.calf?.houseName ?? c.dam?.houseName ?? 'Maternity';
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -195,7 +155,44 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
                   style: TextStyle(fontSize: 12, color: Color(0xFF6B7770), height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                _entityCard(),
+
+                // Entity card — mirrors the cow flow but shows "calf"
+                // and uses the dam's house as a fallback location.
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F8F4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: const Border(
+                      left: BorderSide(color: Color(0xFF27500A), width: 3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'ENTITY BEING RELEASED',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                          color: Color(0xFF99A39B),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 18,
+                        runSpacing: 8,
+                        children: [
+                          _kv('Type', 'calf'),
+                          _kv('ID', entityId, mono: true),
+                          _kv('Name / label', entityLabel),
+                          _kv('Current location', entityLocation),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 18),
 
                 _Row2(
@@ -366,8 +363,9 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed:
-                          _submitting ? null : () => Navigator.of(context).pop(false),
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.of(context).pop(false),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 8),
@@ -401,45 +399,6 @@ class _ReleaseCowDialogState extends State<ReleaseCowDialog> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _entityCard() {
-    final cow = widget.cow;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F8F4),
-        borderRadius: BorderRadius.circular(10),
-        border: const Border(
-          left: BorderSide(color: Color(0xFF27500A), width: 3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'ENTITY BEING RELEASED',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.6,
-              color: Color(0xFF99A39B),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 18,
-            runSpacing: 8,
-            children: [
-              _kv('Type', 'cow'),
-              _kv('ID', cow.tag, mono: true),
-              _kv('Name / label', cow.nickname ?? cow.tag),
-              _kv('Current location', cow.houseName ?? '—'),
-            ],
-          ),
-        ],
       ),
     );
   }
@@ -525,7 +484,6 @@ class _DispOption {
   final bool isSale;
 }
 
-// Responsive 2-up row: side-by-side on tablet+, stacked on mobile.
 class _Row2 extends StatelessWidget {
   const _Row2({
     required this.left,

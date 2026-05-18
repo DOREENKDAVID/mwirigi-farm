@@ -456,40 +456,86 @@ export const getCowsByWorkerId = async (workerId) => {
   });
 };
 
+// Bulk move every active cow from `fromWorkerId` to `toWorkerId`.
+// Used when a worker is flipped to SICK_LEAVE / OFF_DAY / etc. so
+// their herd doesn't sit unassigned during the milking session.
+// Returns the number of cows that were moved. Wrapped in a
+// transaction so partial failures roll back; rejects no-op pairs
+// and missing workers up front.
+export const reassignWorkerCows = async (
+  fromWorkerId,
+  toWorkerId,
+  actorId,
+) => {
+  if (!fromWorkerId || !toWorkerId) {
+    throw new Error("Both fromWorkerId and toWorkerId are required");
+  }
+  if (fromWorkerId === toWorkerId) {
+    throw new Error("Cannot reassign cows to the same worker");
+  }
+  const [from, to] = await Promise.all([
+    prisma.worker.findUnique({ where: { id: fromWorkerId } }),
+    prisma.worker.findUnique({ where: { id: toWorkerId } }),
+  ]);
+  if (!from) throw new Error("Source worker not found");
+  if (!to) throw new Error("Replacement worker not found");
+
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.cow.updateMany({
+      where: { workerId: fromWorkerId, releasedAt: null },
+      data: { workerId: toWorkerId },
+    });
+    await tx.auditLog.create({
+      data: {
+        entity: "Worker",
+        entityId: fromWorkerId,
+        action: "UPDATE",
+        actorId: actorId ?? null,
+        reason: `Reassigned ${result.count} cow${result.count === 1 ? "" : "s"} to ${to.name}`,
+        snapshot: JSON.stringify({
+          fromWorker: { id: from.id, name: from.name },
+          toWorker: { id: to.id, name: to.name },
+          cowCount: result.count,
+        }),
+      },
+    });
+    return result.count;
+  });
+};
+
 //////////////////////////////////////////////////////
 // HOUSES OVERVIEW (Phase 2a)
 //////////////////////////////////////////////////////
 
-// One row per dairy-relevant house (type=Dairy) plus the synthetic
-// "Maternity" entry derived from cows in PREGNANT status without a
-// physical maternity house. Returns:
+// One row per dairy-relevant house (type=Dairy). Since v4.5, "Dairy
+// Maternity" is a real House row in the DB (not synthesized), so it
+// flows through this same loop — we just give it the MATERNITY status
+// tag so the UI can colour it differently. Returns:
 //   { id, name, color, totalCows, milkingCount, litresToday, workers[] }
 export const getHousesOverview = async () => {
   const { start, end } = todayRange();
 
-  const [houses, maternityCount] = await Promise.all([
-    prisma.house.findMany({
-      where: { type: "Dairy" },
-      orderBy: { name: "asc" },
-      include: {
-        worker: { select: { id: true, name: true } },
-        cows: {
-          select: {
-            id: true,
-            status: true,
-            workerId: true,
-            milkRecords: {
-              where: { date: { gte: start, lte: end } },
-              select: { litres: true },
-            },
+  const houses = await prisma.house.findMany({
+    where: { type: "Dairy" },
+    orderBy: { name: "asc" },
+    include: {
+      worker: { select: { id: true, name: true } },
+      cows: {
+        select: {
+          id: true,
+          status: true,
+          workerId: true,
+          milkRecords: {
+            where: { date: { gte: start, lte: end } },
+            select: { litres: true },
           },
         },
       },
-    }),
-    prisma.cow.count({ where: { status: "PREGNANT" } }),
-  ]);
+    },
+  });
 
   const houseRows = houses.map((h) => {
+    const isMaternity = /maternity/i.test(h.name);
     const totalCows = h.cows.length;
     const milkingCount = h.cows.filter((c) => c.status === "MILKING").length;
     const litresToday = Number(
@@ -510,6 +556,18 @@ export const getHousesOverview = async () => {
         workers.set(c.workerId, null); // names filled below
       }
     }
+    let status;
+    if (isMaternity) {
+      status = "MATERNITY";
+    } else if (totalCows === 0) {
+      status = "EMPTY";
+    } else if (milkingCount === totalCows) {
+      status = "ALL_MILKING";
+    } else if (milkingCount > 0) {
+      status = "PARTIAL";
+    } else {
+      status = "DRY";
+    }
     return {
       id: h.id,
       name: h.name,
@@ -517,17 +575,8 @@ export const getHousesOverview = async () => {
       totalCows,
       milkingCount,
       litresToday,
-      // Names get joined upstream so the synthetic Maternity row can
-      // share the same shape.
       workerIds: Array.from(workers.keys()),
-      status:
-        totalCows === 0
-          ? "EMPTY"
-          : milkingCount === totalCows
-            ? "ALL_MILKING"
-            : milkingCount > 0
-              ? "PARTIAL"
-              : "DRY",
+      status,
     };
   });
 
@@ -543,7 +592,7 @@ export const getHousesOverview = async () => {
     for (const w of ws) workerLookup.set(w.id, w.name);
   }
 
-  const decorated = houseRows.map((h) => ({
+  return houseRows.map((h) => ({
     id: h.id,
     name: h.name,
     color: h.color,
@@ -556,21 +605,6 @@ export const getHousesOverview = async () => {
     })),
     status: h.status,
   }));
-
-  // Synthetic Maternity card — not a real House row, but the HTML lists
-  // it alongside houses with the awaiting-calving count.
-  decorated.push({
-    id: "__maternity__",
-    name: "Maternity",
-    color: "#854F0B",
-    totalCows: maternityCount,
-    milkingCount: 0,
-    litresToday: 0,
-    workers: [],
-    status: "MATERNITY",
-  });
-
-  return decorated;
 };
 
 //////////////////////////////////////////////////////
@@ -1086,6 +1120,94 @@ export const getCalvesRegister = async () => {
           })()
         : null,
     };
+  });
+};
+
+// Dispose / release a calf — operates on the underlying CALVING
+// ReproductionRecord (since the Calves Register is derived from
+// reproduction events, not a dedicated table). We pack the
+// disposition into `calvingFate` (a short label) and `notes` (full
+// breadcrumb of buyer/amount/receipt/witness) so the existing
+// /api/dairy/calves response surfaces them without any new column.
+//
+// If the calf has a matching Cow row (rare for very young calves
+// but expected after weaning), it gets `releasedAt` set in the same
+// transaction so dashboards drop it.
+const calfDispLabel = (t) => {
+  switch (t) {
+    case "SOLD_CASH":       return "Sold (cash)";
+    case "SOLD_CREDIT":     return "Sold (credit)";
+    case "DIED":            return "Died";
+    case "TRANSFERRED_OUT": return "Transferred out";
+    case "TRANSFERRED_IN":  return "Transferred between units";
+    case "LOST":            return "Lost";
+    default:                return "Disposed";
+  }
+};
+
+export const disposeCalf = async (recordId, input, _actorId) => {
+  const record = await prisma.reproductionRecord.findUnique({
+    where: { id: recordId },
+  });
+  if (!record || record.deletedAt) throw new Error("Calf record not found");
+  if (record.eventType !== "CALVING") {
+    throw new Error("Disposition only applies to CALVING records");
+  }
+
+  const date = input.date ?? new Date();
+  const fate = `${calfDispLabel(input.type)} (${date
+    .toISOString()
+    .slice(0, 10)})`;
+  const breadcrumb = [
+    input.party ? `to ${input.party}` : null,
+    input.amount && input.amount > 0
+      ? `KSh ${Number(input.amount).toFixed(0)}`
+      : null,
+    input.receipt ? `ref ${input.receipt}` : null,
+    input.witness ? `witnessed by ${input.witness}` : null,
+    input.notes,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.reproductionRecord.update({
+      where: { id: recordId },
+      data: {
+        calvingFate: fate,
+        notes: breadcrumb || record.notes,
+      },
+    });
+
+    // If the calf is also a Cow row (post-weaning), mark it released
+    // too so it drops out of the active herd lists.
+    if (record.calfTag) {
+      const calfCow = await tx.cow.findUnique({
+        where: { tag: record.calfTag },
+      });
+      if (calfCow && !calfCow.releasedAt) {
+        const releaseTypeMap = {
+          SOLD_CASH:       "SOLD",
+          SOLD_CREDIT:     "SOLD",
+          DIED:            "DIED",
+          TRANSFERRED_OUT: "TRANSFERRED",
+          TRANSFERRED_IN:  "TRANSFERRED",
+          LOST:            "OTHER",
+        };
+        await tx.cow.update({
+          where: { id: calfCow.id },
+          data: {
+            releasedAt: date,
+            releaseType: releaseTypeMap[input.type] ?? "OTHER",
+            releaseDate: date,
+            releaseDestination: input.party ?? null,
+            releaseReason: breadcrumb || null,
+          },
+        });
+      }
+    }
+
+    return updated;
   });
 };
 

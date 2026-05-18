@@ -342,11 +342,13 @@ String _fmtLitres(num v) {
 
 // Display "Dairy A" as "House A" so the dairy unit's house cards match
 // the convention used elsewhere (the pill letter labels, the poultry
-// "House A/B/C" naming, etc.). The DB keeps the "Dairy " prefix because
-// `House.name` is unique across the whole table — poultry already owns
-// "House A/B/C", so we can't rename the underlying rows without a more
-// invasive migration.
+// "House A/B/C" naming, etc.). "Dairy Maternity" gets the cleaner
+// "Maternity" label, no "House" prefix. The DB keeps the "Dairy "
+// prefix because `House.name` is unique across the whole table —
+// poultry already owns "House A/B/C", so we can't rename the underlying
+// rows without a more invasive migration.
 String _displayName(String raw) {
+  if (raw.toLowerCase() == 'dairy maternity') return 'Maternity';
   if (raw.toLowerCase().startsWith('dairy ')) {
     return 'House ${raw.substring(6)}';
   }

@@ -193,9 +193,13 @@ class _AppDrawerState extends State<AppDrawer> {
                     selected: widget.selected,
                     // Single-item groups (Core, Reports, Finance,
                     // Staff) skip the collapse affordance — there's
-                    // nothing to hide.
+                    // nothing to hide. They must always render their
+                    // tile regardless of the _open[] default so the
+                    // single nav item stays clickable.
                     collapsible: group.value.length > 1,
-                    expanded: _open[group.key] ?? true,
+                    expanded: group.value.length <= 1
+                        ? true
+                        : (_open[group.key] ?? true),
                     onToggle: () {
                       setState(() {
                         _open[group.key] = !(_open[group.key] ?? false);

@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/dairy_ops.dart';
 import '../../core/service/api_service.dart';
+import 'calf_disposition_dialog.dart';
 
 class CalvesRegisterCard extends StatefulWidget {
   const CalvesRegisterCard({super.key});
@@ -129,7 +130,7 @@ class _CalvesRegisterCardState extends State<CalvesRegisterCard> {
               if (rows.isEmpty)
                 _EmptyState(onRefresh: _reload)
               else
-                _CalvesTable(rows: rows),
+                _CalvesTable(rows: rows, onReleased: _reload),
             ],
           );
         },
@@ -139,8 +140,9 @@ class _CalvesRegisterCardState extends State<CalvesRegisterCard> {
 }
 
 class _CalvesTable extends StatelessWidget {
-  const _CalvesTable({required this.rows});
+  const _CalvesTable({required this.rows, required this.onReleased});
   final List<CalfRecord> rows;
+  final VoidCallback onReleased;
 
   static const _txt2 = Color(0xFF6B7770);
   static const _txt3 = Color(0xFF99A39B);
@@ -181,14 +183,15 @@ class _CalvesTable extends StatelessWidget {
             DataColumn(label: Text('Worker')),
             DataColumn(label: Text('Stage')),
             DataColumn(label: Text('Notes')),
+            DataColumn(label: Text('Actions')),
           ],
-          rows: rows.map(_buildRow).toList(),
+          rows: rows.map((r) => _buildRow(context, r)).toList(),
         ),
       ),
     );
   }
 
-  DataRow _buildRow(CalfRecord r) {
+  DataRow _buildRow(BuildContext context, CalfRecord r) {
     final dobText = DateFormat('d MMM yy').format(r.eventDate);
     final stageColor = _stageColor(r.ageDays);
     final tagText = (r.calf?.tag ?? r.calfTag ?? '—').toString();
@@ -205,6 +208,12 @@ class _CalvesTable extends StatelessWidget {
     final workerText =
         r.calf?.workerName ?? r.dam?.workerName ?? '—';
     final isOnMilk = r.ageDays < 90;
+    // disposeCalf writes calvingFate as "Sold (cash) (YYYY-MM-DD)" etc.
+    // — detect those prefixes so we disable the Release button once a
+    // disposition has been recorded.
+    final alreadyDisposed = RegExp(
+      r'^(Sold|Died|Transferred|Lost|Disposed)',
+    ).hasMatch(r.calvingFate ?? '');
 
     return DataRow(cells: [
       DataCell(_TagPill(tagText)),
@@ -246,6 +255,11 @@ class _CalvesTable extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
       )),
+      DataCell(_ReleaseButton(
+        calf: r,
+        disabled: alreadyDisposed,
+        onDisposed: onReleased,
+      )),
     ]);
   }
 
@@ -276,6 +290,43 @@ class _TagPill extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: Color(0xFF27500A),
         ),
+      ),
+    );
+  }
+}
+
+class _ReleaseButton extends StatelessWidget {
+  const _ReleaseButton({
+    required this.calf,
+    required this.disabled,
+    required this.onDisposed,
+  });
+
+  final CalfRecord calf;
+  final bool disabled;
+  final VoidCallback onDisposed;
+
+  Future<void> _open(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CalfDispositionDialog(calf: calf),
+    );
+    if (ok == true) onDisposed();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: disabled ? null : () => _open(context),
+      icon: const Text('🏷', style: TextStyle(fontSize: 12)),
+      label: Text(disabled ? 'Released' : 'Release'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFF8A5A0A),
+        side: const BorderSide(color: Color(0xFFE6C58A)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
