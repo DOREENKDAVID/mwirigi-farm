@@ -60,6 +60,7 @@ class UnitPerformanceTable extends StatelessWidget {
                   DataColumn(label: Text('KEY METRIC')),
                   DataColumn(label: Text('TODAY'), numeric: true),
                   DataColumn(label: Text('7-DAY AVG'), numeric: true),
+                  DataColumn(label: Text('30-DAY AVG'), numeric: true),
                   DataColumn(label: Text('STATUS')),
                 ],
                 rows: [
@@ -73,6 +74,7 @@ class UnitPerformanceTable extends StatelessWidget {
                       DataCell(Text(r.metric)),
                       DataCell(Text(r.today)),
                       DataCell(Text(r.average)),
+                      DataCell(Text(r.average30d)),
                       DataCell(_StatusPill(text: r.status)),
                     ]),
                 ],

@@ -289,7 +289,15 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                AllocationPlan(rows: unit.allocation),
+                // Pass the brooder id so the History + Revise action
+                // pair shows up here too — without it the buttons hide
+                // (they short-circuit on `canEdit = brooderId != null`).
+                // When there's no active brooder cohort the plan is
+                // still readable, just not editable from this pill.
+                AllocationPlan(
+                  rows: unit.allocation,
+                  brooderId: unit.brooder?.id,
+                ),
               ],
             ),
           ),

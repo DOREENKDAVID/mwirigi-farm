@@ -132,48 +132,65 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final tag = '${brooder.ageDays} days old · '
         '${brooder.daysRemaining} days to caging';
-    return Row(
+    final logBtn = FilledButton.tonalIcon(
+      onPressed: onLogOccurrence,
+      icon: const Icon(Icons.report_outlined, size: 14),
+      label: const Text('Log occurrence'),
+      style: FilledButton.styleFrom(
+        backgroundColor: BrooderHouseCard._amberBg,
+        foregroundColor: const Color(0xFF854F0B),
+        textStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: const Size(0, 28),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+    final agePill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: BrooderHouseCard._amberBg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        tag,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: BrooderHouseCard._amber,
+        ),
+      ),
+    );
+
+    // Title was rendering one character per line on phones because the
+    // log button + age pill consumed all of the row's horizontal space
+    // — `Expanded` then squeezed the title to ~0 width. We now use a
+    // Wrap so the actions drop to a new row on narrow screens instead
+    // of squashing the title. Title also locks to a single line so a
+    // future translation can't reintroduce the same bug.
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: WrapAlignment.spaceBetween,
       children: [
-        const Expanded(
-          child: Text(
-            '🐣 Brooder house',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF27500A),
-            ),
+        const Text(
+          '🐣 Brooder house',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF27500A),
           ),
         ),
-        TextButton.icon(
-          onPressed: onLogOccurrence,
-          icon: const Icon(Icons.report_outlined, size: 14),
-          label: const Text('Log occurrence'),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF854F0B),
-            textStyle: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            minimumSize: const Size(0, 28),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: BrooderHouseCard._amberBg,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            tag,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: BrooderHouseCard._amber,
-            ),
-          ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [logBtn, agePill],
         ),
       ],
     );

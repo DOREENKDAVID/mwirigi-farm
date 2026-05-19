@@ -11,6 +11,7 @@ class ReportListItem {
     required this.iconBg,
     required this.category,
     required this.formats,
+    this.dashboardKey,
   });
 
   final String key;
@@ -20,6 +21,11 @@ class ReportListItem {
   final String iconBg;
   final String category;
   final List<String> formats;
+  /// When present, the report card should bypass the catalog preview
+  /// and route into an in-app dashboard surface instead. Today the
+  /// only value is `dairy`, which opens the filter-aware Dairy
+  /// Reports dashboard.
+  final String? dashboardKey;
 
   factory ReportListItem.fromJson(Map<String, dynamic> j) => ReportListItem(
         key: (j['key'] ?? '').toString(),
@@ -31,6 +37,7 @@ class ReportListItem {
         formats: ((j['formats'] as List?) ?? const ['PDF'])
             .map((e) => e.toString())
             .toList(),
+        dashboardKey: j['dashboardKey']?.toString(),
       );
 }
 

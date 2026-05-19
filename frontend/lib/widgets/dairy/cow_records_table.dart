@@ -420,16 +420,27 @@ class CowRecordsTableState extends State<CowRecordsTable> {
                   for (final h in widget.houses)
                     _PillItem(
                       id: h.id,
-                      // Strip the "Dairy " prefix in display labels —
-                      // "Dairy A" → "House A". Maternity is special.
-                      label: h.id == '__maternity__'
-                          ? 'Maternity'
-                          : h.name.replaceFirst(
-                              RegExp(r'^Dairy\s+'),
-                              'House ',
-                            ),
+                      // Display label rules:
+                      //   "Dairy Maternity" → "Maternity"    (real row,
+                      //   added in the v4.5 migration)
+                      //   "__maternity__"   → "Maternity"    (legacy
+                      //   synthetic id from before the real row existed)
+                      //   "Dairy A"         → "House A"
+                      label: () {
+                        if (h.id == '__maternity__') return 'Maternity';
+                        if (h.name.toLowerCase() == 'dairy maternity') {
+                          return 'Maternity';
+                        }
+                        return h.name.replaceFirst(
+                          RegExp(r'^Dairy\s+'),
+                          'House ',
+                        );
+                      }(),
                       count: h.totalCows,
-                      icon: h.id == '__maternity__' ? '🤰' : null,
+                      icon: (h.id == '__maternity__' ||
+                              h.name.toLowerCase() == 'dairy maternity')
+                          ? '🤰'
+                          : null,
                     ),
                 ],
               ),

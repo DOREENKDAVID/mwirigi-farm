@@ -117,6 +117,7 @@ class UnitPerformanceRow {
     required this.metric,
     required this.today,
     required this.average,
+    required this.average30d,
     required this.status,
   });
 
@@ -126,6 +127,10 @@ class UnitPerformanceRow {
   /// Pre-formatted strings from the server (e.g. "847 L", "—").
   final String today;
   final String average;
+  /// 30-day rolling average, pre-formatted. Server returns "—" when
+  /// the metric doesn't make sense over a longer window (e.g. bulls
+  /// on feed — a head count, not a rate).
+  final String average30d;
   /// Pre-formatted status (e.g. "42% of target").
   final String status;
 
@@ -136,6 +141,7 @@ class UnitPerformanceRow {
       metric: (j['metric'] ?? '').toString(),
       today: (j['today'] ?? '—').toString(),
       average: (j['average'] ?? '—').toString(),
+      average30d: (j['average30d'] ?? '—').toString(),
       status: (j['status'] ?? '').toString(),
     );
   }

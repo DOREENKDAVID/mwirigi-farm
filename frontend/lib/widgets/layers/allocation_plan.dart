@@ -61,24 +61,30 @@ class AllocationPlan extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton.icon(
+                // Match the History button to Revise — both render as
+                // tonal pills so the action pair reads as one control,
+                // not "one important + one footnote". History uses a
+                // neutral slate so the green Revise still pops as the
+                // primary action.
+                FilledButton.tonalIcon(
                   onPressed: () => _openHistory(context),
                   icon: const Icon(Icons.history, size: 14),
                   label: const Text('History'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF666666),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFEDEDE7),
+                    foregroundColor: const Color(0xFF555555),
                     textStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                      horizontal: 10,
                       vertical: 4,
                     ),
                     minimumSize: const Size(0, 28),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 FilledButton.tonalIcon(
                   onPressed: () => _openEdit(context),
                   icon: const Icon(Icons.edit_note, size: 14),

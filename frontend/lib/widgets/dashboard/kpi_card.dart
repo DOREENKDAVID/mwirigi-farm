@@ -12,6 +12,7 @@ class KpiCard extends StatelessWidget {
     this.sub,
     this.trend,
     this.trendColor,
+    this.valueColor,
   });
 
   final String label;
@@ -19,6 +20,10 @@ class KpiCard extends StatelessWidget {
   final String? sub;
   final String? trend;
   final Color? trendColor;
+  // Override for the big-number colour. Used by the Active Alerts
+  // tile so an alert count > 0 reads as red at a glance instead of
+  // sitting in the same calm farm-green as the other KPIs.
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -47,10 +52,10 @@ class KpiCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: primary,
+              color: valueColor ?? primary,
               height: 1,
             ),
           ),

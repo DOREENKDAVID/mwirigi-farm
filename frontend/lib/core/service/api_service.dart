@@ -38,6 +38,7 @@ class ApiService {
   static const _refreshKey = 'refresh_token';
   static const _roleKey = 'auth_role';
   static const _userIdKey = 'auth_user_id';
+  static const _userNameKey = 'auth_user_name';
 
   // ---------- token storage ----------
   static Future<void> saveToken(String token) =>
@@ -66,6 +67,17 @@ class ApiService {
   static Future<String?> readUserId() => _secureStorage.read(key: _userIdKey);
   static Future<void> _deleteUserId() =>
       _secureStorage.delete(key: _userIdKey);
+
+  // Display name for the signed-in user — used by the sidebar footer
+  // and any other "you're logged in as ..." chrome. Cached in secure
+  // storage because we don't have a /auth/me endpoint to call on
+  // every app start.
+  static Future<void> _saveUserName(String name) =>
+      _secureStorage.write(key: _userNameKey, value: name);
+  static Future<String?> readUserName() =>
+      _secureStorage.read(key: _userNameKey);
+  static Future<void> _deleteUserName() =>
+      _secureStorage.delete(key: _userNameKey);
 
   // ---------- HTTP plumbing ----------
   static Future<Map<String, String>> _headers({bool auth = false}) async {
@@ -265,6 +277,13 @@ class ApiService {
       if (user['id'] is String) {
         await _saveUserId(user['id'] as String);
       }
+      // Display name for the sidebar footer. Backend hands back
+      // `fullName` from `projectUser`; older auth endpoints may use
+      // `userName` so we accept either.
+      final name = user['fullName'] ?? user['userName'];
+      if (name is String && name.isNotEmpty) {
+        await _saveUserName(name);
+      }
     }
     return res;
   }
@@ -287,6 +306,13 @@ class ApiService {
       if (user['id'] is String) {
         await _saveUserId(user['id'] as String);
       }
+      // Display name for the sidebar footer. Backend hands back
+      // `fullName` from `projectUser`; older auth endpoints may use
+      // `userName` so we accept either.
+      final name = user['fullName'] ?? user['userName'];
+      if (name is String && name.isNotEmpty) {
+        await _saveUserName(name);
+      }
     }
     return res;
   }
@@ -306,6 +332,13 @@ class ApiService {
       }
       if (user['id'] is String) {
         await _saveUserId(user['id'] as String);
+      }
+      // Display name for the sidebar footer. Backend hands back
+      // `fullName` from `projectUser`; older auth endpoints may use
+      // `userName` so we accept either.
+      final name = user['fullName'] ?? user['userName'];
+      if (name is String && name.isNotEmpty) {
+        await _saveUserName(name);
       }
     }
     return res;
@@ -393,6 +426,7 @@ class ApiService {
     await _deleteRefresh();
     await _deleteRole();
     await _deleteUserId();
+    await _deleteUserName();
   }
 
   // GET /auth/admin (CEO only)
@@ -847,6 +881,27 @@ class ApiService {
   // GET /piggery/trend?months=6 -> [{ month, piglets }]
   static Future<List<dynamic>> getPiggeryTrend({int months = 6}) async =>
       _asList(await _get('/piggery/trend?months=$months'));
+
+  // ============ FARMERS CHOICE DISPATCH LOG ============
+  //
+  // GET /piggery/fc-deliveries -> [{ id, date, ref, pens, count, category,
+  //                                  ageRange, driver, notes, revenueId }]
+  static Future<List<dynamic>> getFcDeliveries() async =>
+      _asList(await _get('/piggery/fc-deliveries'));
+
+  // POST /piggery/fc-deliveries (CEO/PIGGERY_MANAGER/ADMIN)
+  // Body: { date?, ref, pens, count, category, ageRange?, driver, notes?, amount? }
+  // When `amount > 0` the backend auto-creates a Revenue row in the
+  // same transaction (unit=Piggery, category=ANIMAL_SALES) and stores
+  // its id on `revenueId` so finance can reconcile.
+  static Future<Map<String, dynamic>> createFcDelivery(
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/piggery/fc-deliveries', body: data));
+
+  static Future<void> deleteFcDelivery(String id) async {
+    await _delete('/piggery/fc-deliveries/$id');
+  }
 
   // POST /piggery/farrowing
   // Body: { sowId, pigletsBorn, pigletsAlive, pigletsDead, date? }
@@ -1485,6 +1540,106 @@ class ApiService {
   // (and, when matched, the calf cow). Backend computes ageDays + stage.
   static Future<List<dynamic>> getDairyCalves() async =>
       _asList(await _get('/dairy/calves'));
+
+  // Shared filter-query builder for the dairy-reports endpoints. All
+  // filters are optional; the backend overrides workerId to the
+  // signed-in user when their role is WORKER (RBAC), so passing it
+  // doesn't let you escape the scope.
+  static String _dairyReportQuery({
+    String? animalId,
+    String? houseId,
+    String? workerId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    final params = <String, String>{};
+    if (animalId != null && animalId.isNotEmpty) params['animalId'] = animalId;
+    if (houseId != null && houseId.isNotEmpty) params['houseId'] = houseId;
+    if (workerId != null && workerId.isNotEmpty) params['workerId'] = workerId;
+    if (period != null && period.isNotEmpty) params['period'] = period;
+    if (startDate != null) {
+      params['startDate'] = startDate.toIso8601String();
+    }
+    if (endDate != null) {
+      params['endDate'] = endDate.toIso8601String();
+    }
+    if (params.isEmpty) return '';
+    return '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
+  }
+
+  // GET /dairy/reports/milk — Milk Production analytics payload.
+  static Future<Map<String, dynamic>> getDairyMilkReport({
+    String? animalId,
+    String? houseId,
+    String? workerId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async =>
+      _asMap(await _get('/dairy/reports/milk${_dairyReportQuery(
+        animalId: animalId,
+        houseId: houseId,
+        workerId: workerId,
+        period: period,
+        startDate: startDate,
+        endDate: endDate,
+      )}'));
+
+  // GET /dairy/reports/reproduction
+  static Future<Map<String, dynamic>> getDairyReproductionReport({
+    String? animalId,
+    String? houseId,
+    String? workerId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async =>
+      _asMap(await _get('/dairy/reports/reproduction${_dairyReportQuery(
+        animalId: animalId,
+        houseId: houseId,
+        workerId: workerId,
+        period: period,
+        startDate: startDate,
+        endDate: endDate,
+      )}'));
+
+  // GET /dairy/reports/health
+  static Future<Map<String, dynamic>> getDairyHealthReport({
+    String? animalId,
+    String? houseId,
+    String? workerId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async =>
+      _asMap(await _get('/dairy/reports/health${_dairyReportQuery(
+        animalId: animalId,
+        houseId: houseId,
+        workerId: workerId,
+        period: period,
+        startDate: startDate,
+        endDate: endDate,
+      )}'));
+
+  // GET /dairy/reports/vaccinations — sourced from the Health module's
+  // VaccinationRecord table, filtered to unit=Dairy. No duplication.
+  static Future<Map<String, dynamic>> getDairyVaccinationReport({
+    String? animalId,
+    String? houseId,
+    String? workerId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async =>
+      _asMap(await _get('/dairy/reports/vaccinations${_dairyReportQuery(
+        animalId: animalId,
+        houseId: houseId,
+        workerId: workerId,
+        period: period,
+        startDate: startDate,
+        endDate: endDate,
+      )}'));
 
   // POST /dairy/calves/:id/dispose — record a calf disposition (sold,
   // died, transferred…). Body matches calfDispositionSchema on the

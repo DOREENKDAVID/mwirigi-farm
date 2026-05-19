@@ -10,6 +10,7 @@ import 'cow_records_table.dart';
 import 'daily_milk_trend_card.dart';
 import 'dairy_day_totals_card.dart';
 import 'dairy_inventory_card.dart';
+import 'dairy_reports_page.dart';
 import 'dairy_tabs.dart';
 import 'dairy_vaccination_card.dart';
 import '../reminders/unit_reminders_card.dart';
@@ -175,7 +176,28 @@ class _DairyPageState extends State<DairyPage> {
         return const [DairyInventoryCard()];
       case DairyTab.dailyMilk:
         return const [DailyMilkTrendCard()];
+      case DairyTab.reports:
+        // Unreachable in normal flow — `_onTabSelected` intercepts the
+        // Reports pill and pushes DairyReportsPage as a full route
+        // instead of swapping body content. This empty branch is here
+        // only because the switch must be exhaustive over the enum.
+        return const [];
     }
+  }
+
+  /// Pill-tap handler. Most pills just swap the inline body, but the
+  /// Reports pill routes into a separate full-screen surface (filter
+  /// pills + four report cards + PDF export), so we intercept it.
+  /// We deliberately don't set `_activeTab = reports` so the pill
+  /// never looks "selected" — it behaves like a shortcut button.
+  void _onTabSelected(DairyTab t) {
+    if (t == DairyTab.reports) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const DairyReportsPage()),
+      );
+      return;
+    }
+    setState(() => _activeTab = t);
   }
 
   @override
@@ -230,7 +252,7 @@ class _DairyPageState extends State<DairyPage> {
               // below the tabs swaps based on the active pill.
               DairyPillTabs(
                 selected: _activeTab,
-                onSelect: (t) => setState(() => _activeTab = t),
+                onSelect: _onTabSelected,
               ),
               const SizedBox(height: 16),
               ..._tabBody(data),

@@ -20,7 +20,11 @@ enum DairyTab {
   vaccination('Vaccination'),
   reminders('Reminders'),
   inventory('Inventory'),
-  dailyMilk('Daily milk');
+  dailyMilk('Daily milk'),
+  // Routes into the filter-aware Dairy Reports dashboard (Milk ·
+  // Reproduction · Health · Vaccinations) with the four pill filters
+  // pre-wired. Same surface the central Reports page now points at.
+  reports('Reports');
 
   const DairyTab(this.label);
   final String label;

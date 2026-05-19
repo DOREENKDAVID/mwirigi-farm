@@ -211,6 +211,11 @@ class _KpiRow extends StatelessWidget {
       KpiCard(
         label: 'Active alerts',
         value: '${data.activeAlerts}',
+        // Red headline when there's anything to act on so the tile
+        // reads as an alarm at a glance, not as just another KPI.
+        valueColor: data.activeAlerts == 0
+            ? const Color(0xFF0F6E56)
+            : const Color(0xFFE24B4A),
         sub:
             data.activeAlerts == 0 ? 'All clear' : 'Require attention',
         trend: data.activeAlerts == 0 ? 'No action needed' : '⚠ Action needed',

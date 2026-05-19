@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/service/api_service.dart';
 import 'brand_logo.dart';
 
 /// Identifiers for the 10 top-level sections shown in the sidebar.
@@ -118,10 +119,27 @@ class _AppDrawerState extends State<AppDrawer> {
     _gStaff: false,
   };
 
+  // Signed-in user, read from secure storage on init. Both nullable
+  // because (a) older builds didn't persist the name and (b) the
+  // drawer can mount briefly before storage resolves.
+  String? _userName;
+  String? _userRole;
+
   @override
   void initState() {
     super.initState();
     _ensureSelectedVisible();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final name = await ApiService.readUserName();
+    final role = await ApiService.readRole();
+    if (!mounted) return;
+    setState(() {
+      _userName = name;
+      _userRole = role;
+    });
   }
 
   @override
@@ -215,6 +233,10 @@ class _AppDrawerState extends State<AppDrawer> {
               ],
             ),
           ),
+          // Signed-in user footer. Pinned to the bottom of the drawer
+          // so the answer to "who am I logged in as?" is always one
+          // glance away — used to be invisible.
+          _UserFooter(name: _userName, role: _userRole),
         ],
       ),
     );
@@ -365,6 +387,97 @@ class _NavTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Bottom-of-drawer signed-in user chip. Hidden while the secure
+// storage read is in flight so we don't flash an "Unknown user"
+// placeholder for the first frame after mount.
+class _UserFooter extends StatelessWidget {
+  const _UserFooter({this.name, this.role});
+
+  final String? name;
+  final String? role;
+
+  String _roleLabel(String wire) {
+    switch (wire) {
+      case 'CEO':              return 'CEO';
+      case 'ADMIN':            return 'Admin';
+      case 'VET':              return 'Farm Vet';
+      case 'DAIRY_MANAGER':    return 'Dairy Manager';
+      case 'PIGGERY_MANAGER':  return 'Piggery Manager';
+      case 'LAYERS_MANAGER':   return 'Layers Manager';
+      case 'FEEDLOT_MANAGER':  return 'Feedlot Manager';
+      case 'FEEDS_MANAGER':    return 'Feeds Manager';
+      case 'STORE_MANAGER':    return 'Store Manager';
+      case 'WORKER':           return 'Worker';
+      case 'ICT':              return 'ICT';
+      default:                 return wire;
+    }
+  }
+
+  String _initials(String n) {
+    final parts = n.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (name == null) return const SizedBox.shrink();
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0x22FFFFFF))),
+        color: Color(0xFF1E3F08),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: const Color(0xFFC0DD97),
+            child: Text(
+              _initials(name!),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF27500A),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (role != null && role!.isNotEmpty)
+                  Text(
+                    _roleLabel(role!),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFC0DD97),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

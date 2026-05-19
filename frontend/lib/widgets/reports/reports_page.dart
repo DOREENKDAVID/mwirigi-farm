@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/report.dart';
 import '../../core/service/api_service.dart';
+import '../dairy/dairy_reports_page.dart';
 import 'report_preview_page.dart';
 
 class ReportsPage extends StatefulWidget {
@@ -130,6 +131,21 @@ class _ReportsPageState extends State<ReportsPage> {
                 _ReportCardGrid(
                   reports: visibleReports,
                   onOpen: (r) {
+                    // Reports with a `dashboardKey` skip the catalog
+                    // preview and open their in-app dashboard surface
+                    // instead. Today only the renamed "Dairy Report"
+                    // sets this, routing into the filter-aware Dairy
+                    // Reports page (Milk · Reproduction · Health ·
+                    // Vaccinations) where the user can drive the
+                    // filters and export from there.
+                    if (r.dashboardKey == 'dairy') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const DairyReportsPage(),
+                        ),
+                      );
+                      return;
+                    }
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ReportPreviewPage(report: r),

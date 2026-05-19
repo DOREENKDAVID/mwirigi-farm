@@ -841,14 +841,24 @@ export const REPORT_REGISTRY = {
     build: buildDailyCeoReport,
   },
   "milk-records": {
+    // Key stays `milk-records` so any deep-links or stored references
+    // don't break. Label + description are the user-facing strings.
     key: "milk-records",
-    label: "Milk Production",
-    description: "Per-cow daily yields, 7-day averages, sessions",
+    label: "Dairy Report",
+    description:
+      "Filter by animal, house, worker, and period. Milk · Reproduction · Health · Vaccinations in one place.",
     icon: "🐄",
     iconBg: "#EAF3DE",
     category: "Daily & Production",
-    formats: ["PDF", "CSV"],
+    // PDF only — the dashboard surface IS the report; CSV per-table is
+    // now exposed inside the dashboard, not as a catalog format.
+    formats: ["PDF"],
     roles: ["CEO", "ADMIN", "DAIRY_MANAGER", "VET"],
+    // `dashboardKey` tells the frontend to skip the catalog detail
+    // view and route to the in-app Dairy Reports dashboard instead.
+    // Existing `build` stays available for backwards compatibility
+    // (older deep-links into the static milk-records PDF still work).
+    dashboardKey: "dairy",
     build: buildMilkRecordsReport,
   },
   "egg-records": {

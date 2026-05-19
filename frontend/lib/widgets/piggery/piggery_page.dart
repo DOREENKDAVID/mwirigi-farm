@@ -9,6 +9,7 @@ import '../dairy/report_sick_dialog.dart';
 import '../dashboard/kpi_card.dart';
 import '../dashboard/kpi_grid.dart';
 import '../reminders/unit_reminders_card.dart';
+import 'fc_dispatch_log_card.dart';
 import 'log_farrowing_dialog.dart';
 import 'monthly_piglet_chart.dart';
 import 'piggery_entry_dialogs.dart';
@@ -365,9 +366,18 @@ class _PiggeryPageState extends State<PiggeryPage> {
             houses: data.houses,
             selected: _houseFilter,
             onSelect: (h) {
+              // Sows live in A/B/C/D/EM; E is fattening and F is
+              // finishing. Routing E/F to the Sows pill used to leave
+              // the table empty — fan out to the right pill instead.
+              final code = h.code.toUpperCase();
+              final target = code == 'E'
+                  ? PiggeryTab.fattening
+                  : code == 'F'
+                      ? PiggeryTab.finishing
+                      : PiggeryTab.sows;
               setState(() {
                 _houseFilter = h.code;
-                _active = PiggeryTab.sows;
+                _active = target;
               });
               _refresh();
             },
@@ -518,23 +528,10 @@ class _PiggeryPageState extends State<PiggeryPage> {
       case PiggeryTab.health:
         return const [UnitRemindersCard(unit: 'Piggery')];
       case PiggeryTab.vaccination:
-        return const [
-          _ModuleLinkCard(
-            emoji: '💉',
-            title: 'Vaccinations live in the Health module',
-            body:
-                'All vaccine schedules, doses, and protocol coverage for '
-                'the piggery are tracked in the central Health & Vaccines '
-                "module — including the chicks/calves/piglets protocol "
-                'reference. Open the Health pill to see the piggery slice.',
-            bullets: [
-              'Per-protocol upcoming-vaccine alerts',
-              'Vet protocol reference (piglet day-1 → market)',
-              'Compliance rate KPI rolls up to the dashboard',
-            ],
-            cta: 'Open the Health module',
-          ),
-        ];
+        // The pill label is "Farmers" — Vaccinations have moved fully
+        // into the Health module (cross-unit) so this slot now hosts
+        // the Farmers Choice dispatch log: one row per FC truck-load.
+        return const [FcDispatchLogCard()];
       case PiggeryTab.feed:
         return const [
           _ModuleLinkCard(

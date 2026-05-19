@@ -18,7 +18,10 @@ enum PiggeryTab {
   breeding('Breeding', '🧬'),
   farrowing('Farrowing', '📋'),
   health('Health', '💉'),
-  vaccination('Vaccination', '🩹'),
+  // The historical `vaccination` enum value now drives the Farmers Choice
+  // dispatch log — vaccinations themselves live in the Health module
+  // (shared across units) so this slot was free to repurpose.
+  vaccination('Farmers', '🚚'),
   feed('Feed', '🌾'),
   inventory('Inventory', '📦'),
   staff('Staff', '👥'),
