@@ -448,9 +448,24 @@ class ApiService {
   }
 
   // GET /dashboard/overview -> full CEO overview payload
-  // (KPIs + goals + alerts + 7-day milk trend + unit performance rows)
-  static Future<Map<String, dynamic>> getDashboardOverview() async =>
-      _asMap(await _get('/dashboard/overview'));
+  // (KPIs + goals + alerts + 7-day milk trend + unit performance rows).
+  // Accepts optional period filter args; when set, the response also
+  // carries a `scope` block with period-scoped totals + previous-
+  // period deltas (milk · eggs · piglets · treatments).
+  static Future<Map<String, dynamic>> getDashboardOverview({
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final params = <String, String>{};
+    if (period != null && period.isNotEmpty) params['period'] = period;
+    if (startDate != null) params['startDate'] = startDate.toIso8601String();
+    if (endDate != null) params['endDate'] = endDate.toIso8601String();
+    final qs = params.isEmpty
+        ? ''
+        : '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
+    return _asMap(await _get('/dashboard/overview$qs'));
+  }
 
   // ============== REPORTS (/api/reports) ==============
 
@@ -639,6 +654,27 @@ class ApiService {
   // GET /layers/trend?days=7 -> [{ date, eggsCollected, percentLaying }]
   static Future<List<dynamic>> getLayersTrend({int days = 7}) async =>
       _asList(await _get('/layers/trend?days=$days'));
+
+  // GET /layers/reports/production — period + house-filtered analytics
+  // payload for the Production pill dashboard. Distinct from the
+  // today/7-day endpoints above; safe to add new filters here without
+  // affecting the existing widgets that read /trend / /snapshot.
+  static Future<Map<String, dynamic>> getLayersProductionReport({
+    String? houseId,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final params = <String, String>{};
+    if (houseId != null && houseId.isNotEmpty) params['houseId'] = houseId;
+    if (period != null && period.isNotEmpty) params['period'] = period;
+    if (startDate != null) params['startDate'] = startDate.toIso8601String();
+    if (endDate != null) params['endDate'] = endDate.toIso8601String();
+    final qs = params.isEmpty
+        ? ''
+        : '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
+    return _asMap(await _get('/layers/reports/production$qs'));
+  }
 
   // GET /layers/production/:houseId?days=7 -> { house, records: [...] }
   static Future<Map<String, dynamic>> getLayersProductionForHouse(

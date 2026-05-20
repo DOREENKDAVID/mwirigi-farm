@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/dashboard_overview.dart';
 import '../../core/service/api_service.dart';
+import '../../core/util/period.dart';
+import '../shared/period_filter_panel.dart';
 import 'alerts_card.dart';
 import 'goals_card.dart';
 import 'kpi_card.dart';
@@ -36,6 +38,14 @@ class _OverviewPageState extends State<OverviewPage> {
   Future<DashboardOverview>? _future;
   OverviewTab _active = OverviewTab.snapshot;
 
+  // Global time-period filter. Drives the period-scoped KPI strip
+  // (scope block on the response) — defaults to "This month" so the
+  // strip is populated on first paint. Today/7-day widgets below are
+  // not affected by this selection; they keep their own semantics.
+  PeriodPreset _period = PeriodPreset.thisMonth;
+  DateTime? _customStart;
+  DateTime? _customEnd;
+
   @override
   void initState() {
     super.initState();
@@ -43,13 +53,37 @@ class _OverviewPageState extends State<OverviewPage> {
   }
 
   Future<DashboardOverview> _load() async {
-    final raw = await ApiService.getDashboardOverview();
+    final raw = await ApiService.getDashboardOverview(
+      period: _period.wire,
+      startDate:
+          _period == PeriodPreset.custom ? _customStart : null,
+      endDate: _period == PeriodPreset.custom ? _customEnd : null,
+    );
     return DashboardOverview.fromJson(raw.cast<String, dynamic>());
   }
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
     await _future;
+  }
+
+  void _onPeriodChanged(PeriodPreset p) {
+    // For non-custom presets, refetch immediately. Custom is gated on
+    // both dates being set; the panel only emits `custom` after the
+    // date-range picker returns with a valid window.
+    if (p == PeriodPreset.custom &&
+        (_customStart == null || _customEnd == null)) {
+      return;
+    }
+    setState(() {
+      _period = p;
+      _future = _load();
+    });
+  }
+
+  void _onCustomRangeSelected(DateTime start, DateTime end) {
+    _customStart = start;
+    _customEnd = end;
   }
 
   @override
@@ -73,6 +107,21 @@ class _OverviewPageState extends State<OverviewPage> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
             children: [
               const _PageHeader(),
+              const SizedBox(height: 16),
+              // Global time-period filter — drives the scope KPI strip
+              // below. Today's KPIs and the 7-day trend stay as-is so
+              // existing widgets that read them are unaffected.
+              PeriodFilterPanel(
+                selectedPeriod: _period,
+                onChanged: _onPeriodChanged,
+                customStartDate: _customStart,
+                customEndDate: _customEnd,
+                onCustomRangeSelected: _onCustomRangeSelected,
+              ),
+              if (data.scope != null) ...[
+                const SizedBox(height: 12),
+                _ScopeKpiStrip(scope: data.scope!),
+              ],
               const SizedBox(height: 16),
               _KpiRow(data: data),
               const SizedBox(height: 16),
@@ -307,6 +356,113 @@ class _ErrorView extends StatelessWidget {
         Center(
           child: FilledButton(onPressed: onRetry, child: const Text('Retry')),
         ),
+      ],
+    );
+  }
+}
+
+// =====================================================================
+// _ScopeKpiStrip — period-scoped headline strip
+// =====================================================================
+//
+// Renders one card per metric (Milk · Eggs · Piglets · Treatments)
+// with the value resolved for the active period plus a vs-previous
+// delta pill. Sits above the existing today/7-day KPI row so a user
+// can compare "this month" against "last month" without losing sight
+// of today's operational numbers.
+//
+// Reuses the same KpiCard primitive the rest of the page uses so the
+// visual rhythm doesn't break — only the data source changes.
+
+class _ScopeKpiStrip extends StatelessWidget {
+  const _ScopeKpiStrip({required this.scope});
+  final OverviewScope scope;
+
+  static const _primary = Color(0xFF27500A);
+
+  String _fmtCount(num v) {
+    if (v is int) return NumberFormat.decimalPattern().format(v);
+    if (v == v.toInt()) {
+      return NumberFormat.decimalPattern().format(v.toInt());
+    }
+    return v.toStringAsFixed(1);
+  }
+
+  String _fmtValue(ScopeMetric m) {
+    final num = _fmtCount(m.current);
+    return m.unit.isEmpty ? num : '$num ${m.unit}';
+  }
+
+  // Treatments going down is good (fewer sick animals). Everything
+  // else, up is good. The trend pill colour follows that semantic.
+  Color _deltaColor(double? delta, {required bool downIsGood}) {
+    if (delta == null) return const Color(0xFF6B7770);
+    final good = downIsGood ? delta <= 0 : delta >= 0;
+    return good ? const Color(0xFF1D9E75) : const Color(0xFFC4393B);
+  }
+
+  String _deltaLabel(double? delta) {
+    if (delta == null) return '— vs previous';
+    final sign = delta >= 0 ? '+' : '';
+    return '$sign${delta.toStringAsFixed(1)}% vs previous';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final df = DateFormat('d MMM');
+    final periodLabel =
+        '${scope.label} · ${df.format(scope.start)} → ${df.format(scope.end)}';
+
+    final cards = <Widget>[
+      KpiCard(
+        label: 'Milk',
+        value: _fmtValue(scope.milk),
+        sub: 'vs ${_fmtCount(scope.milk.previous)} L last period',
+        trend: _deltaLabel(scope.milk.deltaPct),
+        trendColor: _deltaColor(scope.milk.deltaPct, downIsGood: false),
+      ),
+      KpiCard(
+        label: 'Egg crates',
+        value: _fmtValue(scope.eggs),
+        sub: 'vs ${_fmtCount(scope.eggs.previous)} last period',
+        trend: _deltaLabel(scope.eggs.deltaPct),
+        trendColor: _deltaColor(scope.eggs.deltaPct, downIsGood: false),
+      ),
+      KpiCard(
+        label: 'Piglets born',
+        value: _fmtValue(scope.piglets),
+        sub: 'vs ${_fmtCount(scope.piglets.previous)} last period',
+        trend: _deltaLabel(scope.piglets.deltaPct),
+        trendColor:
+            _deltaColor(scope.piglets.deltaPct, downIsGood: false),
+      ),
+      KpiCard(
+        label: 'Treatments',
+        value: _fmtValue(scope.treatments),
+        sub: 'vs ${_fmtCount(scope.treatments.previous)} last period',
+        trend: _deltaLabel(scope.treatments.deltaPct),
+        // Fewer treatments = healthier herd → green when ↓.
+        trendColor:
+            _deltaColor(scope.treatments.deltaPct, downIsGood: true),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(
+            'FOR THIS PERIOD · $periodLabel',
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+              color: _primary,
+            ),
+          ),
+        ),
+        KpiGrid(children: cards),
       ],
     );
   }

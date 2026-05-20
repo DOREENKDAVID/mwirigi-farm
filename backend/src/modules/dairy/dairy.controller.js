@@ -242,25 +242,46 @@ export const getHousesOverview = async (_req, res) => {
   }
 };
 
+// Optional `date` query param (ISO string). Used by the historical-
+// session mode in the milk panel — when set, the response scopes to
+// that calendar day instead of "today". Rejects future dates so a
+// stale picker can't surface entries for a day that hasn't happened.
+const parseSessionDate = (raw) => {
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return undefined;
+  // Snap to end-of-day so today (which has all 24h available) doesn't
+  // get rejected by the "future" guard against the current instant.
+  const dayEnd = new Date(d);
+  dayEnd.setHours(23, 59, 59, 999);
+  if (dayEnd > new Date()) return undefined;
+  return d;
+};
+
 export const getTodaySessions = async (req, res) => {
   try {
     const threshold = req.query.threshold
       ? Number(req.query.threshold)
       : undefined;
-    const data = await dairyService.getTodaySessions(
-      threshold && threshold > 0 && threshold <= 1
+    const date = parseSessionDate(req.query.date);
+    const data = await dairyService.getTodaySessions({
+      ...(threshold && threshold > 0 && threshold <= 1
         ? { belowAvgThreshold: threshold }
-        : {},
-    );
+        : {}),
+      ...(date ? { date } : {}),
+    });
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-export const getTodayNetSummary = async (_req, res) => {
+export const getTodayNetSummary = async (req, res) => {
   try {
-    const data = await dairyService.getTodayNetSummary();
+    const date = parseSessionDate(req.query.date);
+    const data = await dairyService.getTodayNetSummary(
+      date ? { date } : {},
+    );
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -309,16 +330,20 @@ export const submitMilkSession = async (req, res) => {
         .status(400)
         .json({ error: "entries must be a non-empty array" });
     }
+    const writeDate = date ? new Date(date) : new Date();
     await dairyService.submitMilkSession({
       workerId: workerId ?? null,
       session,
-      date: date ? new Date(date) : new Date(),
+      date: writeDate,
       entries,
       userId: req.user?.id ?? null,
     });
-    // Return the refreshed today-view so the UI can update without a
-    // round-trip.
-    const todaySessions = await dairyService.getTodaySessions();
+    // Return the refreshed view scoped to the *same date* we just
+    // wrote against — historical mode submits expect their own day's
+    // snapshot back, not today's.
+    const todaySessions = await dairyService.getTodaySessions({
+      date: writeDate,
+    });
     res.status(201).json({
       success: true,
       message: "Milk session saved",

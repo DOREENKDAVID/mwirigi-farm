@@ -11,6 +11,7 @@ import 'last_7_days_table.dart';
 import 'layer_house_card.dart';
 import 'layers_inventory_card.dart';
 import 'layers_pill_tabs.dart';
+import 'layers_production_analytics_card.dart';
 import '../reminders/unit_reminders_card.dart';
 import 'seven_day_chart.dart';
 import 'vaccination_timeline.dart';
@@ -208,10 +209,12 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
           ),
         ];
       case LayersTab.production:
-        // Daily-entry form moved to per-house "Log entry" buttons in
-        // the Houses pill — Production keeps the 7-day chart and the
-        // last-7-days table as a read-only history view.
+        // Period-scoped analytics is the primary surface here; the
+        // legacy 7-day chart + last-7-days table sit below as a
+        // pinned quick-glance / historical drill-down.
         return [
+          const LayersProductionAnalyticsCard(),
+          const SizedBox(height: 18),
           SevenDayChart(points: unit.production),
           const SizedBox(height: 16),
           if (widget.history != null)

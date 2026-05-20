@@ -165,10 +165,16 @@ const computeHouseView = ({ house, latestProduction }) => {
       ? Math.round((latestProduction.eggsCollected / EGGS_PER_TRAY) * 10) / 10
       : 0;
   const feedKg = latestProduction?.feedKg ?? 0;
+  // Prefer the latest production's closing stock — it reflects every
+  // dead-removed deduction. The seeded `house.birdCount` is the
+  // registered/headline figure used only as a Day-1 fallback (no
+  // production records yet for this house). Previously we preferred
+  // birdCount unconditionally, which made the house tile keep
+  // showing 2,980 hens even after a worker logged 90 dead.
   const birdCount =
-    house.birdCount > 0
-      ? house.birdCount
-      : latestProduction?.closingStock ?? 0;
+    latestProduction?.closingStock != null
+      ? latestProduction.closingStock
+      : house.birdCount;
 
   // Phasing-out rule (dynamic):
   //   * Reaching end-of-lay window (>= 360 days), OR

@@ -1,4 +1,5 @@
 import * as layersService from "./layers.service.js";
+import * as layersReports from "./layers.reports.service.js";
 import {
   dailyEntrySchema,
   daysQuerySchema,
@@ -73,5 +74,28 @@ export const getKpis = async (_req, res) => {
     res.json(await layersService.getKpis());
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+//////////////////////////////////////////////////////
+// 📊 LAYERS REPORTS — analytics dashboard
+//////////////////////////////////////////////////////
+
+// GET /api/layers/reports/production
+// Query params: houseId · period · startDate · endDate
+// Returns period-scoped totals + previous-period delta + daily
+// graph buckets + per-house breakdown. Separate path from /trend
+// and /kpis so the legacy today + 7-day widgets stay untouched.
+export const getProductionReport = async (req, res) => {
+  try {
+    const report = await layersReports.getProductionReport({
+      houseId: req.query.houseId,
+      period: req.query.period,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
+    res.json(report);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 };

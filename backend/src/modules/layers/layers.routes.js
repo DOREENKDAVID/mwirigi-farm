@@ -26,6 +26,15 @@ router.get(
   controller.getProductionForHouse,
 );
 
+// Period-scoped analytics for the Production pill. Distinct path so
+// the legacy today/7-day endpoints don't break — the report adds the
+// filter surface (period, houseId, startDate, endDate) on top.
+router.get(
+  "/reports/production",
+  authMiddleware,
+  controller.getProductionReport,
+);
+
 // ------- Writes -------
 router.post(
   "/production",

@@ -23,11 +23,18 @@ export const getDashboard = async (req, res) => {
 };
 
 // GET /api/dashboard/overview — full CEO overview, aggregated from real
-// data across every module. See dashboard.service.getOverview for the
-// response shape.
-export const getOverview = async (_req, res) => {
+// data across every module. Accepts optional `period`, `startDate`,
+// `endDate` query params (matching backend/src/utils/period.js); when
+// set, the response carries a `scope` block with period-scoped totals
+// + previous-period deltas. The today/7-day pieces of the payload are
+// unchanged so existing widgets that read them still work.
+export const getOverview = async (req, res) => {
   try {
-    const data = await DashboardService.getOverview();
+    const data = await DashboardService.getOverview({
+      period: req.query.period,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
     res.json(data);
   } catch (error) {
     console.error("Overview error:", error);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'core/service/api_service.dart';
+import 'core/state/period_filter_controller.dart';
 import 'core/util/responsive.dart';
 import 'offline/connectivity/connectivity_service.dart';
 import 'offline/connectivity/offline_banner.dart';
@@ -43,6 +45,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // App-root provider for the analytics period/house filter. Hoisted
+    // here so the CEO Overview, Layers Production, and Dairy Milk
+    // analytics surfaces all observe the same selection — tab-switching
+    // preserves the period the user picked. State is in-memory only;
+    // adding SharedPreferences persistence would happen inside the
+    // controller, not here.
+    return ChangeNotifierProvider(
+      create: (_) => PeriodFilterController(),
+      child: _buildApp(),
+    );
+  }
+
+  Widget _buildApp() {
     return MaterialApp(
       title: 'Mwirigi Farm',
       // Used by ApiService to redirect to /auth from outside a widget

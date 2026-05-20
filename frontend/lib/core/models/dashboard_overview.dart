@@ -147,6 +147,73 @@ class UnitPerformanceRow {
   }
 }
 
+/// One headline metric inside [OverviewScope]. The `previous` value
+/// is the same-length window immediately before the active one, and
+/// `deltaPct` is `null` (not 0) when the previous window had no data,
+/// so the UI can show "—" instead of a misleading 0%.
+class ScopeMetric {
+  ScopeMetric({
+    required this.current,
+    required this.previous,
+    required this.unit,
+    this.deltaPct,
+  });
+
+  final num current;
+  final num previous;
+  final String unit;
+  final double? deltaPct;
+
+  factory ScopeMetric.fromJson(Map<String, dynamic> j) => ScopeMetric(
+        current: (j['current'] is num) ? j['current'] as num : 0,
+        previous: (j['previous'] is num) ? j['previous'] as num : 0,
+        unit: (j['unit'] ?? '').toString(),
+        deltaPct: j['deltaPct'] == null
+            ? null
+            : (j['deltaPct'] is num
+                ? (j['deltaPct'] as num).toDouble()
+                : double.tryParse(j['deltaPct'].toString())),
+      );
+}
+
+/// Period-scoped overview block. Carries the resolved label + range
+/// plus four headline metrics, each with current/previous/delta. Only
+/// present when the request included a `period` query param.
+class OverviewScope {
+  OverviewScope({
+    required this.label,
+    required this.start,
+    required this.end,
+    required this.milk,
+    required this.eggs,
+    required this.piglets,
+    required this.treatments,
+  });
+
+  final String label;
+  final DateTime start;
+  final DateTime end;
+  final ScopeMetric milk;
+  final ScopeMetric eggs;
+  final ScopeMetric piglets;
+  final ScopeMetric treatments;
+
+  factory OverviewScope.fromJson(Map<String, dynamic> j) => OverviewScope(
+        label: (j['label'] ?? '').toString(),
+        start:
+            DateTime.tryParse((j['start'] ?? '').toString()) ?? DateTime.now(),
+        end: DateTime.tryParse((j['end'] ?? '').toString()) ?? DateTime.now(),
+        milk: ScopeMetric.fromJson(
+            (j['milk'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        eggs: ScopeMetric.fromJson(
+            (j['eggs'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        piglets: ScopeMetric.fromJson(
+            (j['piglets'] as Map?)?.cast<String, dynamic>() ?? const {}),
+        treatments: ScopeMetric.fromJson(
+            (j['treatments'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      );
+}
+
 class DashboardOverview {
   DashboardOverview({
     required this.milkToday,
@@ -161,6 +228,7 @@ class DashboardOverview {
     required this.milkTrend,
     required this.eggsTrend,
     required this.unitPerformance,
+    this.scope,
   });
 
   // Top-line KPIs.
@@ -180,6 +248,10 @@ class DashboardOverview {
   /// [milkTrend] but in crates/day.
   final List<EggsTrendPoint> eggsTrend;
   final List<UnitPerformanceRow> unitPerformance;
+  /// Period-scoped headline block. Present only when the request
+  /// passed a `period` query param. UI hides itself when null so the
+  /// default "today + 7-day" Overview surface is unaffected.
+  final OverviewScope? scope;
 
   factory DashboardOverview.fromJson(Map<String, dynamic> j) {
     final rawGoals =
@@ -232,6 +304,9 @@ class DashboardOverview {
                 UnitPerformanceRow.fromJson(m.cast<String, dynamic>()),
           )
           .toList(),
+      scope: j['scope'] is Map
+          ? OverviewScope.fromJson((j['scope'] as Map).cast<String, dynamic>())
+          : null,
     );
   }
 }

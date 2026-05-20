@@ -2,6 +2,7 @@
 import prisma from "../../prisma/client.js";
 import { listReminders } from "../reminders/reminders.service.js";
 import { listTreatments } from "../health/health.service.js";
+import { deltaPct, resolveRange } from "../../utils/period.js";
 
 // helper: status logic
 const getStatus = (value, target) => {
@@ -121,7 +122,13 @@ export const getDashboardOverview = async (date) => {
 // Aggregates real data from every module into the shape the frontend
 // Overview page consumes: 4 KPIs, 5 progress goals, alerts list,
 // 7-day milk trend, and a unit performance table.
-export const getOverview = async () => {
+//
+// Accepts an optional period filter (today/yesterday/week/lastWeek/
+// month/lastMonth/quarter/year/custom). When set, the payload carries
+// a `scope` block with period-scoped totals + previous-period deltas
+// for milk, eggs (in crates), piglets born, and active treatments.
+// The today/7-day pieces stay as-is so existing widgets unaffected.
+export const getOverview = async ({ period, startDate, endDate } = {}) => {
   const now = new Date();
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -453,5 +460,108 @@ export const getOverview = async () => {
     milkTrend,
     eggsTrend,
     unitPerformance,
+    scope: await computePeriodScope({ period, startDate, endDate }),
+  };
+};
+
+// ---------------------------------------------------------------------
+// computePeriodScope — period-scoped headline numbers + deltas
+// ---------------------------------------------------------------------
+//
+// Runs the same milk/eggs/piglets/treatments aggregations against
+// (a) the user-picked window and (b) the immediately-preceding window
+// of equal length, then returns both totals + a deltaPct for each.
+// The frontend OverviewPage reads this when a period filter is set to
+// drive the period-scoped KPI cards above the existing today widgets.
+const computePeriodScope = async ({ period, startDate, endDate }) => {
+  const range = resolveRange({ period, startDate, endDate });
+
+  const [
+    milkCur,
+    milkPrev,
+    eggsCur,
+    eggsPrev,
+    pigletsCur,
+    pigletsPrev,
+    treatmentsCur,
+    treatmentsPrev,
+  ] = await Promise.all([
+    prisma.milkRecord.aggregate({
+      where: { date: { gte: range.start, lte: range.end } },
+      _sum: { litres: true },
+    }),
+    prisma.milkRecord.aggregate({
+      where: { date: { gte: range.prevStart, lte: range.prevEnd } },
+      _sum: { litres: true },
+    }),
+    prisma.layerProduction.aggregate({
+      where: { date: { gte: range.start, lte: range.end } },
+      _sum: { eggsCollected: true },
+    }),
+    prisma.layerProduction.aggregate({
+      where: { date: { gte: range.prevStart, lte: range.prevEnd } },
+      _sum: { eggsCollected: true },
+    }),
+    prisma.farrowingRecord.aggregate({
+      where: {
+        date: { gte: range.start, lte: range.end },
+        sow: { deletedAt: null },
+      },
+      _sum: { pigletsBorn: true },
+    }),
+    prisma.farrowingRecord.aggregate({
+      where: {
+        date: { gte: range.prevStart, lte: range.prevEnd },
+        sow: { deletedAt: null },
+      },
+      _sum: { pigletsBorn: true },
+    }),
+    prisma.treatment.count({
+      where: { startDate: { gte: range.start, lte: range.end } },
+    }),
+    prisma.treatment.count({
+      where: { startDate: { gte: range.prevStart, lte: range.prevEnd } },
+    }),
+  ]);
+
+  const milk = milkCur._sum.litres ?? 0;
+  const milkPrior = milkPrev._sum.litres ?? 0;
+  const eggs = eggsCur._sum.eggsCollected ?? 0;
+  const eggsPrior = eggsPrev._sum.eggsCollected ?? 0;
+  const crates = Math.round(eggs / EGGS_PER_TRAY);
+  const cratesPrior = Math.round(eggsPrior / EGGS_PER_TRAY);
+  const piglets = pigletsCur._sum.pigletsBorn ?? 0;
+  const pigletsPrior = pigletsPrev._sum.pigletsBorn ?? 0;
+
+  return {
+    label: range.label,
+    start: range.start,
+    end: range.end,
+    prevStart: range.prevStart,
+    prevEnd: range.prevEnd,
+    milk: {
+      current: Math.round(milk),
+      previous: Math.round(milkPrior),
+      deltaPct: deltaPct(milk, milkPrior),
+      unit: "L",
+    },
+    eggs: {
+      current: crates,
+      previous: cratesPrior,
+      deltaPct: deltaPct(crates, cratesPrior),
+      unit: "crates",
+    },
+    piglets: {
+      current: piglets,
+      previous: pigletsPrior,
+      deltaPct: deltaPct(piglets, pigletsPrior),
+      unit: "piglets",
+    },
+    treatments: {
+      current: treatmentsCur,
+      previous: treatmentsPrev,
+      deltaPct: deltaPct(treatmentsCur, treatmentsPrev),
+      unit: "cases",
+    },
   };
 };

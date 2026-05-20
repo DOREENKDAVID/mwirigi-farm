@@ -25,13 +25,19 @@
 // =====================================================================
 
 import prisma from "../../prisma/client.js";
+import { resolveRange } from "../../utils/period.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/* -------------------------------------------------------------------
- * Range helpers
- * ----------------------------------------------------------------- */
+// Re-export so callers that already import resolveRange from this
+// module keep working. New callers should import directly from
+// `../../utils/period.js`.
+export { resolveRange };
 
+// Local startOfDay / endOfDay helpers (used by the bucketByDay loops
+// further down). The shared util's startOfDay/endOfDay are private —
+// we keep these small mirrors to avoid pulling them into the public
+// API of period.js just for two callers.
 const startOfDay = (d) => {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -41,93 +47,6 @@ const endOfDay = (d) => {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
-};
-
-// Resolves a period preset to:
-//   { start, end, prevStart, prevEnd, label }
-//
-// `prev*` is the immediately-preceding period of the same length, so
-// callers can compute a "vs previous" comparison delta. Both ranges
-// are inclusive of their end timestamp (23:59:59.999).
-export const resolveRange = ({ period, startDate, endDate }) => {
-  const now = new Date();
-  const today = startOfDay(now);
-
-  let start;
-  let end;
-  let label;
-
-  switch (period) {
-    case "today": {
-      start = startOfDay(today);
-      end = endOfDay(today);
-      label = "Today";
-      break;
-    }
-    case "week": {
-      // Last 7 days ending today (inclusive). Matches the daily trend
-      // card so the chart and the KPIs line up.
-      end = endOfDay(today);
-      start = startOfDay(new Date(today.getTime() - 6 * DAY_MS));
-      label = "This week (7d)";
-      break;
-    }
-    case "month": {
-      start = new Date(today.getFullYear(), today.getMonth(), 1);
-      end = endOfDay(today);
-      label = "This month";
-      break;
-    }
-    case "quarter": {
-      const qStart = Math.floor(today.getMonth() / 3) * 3;
-      start = new Date(today.getFullYear(), qStart, 1);
-      end = endOfDay(today);
-      label = "This quarter";
-      break;
-    }
-    case "halfyear": {
-      const hStart = today.getMonth() < 6 ? 0 : 6;
-      start = new Date(today.getFullYear(), hStart, 1);
-      end = endOfDay(today);
-      label = "This half-year";
-      break;
-    }
-    case "annual": {
-      start = new Date(today.getFullYear(), 0, 1);
-      end = endOfDay(today);
-      label = "This year";
-      break;
-    }
-    case "custom": {
-      if (!startDate || !endDate) {
-        throw new Error("custom period requires startDate and endDate");
-      }
-      start = startOfDay(new Date(startDate));
-      end = endOfDay(new Date(endDate));
-      if (end < start) throw new Error("endDate must be on or after startDate");
-      label = "Custom range";
-      break;
-    }
-    default: {
-      // Default to "month" so a missing query param still returns a
-      // useful payload rather than an error.
-      start = new Date(today.getFullYear(), today.getMonth(), 1);
-      end = endOfDay(today);
-      label = "This month";
-      break;
-    }
-  }
-
-  const lenMs = end.getTime() - start.getTime();
-  const prevEnd = new Date(start.getTime() - 1);
-  const prevStart = new Date(prevEnd.getTime() - lenMs);
-  return {
-    start,
-    end,
-    prevStart: startOfDay(prevStart),
-    prevEnd: endOfDay(prevEnd),
-    label,
-  };
 };
 
 const dowLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

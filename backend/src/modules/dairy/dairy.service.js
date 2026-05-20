@@ -344,6 +344,19 @@ const todayRange = () => {
   return { start, end };
 };
 
+// Bounds for any specific calendar day (server-local TZ). Used by the
+// historical-session mode in the milk panel — pass the picked date
+// and the milk session queries scope to that day instead of today.
+const dayRange = (date) => {
+  if (!date) return todayRange();
+  const d = new Date(date);
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+};
+
 // Full dashboard payload: counts + today's totals + last 10 records.
 export const getDashboard = async () => {
   const { start, end } = todayRange();
@@ -614,12 +627,18 @@ export const getHousesOverview = async () => {
 // Bounds for the trailing 7 days, ending yesterday — used as the basis
 // for a cow's per-session 7-day average. We deliberately exclude today's
 // reading so flagging is comparing today vs the *prior* week.
-const trailing7DayRange = () => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  const start = new Date(startOfToday);
+const trailing7DayRange = () => priorWeekRangeOf(new Date());
+
+// 7-day window ending the day BEFORE the anchor date. Drives the
+// per-cow trailing average used by the below-average flagger — when
+// the panel is in historical mode we still compare the picked day's
+// readings against the seven days preceding it, not against today.
+const priorWeekRangeOf = (date) => {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const start = new Date(startOfDay);
   start.setDate(start.getDate() - 7);
-  const end = new Date(startOfToday);
+  const end = new Date(startOfDay);
   end.setMilliseconds(-1);
   return { start, end };
 };
@@ -650,9 +669,17 @@ const trailing7DayRange = () => {
 //   }
 export const getTodaySessions = async ({
   belowAvgThreshold = 0.7,
+  date,
 } = {}) => {
-  const { start: dayStart, end: dayEnd } = todayRange();
-  const { start: weekStart, end: weekEnd } = trailing7DayRange();
+  // When `date` is set, the panel is in historical-session mode —
+  // the cow grid, progress counters, and worker subtotals all reflect
+  // that day instead of today. The trailing-7-day window slides too
+  // so the below-average flag compares the picked day vs the seven
+  // days *before* it, not today.
+  const { start: dayStart, end: dayEnd } = dayRange(date);
+  const { start: weekStart, end: weekEnd } = date
+    ? priorWeekRangeOf(date)
+    : trailing7DayRange();
 
   // Pull every dairy worker with their cows + the milk records we need
   // for both today (entries) and the prior 7 days (averages).
@@ -887,8 +914,13 @@ const autoCalfCountUnder4mo = async () => {
 //     entered through the deductions edit dialog.
 // The auto count is always returned alongside so the UI can show
 // "X calves auto-detected" as a hint next to the override field.
-export const getTodayNetSummary = async () => {
-  const { start, end } = todayRange();
+export const getTodayNetSummary = async ({ date } = {}) => {
+  // Historical mode: when `date` is set the summary panel reflects
+  // that day's gross/net instead of today's. Deductions
+  // (calfDeduction · householdDeduct) come from FarmConfig and
+  // aren't dated — they apply uniformly per day, which is the
+  // documented behaviour.
+  const { start, end } = dayRange(date);
 
   const [aggs, config, autoCalfCount] = await Promise.all([
     prisma.milkRecord.groupBy({
