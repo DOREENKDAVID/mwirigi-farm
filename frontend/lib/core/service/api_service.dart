@@ -1496,18 +1496,36 @@ class ApiService {
   // were stubs returning [], the backend now serves real data.)
 
   // GET /dairy/milk/sessions/today — per-worker / per-session view with
-  // entries, trailing-7d averages, and below-avg flags.
+  // entries, trailing-7d averages, and below-avg flags. When [date]
+  // is set the endpoint scopes to that day instead of today — drives
+  // the milk panel's historical-session mode (cow grid preloads with
+  // the day's existing readings, edits overwrite via the same submit
+  // endpoint which is idempotent on (cow, date, session)).
   static Future<Map<String, dynamic>> getDairyTodaySessions({
     double? threshold,
+    DateTime? date,
   }) async {
-    final qs = threshold == null ? '' : '?threshold=$threshold';
+    final params = <String, String>{};
+    if (threshold != null) params['threshold'] = '$threshold';
+    if (date != null) params['date'] = date.toIso8601String();
+    final qs = params.isEmpty
+        ? ''
+        : '?${params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&')}';
     return _asMap(await _get('/dairy/milk/sessions/today$qs'));
   }
 
   // GET /dairy/milk/summary/today — gross / net (calf + household
-  // deductions applied).
-  static Future<Map<String, dynamic>> getDairyTodayNet() async =>
-      _asMap(await _get('/dairy/milk/summary/today'));
+  // deductions applied). When [date] is set the summary reflects
+  // that day's gross instead of today's; deductions are
+  // configuration-driven and apply uniformly per day.
+  static Future<Map<String, dynamic>> getDairyTodayNet({
+    DateTime? date,
+  }) async {
+    final qs = date == null
+        ? ''
+        : '?date=${Uri.encodeQueryComponent(date.toIso8601String())}';
+    return _asMap(await _get('/dairy/milk/summary/today$qs'));
+  }
 
   // PATCH /dairy/config/deductions — admin-set the calf + household
   // deductions used by the session summary. Pass calfDeduction = 0 to

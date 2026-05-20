@@ -72,6 +72,23 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
   bool _managerView = false;
   bool _submitting = false;
 
+  // Log date — defaults to today, but the user can pick a past date
+  // to backfill yesterday's / last week's readings. We don't pull
+  // a different "today sessions" payload when the date changes; the
+  // cow grid remains the staging area and the picked date is just
+  // applied at submit time. Backend's submitMilkSession is
+  // idempotent on (cow, date, session) so re-submitting historical
+  // dates is safe.
+  DateTime _logDate = _midnight(DateTime.now());
+
+  static DateTime _midnight(DateTime d) =>
+      DateTime(d.year, d.month, d.day);
+
+  bool get _isToday {
+    final now = _midnight(DateTime.now());
+    return _logDate.isAtSameMomentAs(now);
+  }
+
   // Per-cow draft inputs — recreated whenever the active worker /
   // session changes so editing a different worker doesn't carry stale
   // values.
@@ -93,20 +110,29 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
   }
 
   Future<TodaySessions> _loadToday() async {
-    final raw = await ApiService.getDairyTodaySessions();
+    // In historical mode (_logDate != today) we pass the picked date
+    // through; the backend's `?date=` query param scopes the cow grid,
+    // worker progress counters, and trailing-avg window to that day.
+    final raw = await ApiService.getDairyTodaySessions(
+      date: _isToday ? null : _logDate,
+    );
     final t = TodaySessions.fromJson(raw);
     _today = t;
     // If no worker is selected yet, pick the first one with cows so the
     // UI lands in a useful state.
     if (_selectedWorkerId == null && t.workers.isNotEmpty) {
       _selectedWorkerId = t.workers.first.id;
-      _seedDraftsForActiveSelection();
     }
+    // Reseed drafts every load so historical readings preload into
+    // the cow grid (edit instead of re-enter).
+    _seedDraftsForActiveSelection();
     return t;
   }
 
   Future<DayNetSummary> _loadSummary() async {
-    final raw = await ApiService.getDairyTodayNet();
+    final raw = await ApiService.getDairyTodayNet(
+      date: _isToday ? null : _logDate,
+    );
     return DayNetSummary.fromJson(raw);
   }
 
@@ -215,6 +241,34 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
     return total;
   }
 
+  Future<void> _pickLogDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _logDate,
+      // Going back further than a year is almost never the right
+      // action and the longer range makes the picker harder to scan.
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    _setLogDate(picked);
+  }
+
+  void _setLogDate(DateTime d) {
+    final m = _midnight(d);
+    if (m.isAtSameMomentAs(_logDate)) return;
+    setState(() {
+      _logDate = m;
+      // Refetch so the cow grid, worker subtotals, session progress
+      // counts, and manager view all reflect the picked day. Already-
+      // logged cows preload their litres (the input prefills from
+      // each cow's `entries[session]` value).
+      _futureToday = _loadToday();
+      _futureSummary = _loadSummary();
+    });
+  }
+
   Future<void> _submit() async {
     final w = _activeWorker;
     if (w == null) return;
@@ -238,6 +292,10 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
       final res = await ApiService.submitDairyMilkSession(
         workerId: w.id,
         session: _selectedSession.wire,
+        // Pass `date` only when the user has explicitly picked a past
+        // day. Omitting it lets the backend default to "now" which is
+        // the safer choice for the common case (logging today).
+        date: _isToday ? null : _logDate,
         entries: entries,
       );
       // Endpoint returns the refreshed today-sessions in `data`.
@@ -246,7 +304,11 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
         _today = TodaySessions.fromJson(dataRaw.cast<String, dynamic>());
       }
       // Refresh the day-net summary independently (separate endpoint).
-      final netRaw = await ApiService.getDairyTodayNet();
+      // Scope to the same date we just wrote so historical edits
+      // surface their own day's net, not today's.
+      final netRaw = await ApiService.getDairyTodayNet(
+        date: _isToday ? null : _logDate,
+      );
       if (!mounted) return;
       setState(() {
         _futureSummary = Future.value(DayNetSummary.fromJson(netRaw));
@@ -337,6 +399,13 @@ class MilkLoggingPanelState extends State<MilkLoggingPanel> {
                     ? null
                     : _activeCows.length,
                 activeSession: _selectedSession,
+              ),
+              const SizedBox(height: 10),
+              _DatePickerPill(
+                date: _logDate,
+                isToday: _isToday,
+                onPick: _pickLogDate,
+                onClear: _isToday ? null : () => _setLogDate(DateTime.now()),
               ),
               const SizedBox(height: 10),
               _SessionTabs(
@@ -470,6 +539,138 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+// ===== Date Picker Pill =====
+//
+// Small inline pill sitting between the header and the session tabs.
+// Defaults to today; tapping opens a date picker so the user can
+// backfill yesterday's / last week's readings without leaving the
+// page. The "today" state is calm and unobtrusive; non-today reads
+// as a warning-tinted callout so a stale picker doesn't silently
+// route real entries into a wrong date.
+
+class _DatePickerPill extends StatelessWidget {
+  const _DatePickerPill({
+    required this.date,
+    required this.isToday,
+    required this.onPick,
+    this.onClear,
+  });
+
+  final DateTime date;
+  final bool isToday;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+
+  static const _primary = Color(0xFF27500A);
+  static const _amber600 = Color(0xFFAC7B0F);
+  static const _amber50 = Color(0xFFFCEDC8);
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('EEE, d MMM yyyy');
+    final label = isToday ? 'Today · ${fmt.format(date)}' : fmt.format(date);
+    final bg = isToday ? const Color(0xFFEAF3DE) : _amber50;
+    final fg = isToday ? _primary : _amber600;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            InkWell(
+              onTap: onPick,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: fg.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.calendar_today_outlined, size: 14, color: fg),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_drop_down, size: 18, color: fg),
+                  ],
+                ),
+              ),
+            ),
+            if (!isToday)
+              TextButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.refresh, size: 14),
+                label: const Text('Back to today'),
+                style: TextButton.styleFrom(
+                  foregroundColor: _amber600,
+                  textStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  minimumSize: const Size(0, 28),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+          ],
+        ),
+        if (!isToday) ...[
+          const SizedBox(height: 6),
+          // Historical mode banner. The cow grid, subtotals, progress
+          // counters, and summary are now scoped to the picked day —
+          // already-logged readings preload, edits overwrite. The
+          // amber callout makes the mode unmistakable so a stale
+          // picker doesn't route real entries to a wrong day.
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: BoxDecoration(
+              color: _amber50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _amber600.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.history,
+                  size: 14,
+                  color: _amber600,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Editing historical session — readings shown below '
+                    'are from ${fmt.format(date)}. Saving overwrites '
+                    'that day\'s session.',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: _amber600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1236,76 +1437,28 @@ class _ManagerView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        // Header row. Column labels come from MilkSession.values so a
-        // new session (e.g. Dawn) lands in the right column without a
-        // separate copy-paste in the header.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              const Expanded(flex: 5, child: _MgrCell('WORKER', isHeader: true)),
-              const Expanded(flex: 2, child: _MgrCell('COWS', isHeader: true)),
-              for (final s in MilkSession.values)
-                Expanded(
-                  flex: 3,
-                  child: _MgrCell(
-                    s.label.toUpperCase(),
-                    isHeader: true,
-                    alignEnd: true,
-                  ),
-                ),
-              const Expanded(
-                flex: 3,
-                child: _MgrCell('TOTAL', isHeader: true, alignEnd: true),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, color: Color(0x14000000)),
-        // Worker rows.
-        for (var i = 0; i < today.workers.length; i++) ...[
-          _MgrDataRow(
-            worker: today.workers[i],
-            session: session,
-          ),
-          if (i < today.workers.length - 1)
-            const Divider(height: 1, color: Color(0x14000000)),
-        ],
-        const Divider(height: 1, color: Color(0x14000000)),
-        // DAY GROSS — a single banded row aligned with the columns.
-        Container(
-          color: const Color(0xFFEAF3DE),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Row(
-            children: [
-              const Expanded(
-                flex: 5,
-                child: _MgrCell('DAY GROSS', bold: true, emphasized: true),
-              ),
-              const Expanded(flex: 2, child: SizedBox.shrink()),
-              for (final s in MilkSession.values)
-                Expanded(
-                  flex: 3,
-                  child: _MgrCell(
-                    colGross[s] == 0
-                        ? '0'
-                        : _fmtLitres(colGross[s]!),
-                    bold: true,
-                    emphasized: true,
-                    alignEnd: true,
-                  ),
-                ),
-              Expanded(
-                flex: 3,
-                child: _MgrCell(
-                  '${_fmtLitres(dayGross)} L',
-                  bold: true,
-                  emphasized: true,
-                  alignEnd: true,
-                ),
-              ),
-            ],
-          ),
+        // The original 7-column row layout (WORKER · COWS · DAWN · AM ·
+        // MID · PM · TOTAL) overflows on phones — each flex-3 column
+        // gets ~48px on a narrow screen, which can't fit "MIDDAY" or
+        // "108.9 L" without breaking. We pick between a desktop-style
+        // table and a per-worker card list based on container width.
+        LayoutBuilder(
+          builder: (context, c) {
+            final compact = c.maxWidth < 560;
+            return compact
+                ? _MgrCompactList(
+                    today: today,
+                    session: session,
+                    colGross: colGross,
+                    dayGross: dayGross,
+                  )
+                : _MgrWideTable(
+                    today: today,
+                    session: session,
+                    colGross: colGross,
+                    dayGross: dayGross,
+                  );
+          },
         ),
         const SizedBox(height: 12),
         // DAY NET footer — three columns: Day net (left), deductions
@@ -1408,6 +1561,307 @@ class _ManagerView extends StatelessWidget {
             const SizedBox(height: 6),
           ],
       ],
+    );
+  }
+}
+
+// ===== Manager view — wide table (>= 560px) =====
+//
+// Original 7-column layout: header row, one _MgrDataRow per worker,
+// banded DAY GROSS footer row. Reads naturally on tablet + desktop.
+
+class _MgrWideTable extends StatelessWidget {
+  const _MgrWideTable({
+    required this.today,
+    required this.session,
+    required this.colGross,
+    required this.dayGross,
+  });
+  final TodaySessions today;
+  final MilkSession session;
+  final Map<MilkSession, double> colGross;
+  final double dayGross;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              const Expanded(flex: 5, child: _MgrCell('WORKER', isHeader: true)),
+              const Expanded(flex: 2, child: _MgrCell('COWS', isHeader: true)),
+              for (final s in MilkSession.values)
+                Expanded(
+                  flex: 3,
+                  child: _MgrCell(
+                    s.label.toUpperCase(),
+                    isHeader: true,
+                    alignEnd: true,
+                  ),
+                ),
+              const Expanded(
+                flex: 3,
+                child: _MgrCell('TOTAL', isHeader: true, alignEnd: true),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, color: Color(0x14000000)),
+        for (var i = 0; i < today.workers.length; i++) ...[
+          _MgrDataRow(worker: today.workers[i], session: session),
+          if (i < today.workers.length - 1)
+            const Divider(height: 1, color: Color(0x14000000)),
+        ],
+        const Divider(height: 1, color: Color(0x14000000)),
+        Container(
+          color: const Color(0xFFEAF3DE),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              const Expanded(
+                flex: 5,
+                child: _MgrCell('DAY GROSS', bold: true, emphasized: true),
+              ),
+              const Expanded(flex: 2, child: SizedBox.shrink()),
+              for (final s in MilkSession.values)
+                Expanded(
+                  flex: 3,
+                  child: _MgrCell(
+                    colGross[s] == 0 ? '0' : _fmtLitres(colGross[s]!),
+                    bold: true,
+                    emphasized: true,
+                    alignEnd: true,
+                  ),
+                ),
+              Expanded(
+                flex: 3,
+                child: _MgrCell(
+                  '${_fmtLitres(dayGross)} L',
+                  bold: true,
+                  emphasized: true,
+                  alignEnd: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ===== Manager view — compact card list (< 560px) =====
+//
+// On phones, each flex-3 column collapses to ~48px and the labels
+// "MIDDAY" + "108.9 L" overflow. We swap to a single card per worker
+// where each session is its own labelled chip; values stack cleanly
+// and read at a glance. DAY GROSS becomes a banded summary card at
+// the bottom of the list.
+
+class _MgrCompactList extends StatelessWidget {
+  const _MgrCompactList({
+    required this.today,
+    required this.session,
+    required this.colGross,
+    required this.dayGross,
+  });
+  final TodaySessions today;
+  final MilkSession session;
+  final Map<MilkSession, double> colGross;
+  final double dayGross;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final w in today.workers) ...[
+          _MgrCompactCard(worker: w, activeSession: session),
+          const SizedBox(height: 6),
+        ],
+        // DAY GROSS summary card.
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF3DE),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0x3327500A)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'DAY GROSS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: Color(0xFF27500A),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${_fmtLitres(dayGross)} L',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF27500A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final s in MilkSession.values)
+                    _SessionChip(
+                      label: s.label,
+                      value: colGross[s] ?? 0,
+                      emphasized: false,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Per-worker card used by the compact (mobile) manager list.
+class _MgrCompactCard extends StatelessWidget {
+  const _MgrCompactCard({required this.worker, required this.activeSession});
+  final WorkerSessionView worker;
+  final MilkSession activeSession;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x14000000)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  worker.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF27500A),
+                  ),
+                ),
+              ),
+              Text(
+                '${worker.cowCount} cow${worker.cowCount == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF6B7770),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${_fmtLitres(worker.dayTotal)} L',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF27500A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final s in MilkSession.values)
+                _SessionChip(
+                  label: s.label,
+                  value: worker.totals[s] ?? 0,
+                  logged: (worker.progress[s]?.logged ?? 0) > 0,
+                  emphasized: s == activeSession,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Compact session-value chip. Two-tone: label on top, litres on
+// bottom. The chip turns solid-green for the currently active
+// session so the user can still see which column was the focus.
+class _SessionChip extends StatelessWidget {
+  const _SessionChip({
+    required this.label,
+    required this.value,
+    this.logged = false,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final double value;
+  final bool logged;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = emphasized
+        ? const Color(0xFF27500A)
+        : const Color(0xFFEAF3DE);
+    final fg = emphasized ? Colors.white : const Color(0xFF27500A);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: emphasized
+              ? const Color(0xFF27500A)
+              : const Color(0x3327500A),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: fg,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            value > 0 ? '${_fmtLitres(value)} L' : '—',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: fg,
+            ),
+          ),
+          if (logged) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.check_circle, size: 11, color: fg),
+          ],
+        ],
+      ),
     );
   }
 }
