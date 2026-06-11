@@ -1,6 +1,7 @@
 import * as healthService from "./health.service.js";
 import {
   createVaccinationSchema,
+  updateVaccinationRecordSchema,
   createTreatmentSchema,
   updateTreatmentSchema,
 } from "./health.validation.js";
@@ -59,6 +60,28 @@ export const createVaccinationRecord = async (req, res) => {
   } catch (err) {
     if (handleZodError(res, err)) return;
     if (err.message === "Protocol not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------
+// PATCH /api/health/vaccinations/records/:id
+// ---------------------------------------------------------------------
+export const updateVaccinationRecord = async (req, res) => {
+  try {
+    const body = updateVaccinationRecordSchema.parse(req.body);
+    const userId = req.user?.id ?? null;
+    const record = await healthService.updateVaccinationRecord(
+      req.params.id,
+      body,
+      userId,
+    );
+    res.json(record);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Vaccination record not found") {
       return res.status(404).json({ error: err.message });
     }
     res.status(400).json({ error: err.message });

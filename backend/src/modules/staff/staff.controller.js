@@ -53,7 +53,7 @@ export const getStaffById = async (req, res) => {
 export const updateStaff = async (req, res) => {
   try {
     const patch = updateStaffSchema.parse(req.body);
-    res.json(await staffService.updateStaff(req.params.id, patch));
+    res.json(await staffService.updateStaff(req.params.id, patch, req.user?.id));
   } catch (err) {
     if (handleZodError(res, err)) return;
     if (err.message === "Staff not found") {
@@ -65,7 +65,7 @@ export const updateStaff = async (req, res) => {
 
 export const deleteStaff = async (req, res) => {
   try {
-    await staffService.deactivateStaff(req.params.id);
+    await staffService.deactivateStaff(req.params.id, req.user?.id);
     res.status(204).end();
   } catch (err) {
     if (err.message === "Staff not found") {

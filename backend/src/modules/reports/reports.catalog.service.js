@@ -864,13 +864,29 @@ export const REPORT_REGISTRY = {
   "egg-records": {
     key: "egg-records",
     label: "Egg Production",
-    description: "Crates per house, brooder status, mortality",
+    description: "Filter by house and period. Crates · Mortality · Feed · Daily trend in one place.",
     icon: "🥚",
     iconBg: "#FAEEDA",
     category: "Daily & Production",
-    formats: ["PDF", "CSV"],
+    formats: ["PDF"],
     roles: ["CEO", "ADMIN", "LAYERS_MANAGER", "VET"],
+    dashboardKey: "layers",
     build: buildEggRecordsReport,
+  },
+  "health-dashboard": {
+    key: "health-dashboard",
+    label: "Health Report",
+    description:
+      "Cross-unit vaccination + treatment summary. Filter by unit (Dairy · Layers · Piggery) and period.",
+    icon: "🏥",
+    iconBg: "#E8F5E1",
+    category: "Health & Animal",
+    formats: ["PDF"],
+    roles: ["CEO", "ADMIN", "VET", "DAIRY_MANAGER", "LAYERS_MANAGER", "PIGGERY_MANAGER"],
+    // Bypasses catalog preview — routes into the in-app Health Reports
+    // dashboard which has full unit + period filter state management.
+    dashboardKey: "health",
+    build: buildVaccScheduleReport, // fallback for backwards-compatible PDF deep-links
   },
   "vacc-schedule": {
     key: "vacc-schedule",

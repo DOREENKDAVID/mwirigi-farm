@@ -1,5 +1,7 @@
 import prisma from "../../prisma/client.js";
 import { hashPassword } from "../../utils/password.js";
+import { writeAuditLog } from "../../utils/audit.js";
+import { LIFECYCLE } from "../../utils/lifecycle.js";
 
 const startOfDay = (d) => {
   const x = new Date(d);
@@ -91,7 +93,7 @@ export const createStaff = async (input) => {
 // GET /api/staff
 export const listStaff = async ({ includeInactive = false } = {}) => {
   const users = await prisma.user.findMany({
-    where: includeInactive ? {} : { isActive: true },
+    where: includeInactive ? {} : LIFECYCLE.STAFF_ACTIVE,
     orderBy: { userName: "asc" },
   });
   return users.map(projectUser);
@@ -103,7 +105,7 @@ export const getStaffById = async (id) => {
   return projectUser(user);
 };
 
-export const updateStaff = async (id, patch) => {
+export const updateStaff = async (id, patch, actorId = null) => {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new Error("Staff not found");
   const data = {};
@@ -119,17 +121,49 @@ export const updateStaff = async (id, patch) => {
   ]) {
     if (k in patch) data[k] = patch[k];
   }
+
+  const isActiveChanging =
+    "isActive" in data && data.isActive !== existing.isActive;
+
+  if (isActiveChanging) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({ where: { id }, data });
+      await writeAuditLog(tx, {
+        entity: "User",
+        entityId: id,
+        action: "STATUS_CHANGED",
+        module: "staff",
+        actorId,
+        oldValue: { isActive: existing.isActive },
+        snapshot: { isActive: updated.isActive },
+      });
+      return projectUser(updated);
+    });
+  }
+
   const updated = await prisma.user.update({ where: { id }, data });
   return projectUser(updated);
 };
 
 // DELETE /api/staff/:id  (soft — flips isActive=false)
-export const deactivateStaff = async (id) => {
+export const deactivateStaff = async (id, actorId = null) => {
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) throw new Error("Staff not found");
-  return prisma.user.update({
-    where: { id },
-    data: { isActive: false },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    await writeAuditLog(tx, {
+      entity: "User",
+      entityId: id,
+      action: "STATUS_CHANGED",
+      module: "staff",
+      actorId,
+      oldValue: { isActive: true, userName: existing.userName },
+      snapshot: { isActive: false },
+    });
+    return updated;
   });
 };
 
@@ -185,7 +219,7 @@ export const getTodayAttendance = async () => {
   const today = startOfDay(new Date());
   const [users, records] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true },
+      where: LIFECYCLE.STAFF_ACTIVE,
       orderBy: { userName: "asc" },
     }),
     prisma.attendance.findMany({
@@ -387,7 +421,7 @@ export const getPayrollSummary = async ({ month, year } = {}) => {
 
   const [users, attendance, payrolls, adjustments] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true },
+      where: LIFECYCLE.STAFF_ACTIVE,
       orderBy: { userName: "asc" },
     }),
     prisma.attendance.findMany({

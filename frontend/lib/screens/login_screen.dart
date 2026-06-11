@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../core/service/api_service.dart';
 import '../widgets/brand_logo.dart';
 import 'forgot_password_screen.dart';
+import 'main_screen.dart';
 import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -108,7 +109,10 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       await ApiService.googleLogin(idToken);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _oauthBusy = false);
@@ -143,7 +147,10 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         if (!mounted) return;
         setState(() => _isLoading = false);
-        Navigator.pushReplacementNamed(context, '/dashboard');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+          (route) => false,
+        );
       } catch (e) {
         if (!mounted) return;
         setState(() => _isLoading = false);
@@ -252,7 +259,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                child: Form(
+                child: AutofillGroup(
+                  child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -309,6 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _identifierController,
                           keyboardType: TextInputType.text,
                           autocorrect: false,
+                          autofillHints: const [AutofillHints.username],
                           decoration: _fieldDecoration(
                             label: 'Email or Username',
                             hint: 'you@email.com or yourname',
@@ -341,6 +350,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
+                        autofillHints: const [AutofillHints.password],
                         decoration: _fieldDecoration(
                           label: 'Password',
                           hint: '********',
@@ -482,6 +492,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
             ),

@@ -139,7 +139,7 @@ export const getProductionReport = async (filters = {}) => {
       select: { houseId: true, closingStock: true },
     }),
     prisma.house.findMany({
-      where: { type: "Poultry", deletedAt: null },
+      where: { type: "Poultry" },
       select: { id: true, name: true, color: true, birdCount: true },
     }),
   ]);

@@ -105,6 +105,15 @@ export const createTreatmentSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
 });
 
+// ----- PATCH /api/health/vaccinations/records/:id -----
+// All fields optional — caller only sends what changed.
+export const updateVaccinationRecordSchema = z.object({
+  animalCount: z.number().int().positive().optional(),
+  administeredAt: dateSchema.optional(),
+  nextDueOverride: dateSchema.nullable().optional(),
+  notes: z.string().max(500).optional().nullable(),
+});
+
 // ----- PATCH /api/health/treatments/:id -----
 export const updateTreatmentSchema = z.object({
   diagnosis: z.string().min(2).max(160).optional(),

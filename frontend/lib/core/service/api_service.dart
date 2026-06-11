@@ -1086,6 +1086,14 @@ class ApiService {
   ) async =>
       _asMap(await _post('/health/vaccinations', body: data));
 
+  // PATCH /health/vaccinations/records/:id body: { animalCount?, administeredAt?, nextDueOverride?, notes? }
+  static Future<Map<String, dynamic>> updateHealthVaccinationRecord(
+    String recordId,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(
+          await _patch('/health/vaccinations/records/$recordId', body: data));
+
   // GET /health/protocols -> [{ id, name, unit, type, species }]  (CEO/VET/ADMIN)
   static Future<List<dynamic>> getHealthProtocols() async =>
       _asList(await _get('/health/protocols'));

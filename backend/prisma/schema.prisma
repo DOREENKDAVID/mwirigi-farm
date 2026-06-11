@@ -721,6 +721,7 @@ enum AuditAction {
   CREATE
   UPDATE
   DELETE
+  STATUS_CHANGED
 }
 
 // Generic audit log row. Captures who did what to which entity with
@@ -730,18 +731,21 @@ enum AuditAction {
 model AuditLog {
   id String @id @default(uuid())
 
-  entity   String // e.g. "AllocationPlan", "Cow", "Bull"
+  entity   String // e.g. "Cow", "User", "AllocationPlan"
   entityId String
   action   AuditAction
 
+  // Which operational module triggered the change (dairy, staff, layers…).
+  // Allows the System Activity report to filter by module.
+  module String?
+
   // Free-text reason captured in the UI before the change committed.
-  // Optional but encouraged so reviewers can read intent without
-  // diffing snapshots.
   reason String?
 
-  // JSON snapshot of the new state. Stored as a string column so the
-  // shape can vary per entity without further schema work.
-  snapshot String?
+  // JSON snapshots before and after the mutation. Both stored as plain
+  // strings so the shape can vary per entity without further schema work.
+  oldValue String?
+  snapshot String? // new state — kept as "snapshot" for back-compat
 
   actorId String?
   actor   User?   @relation("AuditActor", fields: [actorId], references: [id])
@@ -749,6 +753,7 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([entity, entityId])
+  @@index([module])
   @@index([createdAt])
 }
 

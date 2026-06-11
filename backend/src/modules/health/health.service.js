@@ -7,6 +7,7 @@ import {
   addYears,
   daysBetween,
 } from "./health.statusEngine.js";
+import { writeAuditLog } from "../../utils/audit.js";
 
 // =====================================================================
 // HEALTH SERVICE
@@ -75,6 +76,11 @@ export const listVaccinations = async () => {
       // build the annual herd-vaccine calendar tile from the same source.
       allowedMonths: p.allowedMonths ?? [],
       recurrenceMonths: p.recurrenceMonths,
+      // Latest record identifiers — needed by the edit dialog to pre-fill
+      // fields and call PATCH /vaccinations/records/:id.
+      lastRecordId: p.records[0]?.id ?? null,
+      lastRecordNotes: p.records[0]?.notes ?? null,
+      lastRecordNextDue: p.records[0]?.nextDueOverride?.toISOString() ?? null,
     };
   });
 
@@ -160,16 +166,34 @@ export const createVaccinationRecord = async (input, userId) => {
     });
     if (!protocol) throw new Error("Protocol not found");
 
-    return prisma.vaccinationRecord.create({
-      data: {
-        protocolId: protocol.id,
-        unit: input.unit ?? protocol.unit,
-        animalCount: input.animalCount,
-        administeredAt: input.administeredAt,
-        nextDueOverride: input.nextDueOverride ?? null,
-        notes: input.notes ?? null,
-        recordedById: userId ?? null,
-      },
+    return prisma.$transaction(async (tx) => {
+      const record = await tx.vaccinationRecord.create({
+        data: {
+          protocolId: protocol.id,
+          unit: input.unit ?? protocol.unit,
+          animalCount: input.animalCount,
+          administeredAt: input.administeredAt,
+          nextDueOverride: input.nextDueOverride ?? null,
+          notes: input.notes ?? null,
+          recordedById: userId ?? null,
+        },
+      });
+      await writeAuditLog(tx, {
+        entity: "VaccinationRecord",
+        entityId: record.id,
+        action: "CREATE",
+        module: "health",
+        actorId: userId ?? null,
+        snapshot: {
+          protocolId: protocol.id,
+          vaccineName: protocol.name,
+          unit: record.unit,
+          animalCount: record.animalCount,
+          administeredAt: record.administeredAt,
+          nextDueOverride: record.nextDueOverride,
+        },
+      });
+      return record;
     });
   }
 
@@ -179,22 +203,84 @@ export const createVaccinationRecord = async (input, userId) => {
   });
   if (!brooder) throw new Error("Brooder not found");
 
-  // Brooder vaccinations are always tagged with the Layers HealthUnit.
-  // Caller can override (e.g. some other domain reusing the table) but
-  // Layers is the right default since brooders live there.
-  return prisma.vaccinationRecord.create({
-    data: {
-      protocolId: null,
-      brooderId: brooder.id,
-      vaccineName: input.vaccineName,
-      dayOffset: input.dayOffset,
-      unit: input.unit ?? "Layers",
-      animalCount: input.animalCount,
-      administeredAt: input.administeredAt,
-      nextDueOverride: input.nextDueOverride ?? null,
-      notes: input.notes ?? null,
-      recordedById: userId ?? null,
-    },
+  return prisma.$transaction(async (tx) => {
+    const record = await tx.vaccinationRecord.create({
+      data: {
+        protocolId: null,
+        brooderId: brooder.id,
+        vaccineName: input.vaccineName,
+        dayOffset: input.dayOffset,
+        unit: input.unit ?? "Layers",
+        animalCount: input.animalCount,
+        administeredAt: input.administeredAt,
+        nextDueOverride: input.nextDueOverride ?? null,
+        notes: input.notes ?? null,
+        recordedById: userId ?? null,
+      },
+    });
+    await writeAuditLog(tx, {
+      entity: "VaccinationRecord",
+      entityId: record.id,
+      action: "CREATE",
+      module: "health",
+      actorId: userId ?? null,
+      snapshot: {
+        brooderId: brooder.id,
+        vaccineName: input.vaccineName,
+        unit: record.unit,
+        animalCount: record.animalCount,
+        administeredAt: record.administeredAt,
+      },
+    });
+    return record;
+  });
+};
+
+// ---------------------------------------------------------------------
+// updateVaccinationRecord — PATCH the most-recent (or any) record
+// ---------------------------------------------------------------------
+// Only the mutable fields (count, date, next-due override, notes) can
+// be changed. The protocolId / brooderId association is immutable once
+// created — changing the vaccine would need a delete + new record.
+export const updateVaccinationRecord = async (recordId, patch, userId) => {
+  const record = await prisma.vaccinationRecord.findUnique({
+    where: { id: recordId },
+  });
+  if (!record) throw new Error("Vaccination record not found");
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.vaccinationRecord.update({
+      where: { id: recordId },
+      data: {
+        animalCount: patch.animalCount ?? record.animalCount,
+        administeredAt: patch.administeredAt ?? record.administeredAt,
+        nextDueOverride:
+          patch.nextDueOverride !== undefined
+            ? patch.nextDueOverride
+            : record.nextDueOverride,
+        notes: patch.notes !== undefined ? patch.notes : record.notes,
+      },
+    });
+    await writeAuditLog(tx, {
+      entity: "VaccinationRecord",
+      entityId: record.id,
+      action: "UPDATE",
+      module: "health",
+      actorId: userId ?? null,
+      oldValue: {
+        animalCount: record.animalCount,
+        administeredAt: record.administeredAt,
+        nextDueOverride: record.nextDueOverride,
+        notes: record.notes,
+      },
+      snapshot: {
+        animalCount: updated.animalCount,
+        administeredAt: updated.administeredAt,
+        nextDueOverride: updated.nextDueOverride,
+        notes: updated.notes,
+      },
+    });
+    return updated;
   });
 };
 

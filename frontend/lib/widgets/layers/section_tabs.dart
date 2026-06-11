@@ -35,12 +35,12 @@ class LayersSectionTabs extends StatefulWidget {
   const LayersSectionTabs({
     super.key,
     required this.unit,
-    required this.history,
+    required this.histories,
     required this.onSubmittedDailyEntry,
   });
 
   final LayersUnit unit;
-  final legacy.ProductionHistory? history;
+  final List<legacy.ProductionHistory> histories;
   final VoidCallback onSubmittedDailyEntry;
 
   @override
@@ -167,7 +167,7 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
         return [
           EggsTabSection(
             unit: unit,
-            history: widget.history,
+            histories: widget.histories,
             onChanged: widget.onSubmittedDailyEntry,
           ),
         ];
@@ -217,10 +217,10 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
           const SizedBox(height: 18),
           SevenDayChart(points: unit.production),
           const SizedBox(height: 16),
-          if (widget.history != null)
+          if (widget.histories.isNotEmpty)
             Last7DaysTable(
-              houseName: widget.history!.house.name,
-              records: widget.history!.records,
+              houseName: widget.histories.first.house.name,
+              records: widget.histories.first.records,
             ),
         ];
       case LayersTab.vaccination:

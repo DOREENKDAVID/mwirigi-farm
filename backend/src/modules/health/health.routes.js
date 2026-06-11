@@ -27,6 +27,14 @@ router.post(
   authorizeRoles("CEO", "VET"),
   controller.createVaccinationRecord,
 );
+// NOTE: this route must be declared before /vaccinations/:id so Express
+// doesn't swallow "records" as an :id param.
+router.patch(
+  "/vaccinations/records/:id",
+  authMiddleware,
+  authorizeRoles("CEO", "VET"),
+  controller.updateVaccinationRecord,
+);
 
 // ----- Protocol definitions (admin/vet only) -----
 router.get(

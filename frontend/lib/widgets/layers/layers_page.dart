@@ -36,23 +36,27 @@ class _LayersPageState extends State<LayersPage> {
     final unitRaw = await ApiService.getLayersUnit();
     final unit = LayersUnit.fromJson(unitRaw.cast<String, dynamic>());
 
-    // Pull legacy per-house production history for the inline daily-entry
-    // form so logging today's eggs still works. Fall back gracefully when
-    // there are no houses or no records.
-    legacy.ProductionHistory? history;
+    // Pull legacy per-house production history for every house in parallel
+    // so the Recent Logs section shows all houses, not just the first.
+    // Each house fetch is independent — a failure on one doesn't kill the rest.
+    final histories = <legacy.ProductionHistory>[];
     if (unit.layers.houses.isNotEmpty) {
-      final firstId = unit.layers.houses.first.id;
-      try {
-        final raw = await ApiService.getLayersProductionForHouse(firstId);
-        history = legacy.ProductionHistory.fromJson(
-          raw.cast<String, dynamic>(),
-        );
-      } catch (_) {
-        history = null;
-      }
+      final results = await Future.wait(
+        unit.layers.houses.map((h) async {
+          try {
+            final raw = await ApiService.getLayersProductionForHouse(h.id);
+            return legacy.ProductionHistory.fromJson(
+              raw.cast<String, dynamic>(),
+            );
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      histories.addAll(results.whereType<legacy.ProductionHistory>());
     }
 
-    return _PageData(unit: unit, history: history);
+    return _PageData(unit: unit, histories: histories);
   }
 
   Future<void> _refresh() async {
@@ -92,7 +96,7 @@ class _LayersPageState extends State<LayersPage> {
               const SizedBox(height: 16),
               LayersSectionTabs(
                 unit: unit,
-                history: data.history,
+                histories: data.histories,
                 onSubmittedDailyEntry: _refresh,
               ),
             ],
@@ -104,9 +108,9 @@ class _LayersPageState extends State<LayersPage> {
 }
 
 class _PageData {
-  _PageData({required this.unit, this.history});
+  _PageData({required this.unit, required this.histories});
   final LayersUnit unit;
-  final legacy.ProductionHistory? history;
+  final List<legacy.ProductionHistory> histories;
 }
 
 class _PageHeader extends StatefulWidget {

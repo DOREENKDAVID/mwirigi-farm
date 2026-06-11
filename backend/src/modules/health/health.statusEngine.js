@@ -7,12 +7,15 @@
 // Centralized so controllers/services never recompute the logic inline,
 // per the user's spec point 2.
 //
-// Status values (subset of VaccinationStatus enum):
+// Status values (VaccinationStatus enum):
 //   DONE              — current cycle is covered by a record
-//   DUE_WINDOW_OPEN   — annual cycle is in (or past) its allowedMonths,
+//   DUE_WINDOW_OPEN   — annual: today is within the allowedMonths window,
 //                       no record yet for this cycle
-//   DUE_NOW           — recurring cycle: nextDue <= today (also when
-//                       brooder vaccine is in its day-window)
+//   OVERDUE           — annual: window has fully closed without a record;
+//                       recurring: nextDue has already passed;
+//                       default for any unrecorded past-due vaccination
+//   DUE_NOW           — recurring: nextDue is today / within grace period
+//                       (brooder vaccine is in its day-window)
 //   DUE_SOON          — within DUE_SOON_HORIZON_DAYS of next due
 //   UPCOMING          — further than DUE_SOON_HORIZON_DAYS
 //
@@ -107,8 +110,11 @@ const computeAnnual = ({ protocol, records, today }) => {
   let status;
   if (cycleCovered) {
     status = "DONE";
+  } else if (today > windowEnd) {
+    // Window has fully closed without a record — vaccination is overdue.
+    status = "OVERDUE";
   } else if (today >= windowStart) {
-    // Window is open or has passed without a record.
+    // Window is currently open and no record yet.
     status = "DUE_WINDOW_OPEN";
   } else if (daysToWindowStart <= DUE_SOON_HORIZON_DAYS) {
     status = "DUE_SOON";
@@ -171,7 +177,10 @@ const computeRecurring = ({ protocol, records, today }) => {
   const daysUntilDue = daysBetween(today, nextDueAt);
 
   let status;
-  if (daysUntilDue <= 0) {
+  if (daysUntilDue < 0) {
+    // Next-due date has already passed — vaccination is overdue.
+    status = "OVERDUE";
+  } else if (daysUntilDue === 0) {
     status = "DUE_NOW";
   } else if (daysUntilDue <= DUE_SOON_HORIZON_DAYS) {
     status = "DUE_SOON";
@@ -227,7 +236,10 @@ export { startOfDay, daysBetween, addMonths, addYears };
 // within next 7 days. "DUE_WINDOW_OPEN" (already-open annual cycle) is
 // excluded — it's actionable but not "opening soon".
 export const countsForDue7d = (row) => {
+  // OVERDUE rows are always actionable and count toward the KPI.
+  if (row.status === "OVERDUE") return true;
   if (row.status === "DUE_NOW") return true;
+  if (row.status === "DUE_WINDOW_OPEN") return true;
   if (row.status === "DUE_SOON" && row.daysUntilDue != null) {
     return row.daysUntilDue >= 0 && row.daysUntilDue <= DUE_7D_HORIZON_DAYS;
   }
