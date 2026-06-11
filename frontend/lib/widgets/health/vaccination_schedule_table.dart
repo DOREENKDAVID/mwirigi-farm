@@ -11,9 +11,17 @@ import 'status_badge.dart';
 ///
 /// All status / lastDone / nextDue strings come from the backend; the
 /// widget only renders.
+///
+/// [onEdit] is called with the row when the user taps the edit button.
+/// Only rows with source=="DB" and a lastRecordId show the edit button.
 class VaccinationScheduleTable extends StatefulWidget {
-  const VaccinationScheduleTable({super.key, required this.rows});
+  const VaccinationScheduleTable({
+    super.key,
+    required this.rows,
+    this.onEdit,
+  });
   final List<VaccinationRow> rows;
+  final ValueChanged<VaccinationRow>? onEdit;
 
   @override
   State<VaccinationScheduleTable> createState() =>
@@ -82,9 +90,9 @@ class _VaccinationScheduleTableState extends State<VaccinationScheduleTable> {
             LayoutBuilder(
               builder: (context, constraints) {
                 if (constraints.maxWidth >= 760) {
-                  return _DesktopTable(rows: filtered);
+                  return _DesktopTable(rows: filtered, onEdit: widget.onEdit);
                 }
-                return _MobileCards(rows: filtered);
+                return _MobileCards(rows: filtered, onEdit: widget.onEdit);
               },
             ),
         ],
@@ -149,8 +157,9 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _DesktopTable extends StatelessWidget {
-  const _DesktopTable({required this.rows});
+  const _DesktopTable({required this.rows, this.onEdit});
   final List<VaccinationRow> rows;
+  final ValueChanged<VaccinationRow>? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +173,7 @@ class _DesktopTable extends StatelessWidget {
         3: FlexColumnWidth(1.6), // Last done
         4: FlexColumnWidth(1.7), // Next due
         5: FlexColumnWidth(1.6), // Status
+        6: FixedColumnWidth(48), // Actions
       },
       children: [
         const TableRow(
@@ -177,6 +187,7 @@ class _DesktopTable extends StatelessWidget {
             _Th('Last done'),
             _Th('Next due'),
             _Th('Status'),
+            SizedBox.shrink(),
           ],
         ),
         for (final r in rows)
@@ -197,6 +208,22 @@ class _DesktopTable extends StatelessWidget {
                   child: StatusBadge(status: r.status),
                 ),
               ),
+              // Edit button — only for DB rows that have a record
+              if (r.source == 'DB' && r.lastRecordId != null && onEdit != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    tooltip: 'Edit record',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    splashRadius: 16,
+                    color: const Color(0xFF27500A),
+                    onPressed: () => onEdit!(r),
+                  ),
+                )
+              else
+                const SizedBox.shrink(),
             ],
           ),
       ],
@@ -205,8 +232,9 @@ class _DesktopTable extends StatelessWidget {
 }
 
 class _MobileCards extends StatelessWidget {
-  const _MobileCards({required this.rows});
+  const _MobileCards({required this.rows, this.onEdit});
   final List<VaccinationRow> rows;
+  final ValueChanged<VaccinationRow>? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -235,6 +263,20 @@ class _MobileCards extends StatelessWidget {
                       ),
                     ),
                     StatusBadge(status: r.status),
+                    if (r.source == 'DB' &&
+                        r.lastRecordId != null &&
+                        onEdit != null) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        tooltip: 'Edit record',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 16,
+                        color: const Color(0xFF27500A),
+                        onPressed: () => onEdit!(r),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 6),

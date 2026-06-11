@@ -1,14 +1,15 @@
 // Models for the Health & Vaccines module.
 //
 // Source endpoints (all derived state is server-computed):
-//   GET  /api/health/kpis                 → HealthKpis
-//   GET  /api/health/vaccinations         → List<VaccinationRow>
-//   GET  /api/health/treatments           → List<TreatmentRow>
-//   GET  /api/health/protocol-reference   → ProtocolReference
-//   GET  /api/health/protocols            → List<VaccineProtocol> (admin/vet)
-//   POST /api/health/vaccinations         → log a record
-//   POST /api/health/treatments           → log a treatment
-//   PATCH /api/health/treatments/:id      → update a treatment
+//   GET  /api/health/kpis                       → HealthKpis
+//   GET  /api/health/vaccinations               → List<VaccinationRow>
+//   GET  /api/health/treatments                 → List<TreatmentRow>
+//   GET  /api/health/protocol-reference         → ProtocolReference
+//   GET  /api/health/protocols                  → List<VaccineProtocol> (admin/vet)
+//   POST /api/health/vaccinations               → log a record
+//   PATCH /api/health/vaccinations/records/:id  → edit a record
+//   POST /api/health/treatments                 → log a treatment
+//   PATCH /api/health/treatments/:id            → update a treatment
 
 int _toInt(dynamic v) {
   if (v is int) return v;
@@ -82,6 +83,9 @@ class VaccinationRow {
     this.notes,
     this.allowedMonths = const [],
     this.recurrenceMonths,
+    this.lastRecordId,
+    this.lastRecordNotes,
+    this.lastRecordNextDue,
   });
 
   final String id;
@@ -104,6 +108,9 @@ class VaccinationRow {
   /// frontend doesn't compute it.
   final List<int> allowedMonths;
   final int? recurrenceMonths;
+  final String? lastRecordId;
+  final String? lastRecordNotes;
+  final DateTime? lastRecordNextDue;
 
   factory VaccinationRow.fromJson(Map<String, dynamic> j) {
     return VaccinationRow(
@@ -130,6 +137,9 @@ class VaccinationRow {
       recurrenceMonths: j['recurrenceMonths'] == null
           ? null
           : _toInt(j['recurrenceMonths']),
+      lastRecordId: j['lastRecordId']?.toString(),
+      lastRecordNotes: j['lastRecordNotes']?.toString(),
+      lastRecordNextDue: _parseDate(j['lastRecordNextDue']),
     );
   }
 }

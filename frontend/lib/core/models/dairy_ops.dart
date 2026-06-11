@@ -333,6 +333,8 @@ class DayNetSummary {
     required this.calfCount,
     required this.calfOverridden,
     required this.householdDeduction,
+    required this.bucketDeduction,
+    required this.milkedCows,
     required this.dayGross,
     required this.dayNet,
   });
@@ -348,10 +350,14 @@ class DayNetSummary {
   /// True when FarmConfig has a non-zero override for the calf deduction.
   final bool calfOverridden;
   final double householdDeduction;
+  /// Litres deducted for bucket/container tare weight (milkedCows × 0.8).
+  final double bucketDeduction;
+  /// Distinct cows that had any MilkRecord logged today.
+  final int milkedCows;
   final double dayGross;
   final double dayNet;
 
-  double get totalDeductions => calfDeduction + householdDeduction;
+  double get totalDeductions => calfDeduction + householdDeduction + bucketDeduction;
 
   factory DayNetSummary.fromJson(Map<String, dynamic> j) {
     final sessRaw = (j['sessions'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -366,6 +372,8 @@ class DayNetSummary {
       calfCount: _toInt(dedRaw['calfCount']),
       calfOverridden: dedRaw['calfOverridden'] == true,
       householdDeduction: _toDouble(dedRaw['household']),
+      bucketDeduction: _toDouble(dedRaw['bucket']),
+      milkedCows: _toInt(dedRaw['milkedCows']),
       dayGross: _toDouble(j['dayGross']),
       dayNet: _toDouble(j['dayNet']),
     );

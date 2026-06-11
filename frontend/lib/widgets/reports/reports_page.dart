@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import '../../core/models/report.dart';
 import '../../core/service/api_service.dart';
 import '../dairy/dairy_reports_page.dart';
+import '../health/health_reports_page.dart';
+import '../layers/layers_reports_page.dart';
 import 'report_preview_page.dart';
 
 class ReportsPage extends StatefulWidget {
@@ -142,6 +144,22 @@ class _ReportsPageState extends State<ReportsPage> {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const DairyReportsPage(),
+                        ),
+                      );
+                      return;
+                    }
+                    if (r.dashboardKey == 'layers') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LayersReportsPage(),
+                        ),
+                      );
+                      return;
+                    }
+                    if (r.dashboardKey == 'health') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const HealthReportsPage(),
                         ),
                       );
                       return;

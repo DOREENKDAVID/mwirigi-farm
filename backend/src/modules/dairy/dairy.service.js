@@ -1,4 +1,6 @@
 import prisma from "../../prisma/client.js";
+import { writeAuditLog } from "../../utils/audit.js";
+import { LIFECYCLE } from "../../utils/lifecycle.js";
 
 //////////////////////////////////////////////////////
 // COW SERVICES
@@ -103,7 +105,7 @@ export const getAllCows = async ({
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
   // Active herd only — released cows live in history reports.
-  const where = { releasedAt: null };
+  const where = { ...LIFECYCLE.COW_ACTIVE };
   if (workerId === "unassigned") {
     where.workerId = null;
   } else if (workerId) {
@@ -262,17 +264,30 @@ export const releaseCow = async (tag, payload, authorizedById) => {
   if (!cow) throw new Error("Cow not found");
   if (cow.releasedAt) throw new Error("Cow is already released");
 
-  return prisma.cow.update({
-    where: { tag: normalizedTag },
-    data: {
-      releasedAt: new Date(),
-      releaseType: payload.releaseType,
-      releaseDate: payload.releaseDate ?? new Date(),
-      releaseDestination: trimOrNull(payload.destination),
-      releaseReason: trimOrNull(payload.reason),
-      releaseDocumentUrl: trimOrNull(payload.documentUrl),
-      authorizedById,
-    },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.cow.update({
+      where: { tag: normalizedTag },
+      data: {
+        releasedAt: new Date(),
+        releaseType: payload.releaseType,
+        releaseDate: payload.releaseDate ?? new Date(),
+        releaseDestination: trimOrNull(payload.destination),
+        releaseReason: trimOrNull(payload.reason),
+        releaseDocumentUrl: trimOrNull(payload.documentUrl),
+        authorizedById,
+      },
+    });
+    await writeAuditLog(tx, {
+      entity: "Cow",
+      entityId: cow.id,
+      action: "STATUS_CHANGED",
+      module: "dairy",
+      actorId: authorizedById ?? null,
+      reason: trimOrNull(payload.reason),
+      oldValue: { status: cow.status, releasedAt: null },
+      snapshot: { releaseType: payload.releaseType, releasedAt: updated.releasedAt },
+    });
+    return updated;
   });
 };
 
@@ -442,7 +457,7 @@ export const getDairyWorkers = async () => {
     orderBy: { name: "asc" },
     include: {
       house: { select: { id: true, name: true, color: true } },
-      _count: { select: { cows: true } },
+      _count: { select: { cows: { where: LIFECYCLE.COW_ACTIVE } } },
     },
   });
   return workers.map((w) => ({
@@ -461,7 +476,7 @@ export const getDairyWorkers = async () => {
 // house). Drives the cow-grid in the milk-logging worker view.
 export const getCowsByWorkerId = async (workerId) => {
   return prisma.cow.findMany({
-    where: { workerId },
+    where: { workerId, ...LIFECYCLE.COW_ACTIVE },
     orderBy: { tag: "asc" },
     include: {
       house: { select: { id: true, name: true, color: true } },
@@ -688,6 +703,7 @@ export const getTodaySessions = async ({
     orderBy: { name: "asc" },
     include: {
       cows: {
+        where: LIFECYCLE.COW_ACTIVE,
         orderBy: { tag: "asc" },
         include: {
           milkRecords: {
@@ -922,7 +938,7 @@ export const getTodayNetSummary = async ({ date } = {}) => {
   // documented behaviour.
   const { start, end } = dayRange(date);
 
-  const [aggs, config, autoCalfCount] = await Promise.all([
+  const [aggs, config, autoCalfCount, milkedCowsResult] = await Promise.all([
     prisma.milkRecord.groupBy({
       by: ["session"],
       where: { date: { gte: start, lte: end } },
@@ -930,6 +946,11 @@ export const getTodayNetSummary = async ({ date } = {}) => {
     }),
     prisma.farmConfig.findFirst(),
     autoCalfCountUnder4mo(),
+    prisma.milkRecord.findMany({
+      where: { date: { gte: start, lte: end } },
+      distinct: ["cowId"],
+      select: { cowId: true },
+    }),
   ]);
 
   const gross = { DAWN: 0, AM: 0, MID: 0, PM: 0 };
@@ -944,7 +965,9 @@ export const getTodayNetSummary = async ({ date } = {}) => {
     : autoCalfCount * 1; // 1L per calf default
 
   const householdDeduct = config?.householdDeduct ?? 35; // ~35 L typical
-  const totalDeductions = calfDeduction + householdDeduct;
+  const milkedCows = milkedCowsResult.length;
+  const bucketDeduction = Number((milkedCows * 0.8).toFixed(1));
+  const totalDeductions = calfDeduction + householdDeduct + bucketDeduction;
   const dayNet = Math.max(0, dayGross - totalDeductions);
 
   return {
@@ -954,6 +977,8 @@ export const getTodayNetSummary = async ({ date } = {}) => {
       calfCount: autoCalfCount,
       calfOverridden: storedCalf && storedCalf > 0,
       household: householdDeduct,
+      bucket: bucketDeduction,
+      milkedCows,
       total: totalDeductions,
     },
     dayGross: Number(dayGross.toFixed(1)),

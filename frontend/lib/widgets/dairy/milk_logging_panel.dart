@@ -2165,6 +2165,11 @@ class _DeductionPanel extends StatelessWidget {
             value: '− ${_fmtLitres(summary.householdDeduction)} L',
             minus: true,
           ),
+          _DedRow(
+            label: 'Bucket weight (${summary.milkedCows} × 0.8)',
+            value: '− ${_fmtLitres(summary.bucketDeduction)} L',
+            minus: true,
+          ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 6),
             child: Divider(height: 1, color: Color(0x22000000)),

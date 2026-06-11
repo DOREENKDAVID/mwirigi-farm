@@ -260,27 +260,28 @@ class _Form extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            // Animals — full width so it never gets squeezed on phone.
+            TextFormField(
+              controller: animalsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Animals *',
+                hintText: '200',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                final v = value?.trim() ?? '';
+                final n = int.tryParse(v);
+                if (n == null || n <= 0) return 'Enter > 0';
+                return null;
+              },
+            ),
+            const SizedBox(height: 14),
+            // Date done + Next due share a row — two fields each get
+            // roughly half the dialog width, which is comfortable on phone.
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: animalsController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Animals *',
-                      hintText: '200',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      final v = value?.trim() ?? '';
-                      final n = int.tryParse(v);
-                      if (n == null || n <= 0) return 'Enter > 0';
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: InkWell(
                     onTap: submitting ? null : onPickDateDone,

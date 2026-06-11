@@ -1,16 +1,1 @@
-{
-  "hosting": {
-    "public": "build/web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }
-}
+{"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]},"flutter":{"platforms":{"android":{"default":{"projectId":"mwirigi-farm","appId":"1:1039139293103:android:4baf0af1bfd60ba10f115a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"mwirigi-farm","configurations":{"android":"1:1039139293103:android:4baf0af1bfd60ba10f115a","ios":"1:1039139293103:ios:ff3ea9700c78c5bf0f115a","macos":"1:1039139293103:ios:ff3ea9700c78c5bf0f115a","web":"1:1039139293103:web:361de4e375ebfbd90f115a","windows":"1:1039139293103:web:ecde249ab2947ee10f115a"}}}}}}

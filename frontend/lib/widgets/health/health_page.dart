@@ -8,6 +8,7 @@ import 'active_treatments_table.dart';
 import 'add_treatment_dialog.dart';
 import 'health_pill_tabs.dart';
 import 'herd_calendar.dart';
+import 'edit_vaccine_dialog.dart';
 import 'log_vaccine_dialog.dart';
 import 'vaccination_schedule_table.dart';
 import 'vet_protocol_tabs.dart';
@@ -88,6 +89,14 @@ class _HealthPageState extends State<HealthPage> {
     final result = await showDialog<bool>(
       context: context,
       builder: (_) => const LogVaccineDialog(),
+    );
+    if (result == true) await _refresh();
+  }
+
+  Future<void> _openEditVaccine(VaccinationRow row) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => EditVaccineDialog(row: row),
     );
     if (result == true) await _refresh();
   }
@@ -173,7 +182,10 @@ class _HealthPageState extends State<HealthPage> {
             onTap: _openLogVaccine,
           ),
           const SizedBox(height: 10),
-          VaccinationScheduleTable(rows: data.vaccinations),
+          VaccinationScheduleTable(
+            rows: data.vaccinations,
+            onEdit: _openEditVaccine,
+          ),
         ];
       case HealthTab.treatments:
         return [

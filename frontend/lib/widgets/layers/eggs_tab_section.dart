@@ -25,13 +25,13 @@ class EggsTabSection extends StatefulWidget {
   const EggsTabSection({
     super.key,
     required this.unit,
-    required this.history,
+    required this.histories,
     required this.onChanged,
     this.dailyTargetCrates = 700,
   });
 
   final LayersUnit unit;
-  final legacy.ProductionHistory? history;
+  final List<legacy.ProductionHistory> histories;
   final VoidCallback onChanged;
   final int dailyTargetCrates;
 
@@ -190,9 +190,9 @@ class _EggsTabSectionState extends State<EggsTabSection> {
         // Cards auto-update via parent reload after POST — values come
         // straight from the LayerHouseView, never recomputed locally.
         LayerHousesGrid(houses: houses),
-        if (widget.history != null) ...[
+        for (final h in widget.histories.where((h) => h.records.isNotEmpty)) ...[
           const SizedBox(height: 18),
-          _RecentLogs(history: widget.history!),
+          _RecentLogs(history: h),
         ],
       ],
     );

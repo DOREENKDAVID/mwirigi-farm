@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../core/service/api_service.dart';
 import '../widgets/brand_logo.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -100,7 +101,11 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 1400));
     if (!mounted || _navigated) return;
     _navigated = true;
-    Navigator.of(context).pushReplacementNamed('/onboarding');
+    final token = await ApiService.readToken();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      token != null ? '/dashboard' : '/onboarding',
+    );
   }
 
   @override

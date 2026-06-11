@@ -40,6 +40,14 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
   final _remarksController = TextEditingController();
 
   bool _submitting = false;
+  // True while a date-change triggered a backend fetch to pre-fill.
+  bool _loadingRecord = false;
+
+  // Local copy of records — starts from widget.records (7-day window)
+  // but is refreshed from the API whenever the user picks a date
+  // outside that window. This gives the form full historical "memory"
+  // without requiring the parent to re-fetch on every date change.
+  late List<LayerProduction> _localRecords;
 
   // Log date — defaults to today, but the user can pick a past date
   // to backfill or correct yesterday's / last week's reading.
@@ -71,6 +79,7 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
   @override
   void initState() {
     super.initState();
+    _localRecords = List.of(widget.records);
     _logDate = _midnight(DateTime.now());
     _populate();
   }
@@ -80,6 +89,7 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.house.id != widget.house.id ||
         oldWidget.records != widget.records) {
+      _localRecords = List.of(widget.records);
       _populate();
     }
   }
@@ -94,14 +104,12 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
     super.dispose();
   }
 
+  // Search _localRecords for a record matching _logDate and fill
+  // the form fields. Falls back to seeding opening stock from the
+  // most recent prior record's closing stock when no match exists.
   void _populate() {
-    // Find a record for the currently-picked date. In historical mode
-    // this preloads the day's existing reading (edit instead of
-    // re-enter); when there's no record yet for that day the inputs
-    // start blank with the opening-stock suggestion seeded from the
-    // last available record's closing stock.
     LayerProduction? matchRecord;
-    for (final r in widget.records) {
+    for (final r in _localRecords) {
       if (_isSameDay(r.date, _logDate)) {
         matchRecord = r;
         break;
@@ -110,21 +118,18 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
     if (matchRecord != null) {
       _openingController.text = matchRecord.openingStock.toString();
       // The backend stores eggsCollected as a raw integer count; the
-      // form's user-facing unit is crates (matches the rest of the
-      // layers UI). Convert on display, convert back on submit. We
-      // accept fractional crates because partial trays do happen
-      // (e.g. 92 eggs = 3.07 crates).
+      // form's user-facing unit is crates. Convert on display, back
+      // on submit. Accept fractional crates (e.g. 92 eggs = 3.07).
       _eggsController.text =
           _formatCrates(matchRecord.eggsCollected / _eggsPerCrate);
       _feedController.text = matchRecord.feedKg.toString();
       _deadController.text = matchRecord.deadRemoved.toString();
       _remarksController.text = matchRecord.remarks ?? '';
     } else {
-      // Newest record before _logDate (records arrive in ascending
-      // date order). Used to seed the opening-stock guess so the
-      // form is one tap away from a valid submit.
+      // Seed opening stock from the newest record before _logDate
+      // (records arrive in ascending date order).
       LayerProduction? priorRecord;
-      for (final r in widget.records) {
+      for (final r in _localRecords) {
         if (r.date.isBefore(_logDate)) {
           priorRecord = r;
         } else {
@@ -139,6 +144,43 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
     }
   }
 
+  // Fetch records from the backend covering [date] and populate
+  // the form. Called whenever the date picker changes to a date
+  // that might not be in the current _localRecords window.
+  Future<void> _fetchAndPopulate(DateTime date) async {
+    // How many days back is this date?
+    final today = _midnight(DateTime.now());
+    final daysSince = today.difference(date).inDays;
+
+    // Always fetch at least 30 days so recent history is available;
+    // for older picks, fetch exactly enough to cover the chosen date.
+    final daysToFetch = (daysSince + 2).clamp(30, 365);
+
+    setState(() => _loadingRecord = true);
+    try {
+      final raw = await ApiService.getLayersProductionForHouse(
+        widget.house.id,
+        days: daysToFetch,
+      );
+      final history = ProductionHistory.fromJson(
+        raw.cast<String, dynamic>(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _localRecords = history.records;
+        _loadingRecord = false;
+        _populate();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      // On error fall back to whatever is in _localRecords already.
+      setState(() {
+        _loadingRecord = false;
+        _populate();
+      });
+    }
+  }
+
   Future<void> _pickLogDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -150,19 +192,17 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
     if (picked == null) return;
     final m = _midnight(picked);
     if (m.isAtSameMomentAs(_logDate)) return;
-    setState(() {
-      _logDate = m;
-      _populate();
-    });
+    setState(() => _logDate = m);
+    // Always re-fetch so the form reflects the actual persisted value
+    // for the selected date, not a stale in-memory window.
+    await _fetchAndPopulate(m);
   }
 
-  void _backToToday() {
+  Future<void> _backToToday() async {
     final today = _midnight(DateTime.now());
     if (today.isAtSameMomentAs(_logDate)) return;
-    setState(() {
-      _logDate = today;
-      _populate();
-    });
+    setState(() => _logDate = today);
+    await _fetchAndPopulate(today);
   }
 
   Future<void> _submit() async {
@@ -222,6 +262,7 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
   Widget build(BuildContext context) {
     final color = _hexToColor(widget.house.color);
     final fullDate = DateFormat('EEEE, d MMMM').format(_logDate);
+    final busy = _submitting || _loadingRecord;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -263,7 +304,7 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
                   ),
                 ),
                 FilledButton(
-                  onPressed: _submitting ? null : _submit,
+                  onPressed: busy ? null : _submit,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF27500A),
                     padding: const EdgeInsets.symmetric(
@@ -296,8 +337,9 @@ class _DailyEntryFormState extends State<DailyEntryForm> {
             _DatePickerPill(
               date: _logDate,
               isToday: _isToday,
-              onPick: _pickLogDate,
-              onClear: _isToday ? null : _backToToday,
+              loading: _loadingRecord,
+              onPick: _loadingRecord ? null : _pickLogDate,
+              onClear: (_isToday || _loadingRecord) ? null : _backToToday,
             ),
             const SizedBox(height: 16),
             LayoutBuilder(
@@ -443,13 +485,15 @@ class _DatePickerPill extends StatelessWidget {
   const _DatePickerPill({
     required this.date,
     required this.isToday,
+    required this.loading,
     required this.onPick,
     this.onClear,
   });
 
   final DateTime date;
   final bool isToday;
-  final VoidCallback onPick;
+  final bool loading;
+  final VoidCallback? onPick;
   final VoidCallback? onClear;
 
   static const _primary = Color(0xFF27500A);
@@ -484,23 +528,35 @@ class _DatePickerPill extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.calendar_today_outlined, size: 14, color: fg),
+                    if (loading)
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: fg,
+                        ),
+                      )
+                    else
+                      Icon(Icons.calendar_today_outlined, size: 14, color: fg),
                     const SizedBox(width: 8),
                     Text(
-                      label,
+                      loading ? 'Loading record…' : label,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                         color: fg,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_drop_down, size: 18, color: fg),
+                    if (!loading) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, size: 18, color: fg),
+                    ],
                   ],
                 ),
               ),
             ),
-            if (!isToday)
+            if (!isToday && !loading)
               TextButton.icon(
                 onPressed: onClear,
                 icon: const Icon(Icons.refresh, size: 14),
@@ -519,7 +575,7 @@ class _DatePickerPill extends StatelessWidget {
               ),
           ],
         ),
-        if (!isToday) ...[
+        if (!isToday && !loading) ...[
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
