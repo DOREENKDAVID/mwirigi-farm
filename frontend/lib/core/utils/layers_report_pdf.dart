@@ -11,7 +11,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../models/layers_report.dart';
 
@@ -29,7 +28,7 @@ const _border    = PdfColor.fromInt(0xffd9d9d9);
 
 // ── Public entry point ────────────────────────────────────────────────
 
-Future<void> previewLayersReportPdf({
+Future<Uint8List> buildLayersReportPdf({
   required LayersProductionReport report,
   required String periodLabel,
   String? houseLabel,
@@ -44,11 +43,7 @@ Future<void> previewLayersReportPdf({
     generatedBy: generatedBy,
     logoBytes: logoBytes,
   ));
-  final bytes = await doc.save();
-  await Printing.layoutPdf(
-    name: 'Mwirigi-Layers-Production-Report',
-    onLayout: (_) async => bytes,
-  );
+  return doc.save();
 }
 
 // ── Logo loader ───────────────────────────────────────────────────────

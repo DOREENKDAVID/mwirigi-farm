@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/service/api_service.dart';
+import '../widgets/brand_logo.dart';
 import 'password_reset_success_screen.dart';
 
 class PasswordResetOTPScreen extends StatefulWidget {
@@ -136,6 +137,8 @@ class _PasswordResetOTPScreenState extends State<PasswordResetOTPScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Center(child: BrandLogo(height: 80)),
+                  const SizedBox(height: 24),
                   Text(
                     'Enter the 6-digit reset code sent to ${widget.email}, then choose a new password.',
                     style: const TextStyle(color: Colors.black54),

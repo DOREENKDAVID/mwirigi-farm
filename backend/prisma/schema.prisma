@@ -29,6 +29,11 @@ enum SalaryType {
   MONTHLY
 }
 
+enum EmploymentStatus {
+  ACTIVE
+  RELEASED
+}
+
 enum AttendanceStatus {
   PRESENT
   ABSENT
@@ -228,6 +233,14 @@ model User {
   mustChangePassword Boolean @default(false)
   isActive           Boolean @default(true)
 
+  // Employee lifecycle (mirrors Cow releasedAt / releasedType pattern)
+  employmentStatus EmploymentStatus @default(ACTIVE)
+  releaseDate      DateTime?
+  releaseReason    String?
+  releaseNotes     String?
+  releasedById     String?
+  releasedBy       User?            @relation("StaffReleaseBy", fields: [releasedById], references: [id], onDelete: SetNull)
+
   emailVerified Boolean   @default(false)
   otp           String?
   otpType       OtpType?
@@ -255,6 +268,8 @@ model User {
   taskReassignmentsBy   TaskReassignment[]  @relation("TaskReassignmentBy")
   authoredAllocations   AllocationPlan[]    @relation("AllocationAuthor")
   auditLogs             AuditLog[]          @relation("AuditActor")
+  releasedStaff         User[]              @relation("StaffReleaseBy")
+  createdSales          ProductSale[]       @relation("SaleCreatedBy")
 }
 
 model RefreshToken {
@@ -554,6 +569,7 @@ model LayerProduction {
 
   openingStock  Int
   eggsCollected Int
+  householdUsed Int     @default(0)
   trays         Float
   percentLaying Float
   feedKg        Float   @default(0)
@@ -893,12 +909,23 @@ model FattenPen {
   saleReady  Boolean @default(false)
   saleWindow String?
 
+  // Release tracking — set when pigs leave the pen (FC dispatch or local sale).
+  // finalWeight = totalWeight - (30kg × count)
+  totalWeight          Float?    // total live weight entered at release
+  deadWeightDeduction  Float?    // count × 30kg at time of release (snapshot)
+  finalWeight          Float?    // totalWeight − deadWeightDeduction (snapshot)
+  releasedAt           DateTime? // null = active pen; non-null = released/closed
+  releaseDestination   String?   // "FARMERS_CHOICE" | "LOCAL_SALE" | "OTHER"
+  releaseNotes         String?
+  revenueId            String?   @unique // back-link to auto-created Revenue row
+
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@index([house])
   @@index([deletedAt])
+  @@index([releasedAt])
 }
 
 // Farmers Choice (FC) dispatch log. One row per truck-load delivered
@@ -1416,8 +1443,9 @@ model VaccinationRecord {
   // from protocol.type + protocol.allowedMonths or recurrenceMonths.
   nextDueOverride DateTime?
 
-  notes        String?
-  recordedById String?
+  notes          String?
+  administeredBy String?
+  recordedById   String?
 
   createdAt DateTime @default(now())
 
@@ -1733,6 +1761,7 @@ enum PaymentMethod {
   BANK_TRANSFER
   CHEQUE
   CARD
+  CREDIT
 }
 
 model Revenue {
@@ -1749,6 +1778,9 @@ model Revenue {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Back-reference: set when this revenue row was auto-created by a sale.
+  sale ProductSale?
 
   @@index([unit])
   @@index([date])
@@ -1878,4 +1910,56 @@ model PayrollAdjustment {
   @@index([year, month])
   @@index([type])
   @@index([referenceNo])
+}
+
+// =============================================================
+// SALES — Egg & Milk product sales with auto-Finance integration
+// =============================================================
+
+enum SaleModule {
+  DAIRY
+  LAYERS
+}
+
+enum BuyerType {
+  SCHOOL
+  INDIVIDUAL
+  ORGANIZATION
+  HOTEL
+  DISTRIBUTOR
+  OTHER
+}
+
+// ProductSale tracks each physical sale transaction. On creation the
+// service atomically writes a Revenue row for Finance (same pattern
+// as piggery FC deliveries). Editing the amountPaid also updates the
+// linked Revenue row inside a transaction.
+model ProductSale {
+  id               String        @id @default(uuid())
+  module           SaleModule
+  saleDate         DateTime
+  // quantity is crates for Layers, litres for Dairy
+  quantity         Float
+  unitLabel        String        // "crates" | "L"
+  buyerType        BuyerType
+  buyerName        String
+  paymentMode      PaymentMethod
+  paymentReference String?
+  amountPaid       Float
+  notes            String?
+
+  // Finance link: auto-created Revenue row; null only when amountPaid = 0.
+  revenueId String?  @unique
+  revenue   Revenue? @relation(fields: [revenueId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([module])
+  @@index([saleDate])
+  @@index([buyerType])
+  @@index([paymentMode])
 }

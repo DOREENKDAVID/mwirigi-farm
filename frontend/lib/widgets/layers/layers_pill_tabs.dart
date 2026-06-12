@@ -13,6 +13,7 @@ enum LayersTab {
   brooder('Brooder'),
   houses('Houses'),
   production('Production'),
+  sales('💰 Sales'),
   vaccination('Vaccination'),
   reminders('Reminders'),
   inventory('Inventory'),

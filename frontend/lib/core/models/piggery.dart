@@ -298,6 +298,13 @@ class FattenPen {
     this.age,
     required this.saleReady,
     this.saleWindow,
+    this.totalWeight,
+    this.deadWeightDeduction,
+    this.finalWeight,
+    this.releasedAt,
+    this.releaseDestination,
+    this.releaseNotes,
+    this.revenueId,
   });
 
   final String id;
@@ -307,6 +314,15 @@ class FattenPen {
   final String? age;
   final bool saleReady;
   final String? saleWindow;
+  final double? totalWeight;
+  final double? deadWeightDeduction;
+  final double? finalWeight;
+  final DateTime? releasedAt;
+  final String? releaseDestination;
+  final String? releaseNotes;
+  final String? revenueId;
+
+  bool get isReleased => releasedAt != null;
 
   factory FattenPen.fromJson(Map<String, dynamic> j) {
     return FattenPen(
@@ -317,6 +333,13 @@ class FattenPen {
       age: _str(j['age']),
       saleReady: j['saleReady'] == true,
       saleWindow: _str(j['saleWindow']),
+      totalWeight: j['totalWeight'] == null ? null : _toNum(j['totalWeight']).toDouble(),
+      deadWeightDeduction: j['deadWeightDeduction'] == null ? null : _toNum(j['deadWeightDeduction']).toDouble(),
+      finalWeight: j['finalWeight'] == null ? null : _toNum(j['finalWeight']).toDouble(),
+      releasedAt: _parseDate(j['releasedAt']),
+      releaseDestination: _str(j['releaseDestination']),
+      releaseNotes: _str(j['releaseNotes']),
+      revenueId: _str(j['revenueId']),
     );
   }
 }

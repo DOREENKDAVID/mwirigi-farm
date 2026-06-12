@@ -38,6 +38,7 @@ const projectUser = (u) => ({
   fullName: u.userName,
   email: u.email,
   role: u.role,
+  jobTitle: u.jobTitle ?? null,
   department: u.department,
   phoneNumber: u.phoneNumber,
   nationalId: u.nationalId,
@@ -45,6 +46,11 @@ const projectUser = (u) => ({
   dailyRate: u.dailyRate,
   monthlySalary: u.monthlySalary,
   isActive: u.isActive,
+  employmentStatus: u.employmentStatus ?? "ACTIVE",
+  releaseDate: u.releaseDate?.toISOString() ?? null,
+  releaseReason: u.releaseReason ?? null,
+  releaseNotes: u.releaseNotes ?? null,
+  releasedByName: u.releasedBy?.userName ?? null,
   mustChangePassword: u.mustChangePassword,
   createdAt: u.createdAt,
 });
@@ -91,16 +97,29 @@ export const createStaff = async (input) => {
 };
 
 // GET /api/staff
-export const listStaff = async ({ includeInactive = false } = {}) => {
+// status: 'ACTIVE' | 'RELEASED' | null (all)
+export const listStaff = async ({ includeInactive = false, status = null } = {}) => {
+  let where = {};
+  if (status === "ACTIVE") {
+    where = LIFECYCLE.STAFF_ACTIVE;
+  } else if (status === "RELEASED") {
+    where = { employmentStatus: "RELEASED" };
+  } else if (!includeInactive) {
+    where = LIFECYCLE.STAFF_ACTIVE;
+  }
   const users = await prisma.user.findMany({
-    where: includeInactive ? {} : LIFECYCLE.STAFF_ACTIVE,
+    where,
+    include: { releasedBy: { select: { userName: true } } },
     orderBy: { userName: "asc" },
   });
   return users.map(projectUser);
 };
 
 export const getStaffById = async (id) => {
-  const user = await prisma.user.findUnique({ where: { id } });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    include: { releasedBy: { select: { userName: true } } },
+  });
   if (!user) throw new Error("Staff not found");
   return projectUser(user);
 };
@@ -111,6 +130,7 @@ export const updateStaff = async (id, patch, actorId = null) => {
   const data = {};
   for (const k of [
     "role",
+    "jobTitle",
     "department",
     "phoneNumber",
     "nationalId",
@@ -164,6 +184,46 @@ export const deactivateStaff = async (id, actorId = null) => {
       snapshot: { isActive: false },
     });
     return updated;
+  });
+};
+
+// POST /api/staff/:id/release — structured termination with audit trail.
+// Sets employmentStatus=RELEASED + isActive=false. Record is preserved.
+export const releaseStaff = async (id, input, actorId = null) => {
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw new Error("Staff not found");
+  if (existing.employmentStatus === "RELEASED")
+    throw new Error("Staff is already released");
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
+      where: { id },
+      include: { releasedBy: { select: { userName: true } } },
+      data: {
+        isActive: false,
+        employmentStatus: "RELEASED",
+        releaseDate: input.releaseDate,
+        releaseReason: input.releaseReason,
+        releaseNotes: input.releaseNotes ?? null,
+        releasedById: actorId,
+      },
+    });
+    await writeAuditLog(tx, {
+      entity: "User",
+      entityId: id,
+      action: "RELEASED",
+      module: "staff",
+      actorId,
+      oldValue: { isActive: true, employmentStatus: "ACTIVE" },
+      snapshot: {
+        isActive: false,
+        employmentStatus: "RELEASED",
+        releaseDate: input.releaseDate,
+        releaseReason: input.releaseReason,
+        releaseNotes: input.releaseNotes ?? null,
+      },
+    });
+    return projectUser(updated);
   });
 };
 

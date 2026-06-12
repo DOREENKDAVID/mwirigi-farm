@@ -75,6 +75,22 @@ enum TaskStatus {
   }
 }
 
+enum EmploymentStatus {
+  active('ACTIVE', 'Active'),
+  released('RELEASED', 'Released');
+
+  const EmploymentStatus(this.wire, this.label);
+  final String wire;
+  final String label;
+
+  static EmploymentStatus fromWire(String? s) {
+    for (final v in values) {
+      if (v.wire == s) return v;
+    }
+    return EmploymentStatus.active;
+  }
+}
+
 enum PayrollStatus {
   pending('PENDING', 'Pending'),
   paid('PAID', 'Paid');
@@ -91,29 +107,46 @@ enum PayrollStatus {
   }
 }
 
-/// Staff member, used by the assignee dropdown and (later) edit/remove flows.
+/// Staff member — used by assignment dropdowns, the Employees tab, and
+/// the edit / release dialogs.
 class Staff {
   Staff({
     required this.id,
     required this.fullName,
     required this.email,
     required this.role,
+    this.jobTitle,
     this.department,
+    this.phoneNumber,
     this.dailyRate,
     this.monthlySalary,
     this.salaryType,
     this.isActive = true,
+    this.employmentStatus = EmploymentStatus.active,
+    this.releaseDate,
+    this.releaseReason,
+    this.releaseNotes,
+    this.releasedByName,
+    this.createdAt,
   });
 
   final String id;
   final String fullName;
   final String email;
   final String role;
+  final String? jobTitle;
   final String? department;
+  final String? phoneNumber;
   final num? dailyRate;
   final num? monthlySalary;
   final String? salaryType;
   final bool isActive;
+  final EmploymentStatus employmentStatus;
+  final DateTime? releaseDate;
+  final String? releaseReason;
+  final String? releaseNotes;
+  final String? releasedByName;
+  final DateTime? createdAt;
 
   factory Staff.fromJson(Map<String, dynamic> j) {
     return Staff(
@@ -121,12 +154,21 @@ class Staff {
       fullName: (j['fullName'] ?? '').toString(),
       email: (j['email'] ?? '').toString(),
       role: (j['role'] ?? '').toString(),
+      jobTitle: j['jobTitle']?.toString(),
       department: j['department']?.toString(),
+      phoneNumber: j['phoneNumber']?.toString(),
       dailyRate: j['dailyRate'] == null ? null : _toNum(j['dailyRate']),
       monthlySalary:
           j['monthlySalary'] == null ? null : _toNum(j['monthlySalary']),
       salaryType: j['salaryType']?.toString(),
       isActive: j['isActive'] != false,
+      employmentStatus:
+          EmploymentStatus.fromWire(j['employmentStatus']?.toString()),
+      releaseDate: _parseDate(j['releaseDate']),
+      releaseReason: j['releaseReason']?.toString(),
+      releaseNotes: j['releaseNotes']?.toString(),
+      releasedByName: j['releasedByName']?.toString(),
+      createdAt: _parseDate(j['createdAt']),
     );
   }
 }

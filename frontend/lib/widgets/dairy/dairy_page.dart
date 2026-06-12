@@ -17,6 +17,7 @@ import '../reminders/unit_reminders_card.dart';
 import 'houses_overview_grid.dart';
 import 'milk_logging_panel.dart';
 import 'reproduction_tracker.dart';
+import '../sales/sales_page.dart';
 
 /// Dairy module body shown by MainScreen when FarmSection.dairy is selected.
 ///
@@ -176,6 +177,8 @@ class _DairyPageState extends State<DairyPage> {
         return const [DairyInventoryCard()];
       case DairyTab.dailyMilk:
         return const [DailyMilkTrendCard()];
+      case DairyTab.sales:
+        return const [SalesPage(module: 'DAIRY')];
       case DairyTab.reports:
         // Unreachable in normal flow — `_onTabSelected` intercepts the
         // Reports pill and pushes DairyReportsPage as a full route

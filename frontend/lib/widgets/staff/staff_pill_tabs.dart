@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 ///   • Payroll     — full payroll summary table + Approve / Export
 enum StaffTab {
   overview('Overview'),
+  employees('👥 Employees'),
   attendance('Attendance'),
   tasks('Tasks'),
   payroll('Payroll');

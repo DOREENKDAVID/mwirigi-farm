@@ -105,6 +105,12 @@ router.patch(
   authorizeRoles("CEO", "PIGGERY_MANAGER"),
   controller.updatePen,
 );
+router.post(
+  "/pens/:id/release",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.releasePen,
+);
 router.delete(
   "/pens/:id",
   authMiddleware,

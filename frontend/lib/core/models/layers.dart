@@ -97,6 +97,7 @@ class LayerProduction {
     required this.deadRemoved,
     required this.closingStock,
     required this.dayAge,
+    this.householdUsed = 0,
     this.remarks,
   });
 
@@ -110,7 +111,10 @@ class LayerProduction {
   final int deadRemoved;
   final int closingStock;
   final int dayAge;
+  final int householdUsed;
   final String? remarks;
+
+  int get availableEggs => (eggsCollected - householdUsed).clamp(0, eggsCollected);
 
   factory LayerProduction.fromJson(Map<String, dynamic> j) {
     return LayerProduction(
@@ -124,6 +128,7 @@ class LayerProduction {
       deadRemoved: _toInt(j['deadRemoved']),
       closingStock: _toInt(j['closingStock']),
       dayAge: _toInt(j['dayAge']),
+      householdUsed: _toInt(j['householdUsed']),
       remarks: j['remarks']?.toString(),
     );
   }

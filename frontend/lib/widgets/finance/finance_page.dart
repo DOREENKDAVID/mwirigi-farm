@@ -131,6 +131,8 @@ class _FinancePageState extends State<FinancePage> {
             },
           ),
         ];
+      case FinanceTab.revenue:
+        return [const _RevenuePill()];
       case FinanceTab.payroll:
         return [const _PayrollPanel()];
       default:
@@ -1380,6 +1382,356 @@ class _ErrorView extends StatelessWidget {
           child: FilledButton(onPressed: onRetry, child: const Text('Retry')),
         ),
       ],
+    );
+  }
+}
+
+// ===================================================================
+// Revenue pill — unified ledger across all modules
+// ===================================================================
+
+class _RevenuePill extends StatefulWidget {
+  const _RevenuePill();
+  @override
+  State<_RevenuePill> createState() => _RevenuePillState();
+}
+
+class _RevenuePillState extends State<_RevenuePill> {
+  static const _units = ['All', 'Dairy', 'Layers', 'Piggery', 'Ngushish', 'Feedlot', 'Doopers'];
+
+  String _unitFilter = 'All';
+  DateTime? _from;
+  DateTime? _to;
+  late Future<List<RevenueRow>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<List<RevenueRow>> _load() async {
+    final raw = await ApiService.getFinanceRevenue(
+      unit: _unitFilter == 'All' ? null : _unitFilter,
+      from: _from?.toIso8601String().substring(0, 10),
+      to: _to?.toIso8601String().substring(0, 10),
+      limit: 200,
+    );
+    final list = (raw['rows'] as List? ?? []).whereType<Map>();
+    return list.map((m) => RevenueRow.fromJson(m.cast<String, dynamic>())).toList();
+  }
+
+  void _applyFilters() => setState(() => _future = _load());
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+      initialDateRange: _from != null && _to != null
+          ? DateTimeRange(start: _from!, end: _to!)
+          : null,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _from = picked.start;
+        _to = picked.end;
+        _future = _load();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<RevenueRow>>(
+      future: _future,
+      builder: (context, snap) {
+        final rows = snap.data ?? [];
+        final loading = snap.connectionState != ConnectionState.done;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ---- Filter bar ----
+            _RevenueFilterBar(
+              unitFilter: _unitFilter,
+              units: _units,
+              from: _from,
+              to: _to,
+              onUnitChanged: (v) {
+                _unitFilter = v;
+                _applyFilters();
+              },
+              onDateRange: _pickDateRange,
+              onClearDates: () => setState(() {
+                _from = null;
+                _to = null;
+                _future = _load();
+              }),
+            ),
+            const SizedBox(height: 14),
+            // ---- KPI strip (computed from loaded rows) ----
+            if (!loading) _RevenueKpiStrip(rows: rows),
+            if (!loading) const SizedBox(height: 14),
+            // ---- Table ----
+            if (loading)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(32),
+                child: CircularProgressIndicator(),
+              ))
+            else if (snap.hasError)
+              Center(child: Text(
+                snap.error.toString().replaceFirst('Exception: ', ''),
+                style: const TextStyle(color: Color(0xFFE24B4A)),
+              ))
+            else
+              _RevenueTable(rows: rows),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ---- Filter bar ----
+
+class _RevenueFilterBar extends StatelessWidget {
+  const _RevenueFilterBar({
+    required this.unitFilter,
+    required this.units,
+    required this.from,
+    required this.to,
+    required this.onUnitChanged,
+    required this.onDateRange,
+    required this.onClearDates,
+  });
+
+  final String unitFilter;
+  final List<String> units;
+  final DateTime? from;
+  final DateTime? to;
+  final ValueChanged<String> onUnitChanged;
+  final VoidCallback onDateRange;
+  final VoidCallback onClearDates;
+
+  static const _primary = Color(0xFF27500A);
+  static const _txt2 = Color(0xFF6B7770);
+
+  String get _dateLabel {
+    if (from == null && to == null) return 'All dates';
+    String fmt(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
+    if (from != null && to != null) return '${fmt(from!)} – ${fmt(to!)}';
+    if (from != null) return 'From ${fmt(from!)}';
+    return 'To ${fmt(to!)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Module filter chips
+        for (final u in units)
+          ChoiceChip(
+            label: Text(u),
+            selected: unitFilter == u,
+            selectedColor: const Color(0xFFE7F0DD),
+            labelStyle: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: unitFilter == u ? _primary : _txt2,
+            ),
+            onSelected: (_) => onUnitChanged(u),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          ),
+        // Date range button
+        ActionChip(
+          avatar: const Icon(Icons.date_range_outlined, size: 14),
+          label: Text(_dateLabel, style: const TextStyle(fontSize: 12)),
+          onPressed: onDateRange,
+        ),
+        if (from != null || to != null)
+          ActionChip(
+            avatar: const Icon(Icons.clear, size: 14),
+            label: const Text('Clear', style: TextStyle(fontSize: 12)),
+            onPressed: onClearDates,
+          ),
+      ],
+    );
+  }
+}
+
+// ---- KPI strip ----
+
+class _RevenueKpiStrip extends StatelessWidget {
+  const _RevenueKpiStrip({required this.rows});
+  final List<RevenueRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    double total = 0, dairy = 0, layers = 0, piggery = 0;
+    for (final r in rows) {
+      total += r.amount;
+      if (r.unit == 'Dairy') dairy += r.amount;
+      if (r.unit == 'Layers') layers += r.amount;
+      if (r.unit == 'Piggery') piggery += r.amount;
+    }
+    final fmt = NumberFormat('#,##0', 'en_KE');
+    return KpiGrid(
+      children: [
+        _RevKpiCard(label: 'Total revenue', value: 'Ksh ${fmt.format(total)}', color: const Color(0xFF27500A)),
+        _RevKpiCard(label: 'Dairy', value: 'Ksh ${fmt.format(dairy)}', color: const Color(0xFF3B6D11)),
+        _RevKpiCard(label: 'Layers', value: 'Ksh ${fmt.format(layers)}', color: const Color(0xFF1D9E75)),
+        _RevKpiCard(label: 'Piggery', value: 'Ksh ${fmt.format(piggery)}', color: const Color(0xFFEF9F27)),
+      ],
+    );
+  }
+}
+
+class _RevKpiCard extends StatelessWidget {
+  const _RevKpiCard({required this.label, required this.value, required this.color});
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0x14000000)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label.toUpperCase(),
+              style: const TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w800,
+                  color: Colors.black45, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- Revenue table ----
+
+class _RevenueTable extends StatelessWidget {
+  const _RevenueTable({required this.rows});
+  final List<RevenueRow> rows;
+
+  static const _txt2 = Color(0xFF6B7770);
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  String _fmtAmt(double v) => NumberFormat('#,##0.00', 'en_KE').format(v);
+
+  String _categoryLabel(String c) => c
+      .split('_')
+      .map((w) => w.isEmpty ? '' : '${w[0]}${w.substring(1).toLowerCase()}')
+      .join(' ');
+
+  Color _unitColor(String unit) => switch (unit) {
+        'Dairy' => const Color(0xFF3B6D11),
+        'Layers' => const Color(0xFF1D9E75),
+        'Piggery' => const Color(0xFFEF9F27),
+        'Ngushish' => const Color(0xFF639922),
+        'Feedlot' => const Color(0xFF854F0B),
+        'Doopers' => const Color(0xFFA8743C),
+        _ => const Color(0xFF6B7770),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text('No revenue entries for the selected filters.',
+              style: TextStyle(color: Colors.black45)),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0x14000000)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: 16,
+          headingTextStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
+            color: Colors.black54,
+          ),
+          dataTextStyle: const TextStyle(fontSize: 12, color: Colors.black87),
+          columns: const [
+            DataColumn(label: Text('DATE')),
+            DataColumn(label: Text('MODULE')),
+            DataColumn(label: Text('CATEGORY')),
+            DataColumn(label: Text('QTY')),
+            DataColumn(label: Text('UNIT')),
+            DataColumn(label: Text('AMOUNT (KSH)'), numeric: true),
+            DataColumn(label: Text('NOTES')),
+          ],
+          rows: [
+            for (final r in rows)
+              DataRow(cells: [
+                DataCell(Text(_fmtDate(r.date),
+                    style: const TextStyle(fontSize: 11))),
+                DataCell(Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _unitColor(r.unit).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(r.unit,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _unitColor(r.unit))),
+                )),
+                DataCell(Text(_categoryLabel(r.category),
+                    style: const TextStyle(fontSize: 11))),
+                DataCell(Text(
+                  r.quantity != null ? r.quantity!.toStringAsFixed(1) : '—',
+                  style: const TextStyle(fontSize: 11),
+                )),
+                DataCell(Text(r.unitLabel ?? '—',
+                    style: const TextStyle(fontSize: 11))),
+                DataCell(Text(_fmtAmt(r.amount),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF27500A)))),
+                DataCell(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 200),
+                    child: Text(
+                      r.notes ?? '—',
+                      style: const TextStyle(fontSize: 11, color: _txt2),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ]),
+          ],
+        ),
+      ),
     );
   }
 }

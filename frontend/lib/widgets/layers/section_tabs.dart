@@ -15,6 +15,7 @@ import 'layers_production_analytics_card.dart';
 import '../reminders/unit_reminders_card.dart';
 import 'seven_day_chart.dart';
 import 'vaccination_timeline.dart';
+import '../sales/sales_page.dart';
 
 /// Pill-driven section navigation for the Layers Unit page. Mirrors
 /// the Dairy pill pattern — KPI strip stays pinned above, each pill
@@ -223,6 +224,8 @@ class _LayersSectionTabsState extends State<LayersSectionTabs> {
               records: widget.histories.first.records,
             ),
         ];
+      case LayersTab.sales:
+        return const [SalesPage(module: 'LAYERS')];
       case LayersTab.vaccination:
         if (unit.vaccination.isEmpty) {
           return const [

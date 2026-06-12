@@ -22,6 +22,7 @@ export const dailyEntrySchema = z.object({
 
   feedKg: z.number().nonnegative().optional().default(0),
   deadRemoved: z.number().int().nonnegative().optional().default(0),
+  householdUsed: z.number().int().nonnegative().optional().default(0),
   remarks: z.string().max(2000).optional(),
 
   // Optional explicit date — defaults to today server-side. Useful for
@@ -31,4 +32,7 @@ export const dailyEntrySchema = z.object({
 
 export const daysQuerySchema = z.object({
   days: z.coerce.number().int().positive().max(90).optional().default(7),
+  // When supplied, the production history endpoint returns only records for
+  // that exact calendar day instead of the last `days` days from today.
+  date: z.coerce.date().optional(),
 });

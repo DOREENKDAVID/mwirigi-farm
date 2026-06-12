@@ -50,6 +50,12 @@ router.delete(
   authorizeRoles(...ADMIN),
   controller.deleteStaff,
 );
+router.post(
+  "/:id/release",
+  authMiddleware,
+  authorizeRoles(...STAFF_WRITERS),
+  controller.releaseStaff,
+);
 
 // ===== Attendance =====
 router.get(

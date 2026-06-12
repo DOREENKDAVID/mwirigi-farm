@@ -46,14 +46,24 @@ export const listHouses = async () => {
 //////////////////////////////////////////////////////
 
 // GET /api/layers/production/:houseId?days=7
-// Latest N days of records for one house, oldest → newest in the response.
-export const getProductionForHouse = async (houseId, { days }) => {
+// GET /api/layers/production/:houseId?date=ISO   ← single-day historical view
+//
+// When `date` is supplied: returns only the records logged for that exact
+// calendar day. When omitted: returns the last `days` days from today
+// (original behaviour, used by the parent page's initial load).
+export const getProductionForHouse = async (houseId, { days, date }) => {
   const house = await prisma.house.findUnique({ where: { id: houseId } });
   if (!house) throw new Error("House not found");
 
-  const end = endOfDay(new Date());
-  const start = startOfDay(new Date());
-  start.setDate(start.getDate() - (days - 1));
+  let start, end;
+  if (date) {
+    start = startOfDay(date);
+    end = endOfDay(date);
+  } else {
+    end = endOfDay(new Date());
+    start = startOfDay(new Date());
+    start.setDate(start.getDate() - (days - 1));
+  }
 
   const records = await prisma.layerProduction.findMany({
     where: { houseId, date: { gte: start, lte: end } },
@@ -98,6 +108,7 @@ export const upsertDailyEntry = async (input) => {
     date,
     openingStock: opening,
     eggsCollected: eggs,
+    householdUsed: input.householdUsed ?? 0,
     trays,
     percentLaying,
     feedKg: input.feedKg,
@@ -124,6 +135,7 @@ export const upsertDailyEntry = async (input) => {
     update: {
       openingStock: data.openingStock,
       eggsCollected: data.eggsCollected,
+      householdUsed: data.householdUsed,
       trays: data.trays,
       percentLaying: data.percentLaying,
       feedKg: data.feedKg,
@@ -167,15 +179,17 @@ export const getSnapshot = async () => {
 
   return houses.map((h) => {
     const last = h.layerProductions[0];
+    const eggsToday = last?.eggsCollected ?? 0;
+    const householdUsed = last?.householdUsed ?? 0;
     return {
       houseId: h.id,
       name: h.name,
       color: h.color,
       capacity: h.capacity,
-      // currentStock = closing stock of the latest entry; falls back to
-      // openingStock if closing somehow isn't set, then 0.
       currentStock: last?.closingStock ?? 0,
-      eggsToday: last?.eggsCollected ?? 0,
+      eggsToday,
+      householdUsed,
+      availableEggs: Math.max(0, eggsToday - householdUsed),
       trays: last?.trays ?? 0,
       percentLaying: last?.percentLaying ?? 0,
       feedKg: last?.feedKg ?? 0,
@@ -253,6 +267,7 @@ export const getKpis = async () => {
       select: {
         openingStock: true,
         eggsCollected: true,
+        householdUsed: true,
         deadRemoved: true,
         feedKg: true,
       },
@@ -275,9 +290,12 @@ export const getKpis = async () => {
   let feedToday;
   let mortalityToday;
 
+  let householdUsedToday = 0;
+
   if (todayRows.length > 0) {
     totalBirds = todayRows.reduce((s, r) => s + r.openingStock, 0);
     eggsToday = todayRows.reduce((s, r) => s + r.eggsCollected, 0);
+    householdUsedToday = todayRows.reduce((s, r) => s + (r.householdUsed ?? 0), 0);
     feedToday = Number(
       todayRows.reduce((s, r) => s + r.feedKg, 0).toFixed(2),
     );
@@ -295,11 +313,16 @@ export const getKpis = async () => {
   const traysToday = Number((eggsToday / EGGS_PER_TRAY).toFixed(2));
   const avgLayingRate =
     totalBirds > 0 ? Math.min(1, eggsToday / totalBirds) : 0;
+  const availableEggsToday = Math.max(0, eggsToday - householdUsedToday);
+  const availableTraysToday = Number((availableEggsToday / EGGS_PER_TRAY).toFixed(2));
 
   return {
     totalBirds,
     eggsToday,
     traysToday,
+    householdUsedToday,
+    availableEggsToday,
+    availableTraysToday,
     avgLayingRate,
     feedToday,
     mortalityToday,

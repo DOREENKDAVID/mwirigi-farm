@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/health.dart';
 import '../../core/service/api_service.dart';
+import 'status_badge.dart';
 
-/// Edit the most-recent VaccinationRecord for a protocol row.
-/// Pre-fills from [row.animals], [row.lastDoneAt], [row.lastRecordNextDue],
-/// and [row.lastRecordNotes]. Calls PATCH /health/vaccinations/records/:id.
+/// Edit (or create the first) VaccinationRecord for a DB protocol row.
 ///
-/// Only shown for rows where [row.lastRecordId] != null and
-/// [row.source] == "DB".
+/// When [row.lastRecordId] is non-null the dialog PATCHes the existing
+/// record. When it is null (no vaccination has ever been logged) the
+/// dialog POSTs a new record using [row.protocolId].
 class EditVaccineDialog extends StatefulWidget {
   const EditVaccineDialog({super.key, required this.row});
   final VaccinationRow row;
@@ -18,18 +18,25 @@ class EditVaccineDialog extends StatefulWidget {
 }
 
 class _EditVaccineDialogState extends State<EditVaccineDialog> {
+  static const _primary = Color(0xFF27500A);
+
   final _formKey = GlobalKey<FormState>();
   final _animalsController = TextEditingController();
+  final _administeredByController = TextEditingController();
   final _notesController = TextEditingController();
 
   late DateTime _dateDone;
   DateTime? _nextDueOverride;
   bool _submitting = false;
 
+  bool get _isCreate => widget.row.lastRecordId == null;
+
   @override
   void initState() {
     super.initState();
     _animalsController.text = widget.row.animals.toString();
+    _administeredByController.text =
+        widget.row.lastRecordAdministeredBy ?? '';
     _notesController.text = widget.row.lastRecordNotes ?? '';
     _dateDone = widget.row.lastDoneAt ?? DateTime.now();
     _nextDueOverride = widget.row.lastRecordNextDue;
@@ -38,6 +45,7 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
   @override
   void dispose() {
     _animalsController.dispose();
+    _administeredByController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -64,22 +72,38 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final animalCount = int.tryParse(_animalsController.text.trim()) ?? 0;
+    final administeredBy = _administeredByController.text.trim();
     final notes = _notesController.text.trim();
 
     setState(() => _submitting = true);
     try {
-      await ApiService.updateHealthVaccinationRecord(
-        widget.row.lastRecordId!,
-        {
+      if (_isCreate) {
+        await ApiService.createHealthVaccination({
+          'protocolId': widget.row.protocolId,
           'animalCount': animalCount,
           'administeredAt': _dateDone.toIso8601String(),
           if (_nextDueOverride != null)
             'nextDueOverride': _nextDueOverride!.toIso8601String()
           else
             'nextDueOverride': null,
+          if (administeredBy.isNotEmpty) 'administeredBy': administeredBy,
           if (notes.isNotEmpty) 'notes': notes,
-        },
-      );
+        });
+      } else {
+        await ApiService.updateHealthVaccinationRecord(
+          widget.row.lastRecordId!,
+          {
+            'animalCount': animalCount,
+            'administeredAt': _dateDone.toIso8601String(),
+            if (_nextDueOverride != null)
+              'nextDueOverride': _nextDueOverride!.toIso8601String()
+            else
+              'nextDueOverride': null,
+            'administeredBy': administeredBy.isNotEmpty ? administeredBy : null,
+            if (notes.isNotEmpty) 'notes': notes else 'notes': null,
+          },
+        );
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -93,8 +117,6 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
 
   @override
   Widget build(BuildContext context) {
-    const primary = Color(0xFF27500A);
-
     return AlertDialog(
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -102,10 +124,10 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Edit Vaccination Record',
-            style: TextStyle(
-              color: primary,
+          Text(
+            _isCreate ? 'Log Vaccination' : 'Edit Vaccination Record',
+            style: const TextStyle(
+              color: _primary,
               fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
@@ -126,15 +148,45 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Unit — read-only display
-                InputDecorator(
+                // Status + Unit row
+                Row(
+                  children: [
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Animal Type',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        child: Text(
+                          widget.row.unit,
+                          style: const TextStyle(
+                              fontSize: 13, color: Colors.black54),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Current Status',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        child: StatusBadge(status: widget.row.status),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Administered By
+                TextFormField(
+                  controller: _administeredByController,
+                  enabled: !_submitting,
                   decoration: const InputDecoration(
-                    labelText: 'Unit',
+                    labelText: 'Administered By',
+                    hintText: 'Vet / staff name (optional)',
                     border: OutlineInputBorder(),
-                  ),
-                  child: Text(
-                    widget.row.unit,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -160,12 +212,15 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: _submitting ? null : () => _pickDate(isNextDue: false),
+                        onTap: _submitting
+                            ? null
+                            : () => _pickDate(isNextDue: false),
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Date done *',
                             border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_month, size: 18),
+                            suffixIcon:
+                                Icon(Icons.calendar_month, size: 18),
                           ),
                           child: Text(
                             _fmt(_dateDone),
@@ -177,12 +232,15 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: InkWell(
-                        onTap: _submitting ? null : () => _pickDate(isNextDue: true),
+                        onTap: _submitting
+                            ? null
+                            : () => _pickDate(isNextDue: true),
                         child: InputDecorator(
                           decoration: const InputDecoration(
                             labelText: 'Next due',
                             border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_month, size: 18),
+                            suffixIcon:
+                                Icon(Icons.calendar_month, size: 18),
                           ),
                           child: Text(
                             _nextDueOverride == null
@@ -219,12 +277,13 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          onPressed:
+              _submitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
           onPressed: _submitting ? null : _submit,
-          style: FilledButton.styleFrom(backgroundColor: primary),
+          style: FilledButton.styleFrom(backgroundColor: _primary),
           child: _submitting
               ? const SizedBox(
                   width: 16,
@@ -234,7 +293,7 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
                     color: Colors.white,
                   ),
                 )
-              : const Text('Save'),
+              : Text(_isCreate ? 'Log' : 'Save'),
         ),
       ],
     );

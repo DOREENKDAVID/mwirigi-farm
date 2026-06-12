@@ -21,6 +21,7 @@ enum DairyTab {
   reminders('Reminders'),
   inventory('Inventory'),
   dailyMilk('Daily milk'),
+  sales('💰 Sales'),
   // Routes into the filter-aware Dairy Reports dashboard (Milk ·
   // Reproduction · Health · Vaccinations) with the four pill filters
   // pre-wired. Same surface the central Reports page now points at.

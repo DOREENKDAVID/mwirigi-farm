@@ -86,6 +86,7 @@ class VaccinationRow {
     this.lastRecordId,
     this.lastRecordNotes,
     this.lastRecordNextDue,
+    this.lastRecordAdministeredBy,
   });
 
   final String id;
@@ -111,6 +112,7 @@ class VaccinationRow {
   final String? lastRecordId;
   final String? lastRecordNotes;
   final DateTime? lastRecordNextDue;
+  final String? lastRecordAdministeredBy;
 
   factory VaccinationRow.fromJson(Map<String, dynamic> j) {
     return VaccinationRow(
@@ -140,6 +142,7 @@ class VaccinationRow {
       lastRecordId: j['lastRecordId']?.toString(),
       lastRecordNotes: j['lastRecordNotes']?.toString(),
       lastRecordNextDue: _parseDate(j['lastRecordNextDue']),
+      lastRecordAdministeredBy: j['lastRecordAdministeredBy']?.toString(),
     );
   }
 }

@@ -6,6 +6,7 @@ import '../../core/service/api_service.dart';
 import '../dashboard/kpi_card.dart';
 import '../dashboard/kpi_grid.dart';
 import 'attendance_panel.dart';
+import 'employee_list.dart';
 import 'payroll_summary_table.dart';
 import 'staff_pill_tabs.dart';
 import 'staff_roster_by_unit_card.dart';
@@ -109,6 +110,10 @@ class _StaffPageState extends State<StaffPage> {
             data: data,
             onOpen: () => setState(() => _active = StaffTab.payroll),
           ),
+        ];
+      case StaffTab.employees:
+        return [
+          EmployeeList(onChanged: _refresh),
         ];
       case StaffTab.attendance:
         return [

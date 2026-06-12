@@ -269,6 +269,21 @@ class _PiggeryPageState extends State<PiggeryPage> {
     if (saved == true) await _afterSave('${p.pen} updated');
   }
 
+  Future<void> _openReleasePen(FattenPen p) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReleasePenDialog(pen: p),
+    );
+    if (result == null) return;
+    await _afterSave('Pen ${p.pen} released');
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ReleaseSummaryDialog(result: result),
+    );
+  }
+
   Future<void> _deleteEntity({
     required String entityName,
     required String label,
@@ -484,6 +499,7 @@ class _PiggeryPageState extends State<PiggeryPage> {
             subtitle: 'David · Beaconners building weight',
             pens: data.fattening,
             onEdit: _openEditPen,
+            onRelease: _openReleasePen,
             onDelete: (p) => _deleteEntity(
               entityName: 'pen',
               label: p.pen,
@@ -506,6 +522,7 @@ class _PiggeryPageState extends State<PiggeryPage> {
             pens: data.finishing,
             showSaleStatus: true,
             onEdit: _openEditPen,
+            onRelease: _openReleasePen,
             onDelete: (p) => _deleteEntity(
               entityName: 'pen',
               label: p.pen,
@@ -1499,6 +1516,7 @@ class _PenSummaryCard extends StatelessWidget {
     required this.subtitle,
     required this.pens,
     required this.onEdit,
+    required this.onRelease,
     required this.onDelete,
     this.showSaleStatus = false,
   });
@@ -1507,6 +1525,7 @@ class _PenSummaryCard extends StatelessWidget {
   final List<FattenPen> pens;
   final bool showSaleStatus;
   final ValueChanged<FattenPen> onEdit;
+  final ValueChanged<FattenPen> onRelease;
   final ValueChanged<FattenPen> onDelete;
 
   @override
@@ -1559,7 +1578,7 @@ class _PenSummaryCard extends StatelessWidget {
                   const DataColumn(label: Text('PEN')),
                   const DataColumn(label: Text('COUNT'), numeric: true),
                   const DataColumn(label: Text('AGE')),
-                  if (showSaleStatus) const DataColumn(label: Text('STATUS')),
+                  const DataColumn(label: Text('STATUS')),
                   const DataColumn(label: Text('ACTIONS')),
                 ],
                 rows: [
@@ -1569,9 +1588,11 @@ class _PenSummaryCard extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w700))),
                       DataCell(Text('${p.count}')),
                       DataCell(Text(p.age ?? '—')),
-                      if (showSaleStatus) DataCell(_SaleTag(pen: p)),
-                      DataCell(_RowActions(
+                      DataCell(_SaleTag(pen: p)),
+                      DataCell(_PenRowActions(
+                        pen: p,
                         onEdit: () => onEdit(p),
+                        onRelease: () => onRelease(p),
                         onDelete: () => onDelete(p),
                       )),
                     ]),
@@ -1589,6 +1610,23 @@ class _SaleTag extends StatelessWidget {
   final FattenPen pen;
   @override
   Widget build(BuildContext context) {
+    if (pen.isReleased) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8EAF6),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Text(
+          'Released',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF3949AB),
+          ),
+        ),
+      );
+    }
     if (pen.saleReady) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1613,7 +1651,7 @@ class _SaleTag extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        pen.saleWindow ?? 'Hold',
+        pen.saleWindow ?? 'Active',
         style: const TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -2106,6 +2144,71 @@ class _RowActions extends StatelessWidget {
           color: const Color(0xFFE24B4A),
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+        ),
+      ],
+    );
+  }
+}
+
+class _PenRowActions extends StatelessWidget {
+  const _PenRowActions({
+    required this.pen,
+    required this.onEdit,
+    required this.onRelease,
+    required this.onDelete,
+  });
+  final FattenPen pen;
+  final VoidCallback onEdit;
+  final VoidCallback onRelease;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 18, color: Colors.black54),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      onSelected: (v) {
+        switch (v) {
+          case 'edit':
+            onEdit();
+          case 'release':
+            onRelease();
+          case 'delete':
+            onDelete();
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(Icons.edit_outlined, size: 16),
+            SizedBox(width: 8),
+            Text('Edit Pen'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'release',
+          enabled: !pen.isReleased,
+          child: Row(children: [
+            Icon(Icons.local_shipping_outlined,
+                size: 16,
+                color: pen.isReleased ? Colors.black26 : null),
+            const SizedBox(width: 8),
+            Text('Release Pigs',
+                style: TextStyle(
+                    color: pen.isReleased ? Colors.black26 : null)),
+          ]),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(children: [
+            Icon(Icons.delete_outline, size: 16, color: Color(0xFFE24B4A)),
+            SizedBox(width: 8),
+            Text('Delete Pen',
+                style: TextStyle(color: Color(0xFFE24B4A))),
+          ]),
         ),
       ],
     );

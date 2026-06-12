@@ -15,6 +15,7 @@ import financeRoutes from "./modules/finance/finance.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import uploadsRoutes from "./modules/uploads/uploads.routes.js";
 import activityLogRoutes from "./modules/activity_log/activity_log.routes.js";
+import salesRoutes from "./modules/sales/sales.routes.js";
 import cors from "cors";
 import express from "express";
 
@@ -39,6 +40,7 @@ app.use("/api/finance", financeRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/activity-log", activityLogRoutes);
+app.use("/api/sales", salesRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "Mwirigi Farm API is running" });

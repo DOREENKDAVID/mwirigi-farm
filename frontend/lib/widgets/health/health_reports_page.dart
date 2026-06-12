@@ -18,12 +18,16 @@
 //                  AND treatment.startDate ∈ period  (or still active in period)
 //   Combined     : both filters applied simultaneously
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/models/health.dart';
 import '../../core/service/api_service.dart';
 import '../../core/util/period.dart';
+import '../../core/utils/health_report_pdf.dart';
 import '../dairy/dairy_reports/report_widgets.dart';
 import '../shared/house_filter_pills.dart';
 import '../shared/period_filter_panel.dart';
@@ -98,9 +102,47 @@ class _HealthReportsPageState extends State<HealthReportsPage> {
     );
   }
 
-  // Re-fetch when unit changes (vaccinations need a new ?unit= param).
-  // Re-filter treatments happens automatically on build from allTreatments.
   void _refetch() => setState(() => _future = _load());
+
+  Future<void> _downloadPdf() async => _exportPdf(share: false);
+  Future<void> _sharePdf() async => _exportPdf(share: true);
+
+  Future<void> _exportPdf({required bool share}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final data = await (_future ?? _load());
+      final range = _range;
+      final treatments = _filteredTreatments(data.allTreatments, range);
+      final fmt = DateFormat('d MMM yy');
+      final periodLabel = _period == PeriodPreset.custom && _customRange != null
+          ? '${fmt.format(_customRange!.start)} → ${fmt.format(_customRange!.end)}'
+          : _period.label;
+      final bytes = await buildHealthReportPdf(HealthReportInput(
+        vaccinations: data.vaccinations,
+        treatments: treatments,
+        doneThisPeriod: _doneThisPeriod(data.vaccinations, range),
+        overdueCount: _overdueCount(data.vaccinations),
+        due7dCount: _due7dCount(data.vaccinations),
+        activeCases: _activeCases(treatments),
+        periodLabel: periodLabel,
+        unitLabel: _selectedUnit,
+      ));
+      const name = 'Mwirigi-Health-Report';
+      if (share) {
+        await Printing.sharePdf(
+            bytes: Uint8List.fromList(bytes), filename: '$name.pdf');
+      } else {
+        await Printing.layoutPdf(
+            name: name, onLayout: (_) async => Uint8List.fromList(bytes));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+            'PDF export failed: ${e.toString().replaceFirst('Exception: ', '')}'),
+      ));
+    }
+  }
 
   // ── Computed helpers ─────────────────────────────────────────────────
 
@@ -168,15 +210,25 @@ class _HealthReportsPageState extends State<HealthReportsPage> {
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                DateFormat('d MMM yyyy').format(DateTime.now()),
-                style: const TextStyle(fontSize: 12, color: Colors.white70),
-              ),
+          TextButton.icon(
+            onPressed: _downloadPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('Download'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
+          TextButton.icon(
+            onPressed: _sharePdf,
+            icon: const Icon(Icons.share_outlined, size: 18),
+            label: const Text('Share'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: FutureBuilder<_PageData>(

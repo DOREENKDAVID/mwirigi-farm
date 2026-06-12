@@ -1,4 +1,5 @@
 import prisma from "../../prisma/client.js";
+import { writeAuditLog } from "../../utils/audit.js";
 
 const startOfDay = (d) => {
   const x = new Date(d);
@@ -648,21 +649,218 @@ export const createFattenPen = async (input) => {
   });
 };
 
-export const updateFattenPen = async (id, patch) => {
-  const data = {};
-  if ("pen" in patch) data.pen = patch.pen;
-  if ("house" in patch) data.house = patch.house;
-  if ("count" in patch) data.count = patch.count;
-  if ("age" in patch) data.age = patch.age;
-  if ("saleReady" in patch) data.saleReady = patch.saleReady;
-  if ("saleWindow" in patch) data.saleWindow = patch.saleWindow;
-  return prisma.fattenPen.update({ where: { id }, data });
+export const updateFattenPen = async (id, patch, actorId = null) => {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.fattenPen.findUnique({ where: { id } });
+    if (!existing || existing.deletedAt) throw new Error("Pen not found");
+
+    const data = {};
+    if ("pen" in patch) data.pen = patch.pen;
+    if ("house" in patch) data.house = patch.house;
+    if ("count" in patch) data.count = patch.count;
+    if ("age" in patch) data.age = patch.age;
+    if ("saleReady" in patch) data.saleReady = patch.saleReady;
+    if ("saleWindow" in patch) data.saleWindow = patch.saleWindow;
+
+    const updated = await tx.fattenPen.update({ where: { id }, data });
+
+    await writeAuditLog(tx, {
+      entity: "FattenPen",
+      entityId: id,
+      action: "UPDATE",
+      module: "piggery",
+      actorId: actorId ?? null,
+      oldValue: {
+        pen: existing.pen,
+        house: existing.house,
+        count: existing.count,
+        age: existing.age,
+        saleReady: existing.saleReady,
+        saleWindow: existing.saleWindow,
+      },
+      snapshot: {
+        pen: updated.pen,
+        house: updated.house,
+        count: updated.count,
+        age: updated.age,
+        saleReady: updated.saleReady,
+        saleWindow: updated.saleWindow,
+      },
+    });
+
+    return updated;
+  });
 };
 
-export const softDeleteFattenPen = async (id) => {
-  return prisma.fattenPen.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+export const softDeleteFattenPen = async (id, actorId = null) => {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.fattenPen.findUnique({ where: { id } });
+    if (!existing || existing.deletedAt) throw new Error("Pen not found");
+
+    const deleted = await tx.fattenPen.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    await writeAuditLog(tx, {
+      entity: "FattenPen",
+      entityId: id,
+      action: "DELETE",
+      module: "piggery",
+      actorId: actorId ?? null,
+      oldValue: {
+        pen: existing.pen,
+        house: existing.house,
+        count: existing.count,
+        age: existing.age,
+        saleReady: existing.saleReady,
+      },
+      snapshot: { deletedAt: deleted.deletedAt },
+    });
+
+    return deleted;
+  });
+};
+
+// Dead-weight deduction per pig (industry standard for pen-to-truck weight loss).
+const DEAD_WEIGHT_PER_PIG_KG = 30;
+
+export const releasePen = async (id, input, actorId = null) => {
+  // Pre-flight read outside the transaction — if the pen is already gone
+  // we return early with a clean error before acquiring any locks.
+  const pen = await prisma.fattenPen.findUnique({ where: { id } });
+  if (!pen || pen.deletedAt) throw new Error("Pen not found");
+  if (pen.releasedAt) throw new Error("Pen has already been released");
+
+  const deadWeightDeduction = DEAD_WEIGHT_PER_PIG_KG * pen.count;
+  const finalWeight = Math.max(0, input.totalWeight - deadWeightDeduction);
+  const releaseDate = new Date();
+  const amount = input.amount ?? 0;
+
+  return prisma.$transaction(async (tx) => {
+    let revenueId = null;
+
+    if (input.destination === "FARMERS_CHOICE") {
+      if (amount > 0) {
+        const rev = await tx.revenue.create({
+          data: {
+            unit: "Piggery",
+            category: "ANIMAL_SALES",
+            amount,
+            quantity: pen.count,
+            unitLabel: "head",
+            date: releaseDate,
+            notes: [
+              `FC release pen ${pen.pen}`,
+              input.ref ? `ref ${input.ref}` : null,
+              `${pen.count} pigs · ${finalWeight.toFixed(1)}kg net`,
+              input.driver ? `driver ${input.driver}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            createdById: actorId ?? null,
+          },
+        });
+        revenueId = rev.id;
+      }
+      await tx.farmersChoiceDelivery.create({
+        data: {
+          date: releaseDate,
+          ref: input.ref?.trim() || `PEN-${pen.pen}`,
+          pens: pen.pen,
+          count: pen.count,
+          category: input.category ?? "Beaconners",
+          ageRange: input.ageRange ?? pen.age ?? null,
+          driver: input.driver?.trim() || "TBC",
+          notes: [
+            `Released from pen ${pen.pen} (House ${pen.house})`,
+            `Live ${input.totalWeight}kg · net ${finalWeight.toFixed(1)}kg`,
+            input.notes ?? null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          revenueId,
+          recordedById: actorId ?? null,
+        },
+      });
+    } else if (input.destination === "LOCAL_SALE" && amount > 0) {
+      const rev = await tx.revenue.create({
+        data: {
+          unit: "Piggery",
+          category: "ANIMAL_SALES",
+          amount,
+          quantity: pen.count,
+          unitLabel: "head",
+          date: releaseDate,
+          notes: [
+            `Local sale pen ${pen.pen} (House ${pen.house})`,
+            `${pen.count} pigs · ${finalWeight.toFixed(1)}kg net`,
+            input.destinationNote ?? null,
+            input.notes ?? null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          createdById: actorId ?? null,
+        },
+      });
+      revenueId = rev.id;
+    }
+
+    // Race-condition guard: the WHERE clause includes releasedAt: null so if
+    // a concurrent request already released this pen, updateMany returns
+    // count=0 and we abort the transaction cleanly.
+    const guard = await tx.fattenPen.updateMany({
+      where: { id, releasedAt: null },
+      data: {
+        releasedAt: releaseDate,
+        totalWeight: input.totalWeight,
+        deadWeightDeduction,
+        finalWeight,
+        releaseDestination: input.destination,
+        releaseNotes: input.notes ?? null,
+        revenueId,
+      },
+    });
+    if (guard.count === 0) throw new Error("Pen has already been released");
+
+    await writeAuditLog(tx, {
+      entity: "FattenPen",
+      entityId: id,
+      action: "STATUS_CHANGED",
+      module: "piggery",
+      actorId: actorId ?? null,
+      oldValue: {
+        pen: pen.pen,
+        house: pen.house,
+        count: pen.count,
+        saleReady: pen.saleReady,
+        releasedAt: null,
+      },
+      snapshot: {
+        pen: pen.pen,
+        house: pen.house,
+        count: pen.count,
+        destination: input.destination,
+        totalWeight: input.totalWeight,
+        deadWeightDeduction,
+        finalWeight,
+        amount,
+        releasedAt: releaseDate,
+      },
+    });
+
+    return {
+      id,
+      pen: pen.pen,
+      house: pen.house,
+      count: pen.count,
+      destination: input.destination,
+      totalWeight: input.totalWeight,
+      deadWeightDeduction,
+      finalWeight,
+      amount,
+      releasedAt: releaseDate,
+    };
   });
 };
 

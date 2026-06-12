@@ -217,8 +217,10 @@ class OverviewScope {
 class DashboardOverview {
   DashboardOverview({
     required this.milkToday,
+    required this.milkSold,
     required this.milkTarget,
     required this.eggCrates,
+    required this.cratesSold,
     required this.eggTarget,
     required this.pigletsMTD,
     required this.pigletTarget,
@@ -233,8 +235,12 @@ class DashboardOverview {
 
   // Top-line KPIs.
   final int milkToday;
+  /// Net sellable milk after calves, household, and bucket deductions.
+  final int milkSold;
   final int milkTarget;
   final int eggCrates;
+  /// Net sellable crates after household use deduction.
+  final int cratesSold;
   final int eggTarget;
   final int pigletsMTD;
   final int pigletTarget;
@@ -278,8 +284,10 @@ class DashboardOverview {
 
     return DashboardOverview(
       milkToday: _toInt(j['milkToday']),
+      milkSold: _toInt(j['milkSold'] ?? j['milkToday']),
       milkTarget: _toInt(j['milkTarget']),
       eggCrates: _toInt(j['eggCrates']),
+      cratesSold: _toInt(j['cratesSold'] ?? j['eggCrates']),
       eggTarget: _toInt(j['eggTarget']),
       pigletsMTD: _toInt(j['pigletsMTD']),
       pigletTarget: _toInt(j['pigletTarget']),

@@ -226,10 +226,10 @@ class _KpiRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = NumberFormat.decimalPattern();
     final milkPct = data.milkTarget > 0
-        ? (data.milkToday / data.milkTarget * 100).round()
+        ? (data.milkSold / data.milkTarget * 100).round()
         : 0;
     final eggPct = data.eggTarget > 0
-        ? (data.eggCrates / data.eggTarget * 100).round()
+        ? (data.cratesSold / data.eggTarget * 100).round()
         : 0;
     final pigPct = data.pigletTarget > 0
         ? (data.pigletsMTD / data.pigletTarget * 100).round()
@@ -237,16 +237,16 @@ class _KpiRow extends StatelessWidget {
 
     final cards = <Widget>[
       KpiCard(
-        label: 'Milk today',
-        value: '${fmt.format(data.milkToday)} L',
-        sub: 'Target: ${fmt.format(data.milkTarget)} L/day',
+        label: 'Milk sold',
+        value: '${fmt.format(data.milkSold)} L',
+        sub: 'Gross ${fmt.format(data.milkToday)} L · target ${fmt.format(data.milkTarget)} L',
         trend: '$milkPct% of target',
         trendColor: _pctColor(milkPct),
       ),
       KpiCard(
-        label: 'Egg crates',
-        value: fmt.format(data.eggCrates),
-        sub: 'Target: ${fmt.format(data.eggTarget)}/day',
+        label: 'Crates sold',
+        value: fmt.format(data.cratesSold),
+        sub: 'Gross ${fmt.format(data.eggCrates)} · target ${fmt.format(data.eggTarget)}/day',
         trend: '$eggPct% of target',
         trendColor: _pctColor(eggPct),
       ),

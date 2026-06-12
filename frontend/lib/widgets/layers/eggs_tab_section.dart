@@ -1,16 +1,21 @@
 // "🥚 Eggs" pill body — dedicated egg-management workspace.
 //
 // Sections (top → bottom):
-//   1. Today's totals (crates · eggs · % of target · production %)
+//   1. Date summary (crates · eggs · % of target · production %)
+//      — reflects the selected date, not necessarily today
 //   2. Inline log form — rounded inputs, one row per house, Save button
 //   3. Per-house cards (LayerHouseCard with hen emoji + capacity bar)
-//   4. Recent logs (last few entries from history)
+//   4. Historical logs for the selected date
 //
-// Logging flow:
-//   On Save → POST /api/layers/production for each non-zero house →
-//   call `onChanged` → parent reloads `/layers-unit`, which propagates
-//   new values into the LayerHouseView list and the recent-logs slice.
-//   No optimistic state; server is the source of truth.
+// Date-aware flow:
+//   • Default _date = today → summary shows widget.unit KPIs; Recent Logs
+//     shows the last-7-day window already fetched by the parent.
+//   • User picks a past date → _loadHistoriesForDate fires a per-house GET
+//     with ?date=ISO; Recent Logs renders only that day's records; summary
+//     tiles compute from the fetched records.
+//   • On Save → POST /api/layers/production for each non-zero house →
+//     call `onChanged` (parent reloads KPIs/houses); if on a past date also
+//     re-fetches that date's history locally.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -46,8 +51,56 @@ class _EggsTabSectionState extends State<EggsTabSection> {
   static const int _eggsPerCrate = 30;
 
   late Map<String, TextEditingController> _crateCtrls;
+  late TextEditingController _householdCtrl;
   DateTime _date = DateTime.now();
   bool _submitting = false;
+
+  // History slice for the currently-selected date. Initialised from the
+  // parent's 7-day window (already fetched). Replaced with a single-day
+  // fetch whenever the user picks a past date.
+  List<legacy.ProductionHistory> _dateHistories = const [];
+  bool _historyLoading = false;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  bool get _isToday {
+    final now = DateTime.now();
+    return _date.year == now.year &&
+        _date.month == now.month &&
+        _date.day == now.day;
+  }
+
+  // Records from whichever history slice is active that match _date exactly.
+  List<legacy.LayerProduction> get _recordsForDate {
+    final source = _isToday ? widget.histories : _dateHistories;
+    return source
+        .expand((h) => h.records)
+        .where((r) =>
+            r.date.year == _date.year &&
+            r.date.month == _date.month &&
+            r.date.day == _date.day)
+        .toList();
+  }
+
+  // Total eggs for _date. Falls back to the unit snapshot when today has
+  // no records logged yet (e.g. first thing in the morning).
+  int get _summaryEggs {
+    final recs = _recordsForDate;
+    if (recs.isEmpty && _isToday) {
+      return (widget.unit.layers.cratesToday * _eggsPerCrate).toInt();
+    }
+    return recs.fold(0, (s, r) => s + r.eggsCollected);
+  }
+
+  // Total opening stock for _date. Falls back to live bird count when no
+  // records exist for that day.
+  int get _summaryBirds {
+    final recs = _recordsForDate;
+    if (recs.isEmpty) return widget.unit.layers.totalBirds;
+    return recs.fold(0, (s, r) => s + r.openingStock);
+  }
+
+  // ── lifecycle ─────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -55,13 +108,18 @@ class _EggsTabSectionState extends State<EggsTabSection> {
     _crateCtrls = {
       for (final h in widget.unit.layers.houses) h.id: TextEditingController(),
     };
+    _householdCtrl = TextEditingController();
+    _dateHistories = widget.histories;
   }
 
   @override
   void didUpdateWidget(covariant EggsTabSection old) {
     super.didUpdateWidget(old);
-    // Refresh controller map if the house list changed (e.g. parent
-    // reloaded the unit and produced a new list reference).
+    // Parent reloaded (e.g. after a save) — sync the today-view history slice
+    // so Recent Logs stays fresh without an extra fetch.
+    if (_isToday) _dateHistories = widget.histories;
+
+    // Refresh controller map if the house list changed.
     final ids = widget.unit.layers.houses.map((h) => h.id).toSet();
     final missing = ids.difference(_crateCtrls.keys.toSet());
     final stale = _crateCtrls.keys.toSet().difference(ids);
@@ -81,8 +139,42 @@ class _EggsTabSectionState extends State<EggsTabSection> {
     for (final c in _crateCtrls.values) {
       c.dispose();
     }
+    _householdCtrl.dispose();
     super.dispose();
   }
+
+  // ── data loading ──────────────────────────────────────────────────────────
+
+  Future<void> _loadHistoriesForDate(DateTime date) async {
+    setState(() => _historyLoading = true);
+    try {
+      final results = await Future.wait(
+        widget.unit.layers.houses.map((h) async {
+          try {
+            final raw = await ApiService.getLayersProductionForHouse(
+              h.id,
+              date: date,
+            );
+            return legacy.ProductionHistory.fromJson(
+              raw.cast<String, dynamic>(),
+            );
+          } catch (_) {
+            return null;
+          }
+        }),
+      );
+      if (mounted) {
+        setState(() {
+          _dateHistories =
+              results.whereType<legacy.ProductionHistory>().toList();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  // ── user actions ──────────────────────────────────────────────────────────
 
   int get _enteredCrates {
     var t = 0;
@@ -101,7 +193,16 @@ class _EggsTabSectionState extends State<EggsTabSection> {
       firstDate: DateTime(now.year - 1),
       lastDate: DateTime(now.year + 1),
     );
-    if (picked != null && mounted) setState(() => _date = picked);
+    if (picked == null || !mounted) return;
+    setState(() => _date = picked);
+    // Today → use parent's already-fetched window; past date → fetch for
+    // that specific day so Recent Logs shows only those records.
+    final pickedIsToday = picked.year == now.year &&
+        picked.month == now.month &&
+        picked.day == now.day;
+    if (!pickedIsToday) {
+      await _loadHistoriesForDate(picked);
+    }
   }
 
   Future<void> _save() async {
@@ -125,24 +226,32 @@ class _EggsTabSectionState extends State<EggsTabSection> {
     setState(() => _submitting = true);
     var saved = 0;
     final iso = _date.toIso8601String();
+    final householdUsed = int.tryParse(_householdCtrl.text.trim()) ?? 0;
     try {
-      for (final e in entries) {
+      for (var i = 0; i < entries.length; i++) {
+        final e = entries[i];
         await ApiService.createLayerProductionEntry({
           'houseId': e.house.id,
           'date': iso,
           'openingStock': e.house.birdCount,
           'eggsCollected': e.crates * _eggsPerCrate,
+          // Attribute all household usage to the first house entry only,
+          // so the per-farm sum remains correct after the backend aggregates.
+          if (i == 0 && householdUsed > 0) 'householdUsed': householdUsed,
         });
         saved += 1;
       }
-      // Clear inputs so the form is ready for the next pass.
       for (final c in _crateCtrls.values) {
         c.clear();
       }
       _toast('Logged eggs for $saved house${saved == 1 ? '' : 's'}');
-      // Trigger parent reload so per-house cards + KPIs reflect the
-      // new server-side state without a manual refresh.
+      // Parent refreshes KPIs + house cards.
       widget.onChanged();
+      // For a past date the parent only reloads today's data, so also
+      // refresh our local history slice for _date.
+      if (!_isToday) {
+        _loadHistoriesForDate(_date);
+      }
     } catch (err) {
       final msg = saved > 0
           ? 'Saved $saved/${entries.length}. '
@@ -160,15 +269,24 @@ class _EggsTabSectionState extends State<EggsTabSection> {
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // ── build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final houses = widget.unit.layers.houses;
+    // For today → show parent's 7-day recent window; for past → show
+    // the single-day slice we fetched.
+    final displayHistories = _isToday ? widget.histories : _dateHistories;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TodaySummary(
-          unit: widget.unit,
+        _DateSummary(
+          date: _date,
+          eggs: _summaryEggs,
+          birds: _summaryBirds,
           dailyTargetCrates: widget.dailyTargetCrates,
+          loading: _historyLoading,
         ),
         const SizedBox(height: 16),
         _LogForm(
@@ -178,6 +296,7 @@ class _EggsTabSectionState extends State<EggsTabSection> {
           submitting: _submitting,
           houses: houses,
           controllers: _crateCtrls,
+          householdCtrl: _householdCtrl,
           onChanged: () => setState(() {}),
           onSave: _save,
         ),
@@ -187,13 +306,21 @@ class _EggsTabSectionState extends State<EggsTabSection> {
           trailing: '${houses.length} hou${houses.length == 1 ? "se" : "ses"}',
         ),
         const SizedBox(height: 8),
-        // Cards auto-update via parent reload after POST — values come
-        // straight from the LayerHouseView, never recomputed locally.
         LayerHousesGrid(houses: houses),
-        for (final h in widget.histories.where((h) => h.records.isNotEmpty)) ...[
-          const SizedBox(height: 18),
-          _RecentLogs(history: h),
-        ],
+        if (_historyLoading) ...[
+          const SizedBox(height: 24),
+          const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ] else
+          for (final h in displayHistories.where((h) => h.records.isNotEmpty)) ...[
+            const SizedBox(height: 18),
+            _RecentLogs(history: h, singleDay: !_isToday),
+          ],
       ],
     );
   }
@@ -206,26 +333,44 @@ class _HouseEntry {
 }
 
 // ---------------------------------------------------------------
-// Today's summary header
+// Date summary header — reflects the selected date, not always today
 // ---------------------------------------------------------------
 
-class _TodaySummary extends StatelessWidget {
-  const _TodaySummary({required this.unit, required this.dailyTargetCrates});
-  final LayersUnit unit;
+class _DateSummary extends StatelessWidget {
+  const _DateSummary({
+    required this.date,
+    required this.eggs,
+    required this.birds,
+    required this.dailyTargetCrates,
+    required this.loading,
+  });
+
+  final DateTime date;
+  final int eggs;
+  final int birds;
   final int dailyTargetCrates;
+  final bool loading;
+
+  static const int _eggsPerCrate = 30;
 
   @override
   Widget build(BuildContext context) {
     final fmt = NumberFormat.decimalPattern();
-    final crates = unit.layers.cratesToday;
-    final eggs = (crates * 30).toInt();
-    final birds = unit.layers.totalBirds;
+    final crates = eggs / _eggsPerCrate;
     final pctTarget = dailyTargetCrates > 0
         ? ((crates / dailyTargetCrates) * 100).round()
         : 0;
     final pctLaying = birds > 0
         ? ((eggs / birds) * 100).clamp(0, 200).toDouble()
         : 0.0;
+
+    final now = DateTime.now();
+    final isToday = date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+    final title = isToday
+        ? "🥚  TODAY'S EGG PRODUCTION"
+        : "🥚  EGG PRODUCTION — ${DateFormat('d MMM yyyy').format(date)}";
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -244,24 +389,31 @@ class _TodaySummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            "🥚  TODAY'S EGG PRODUCTION",
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-              color: _EggsTabSectionState._primary,
-            ),
+          Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: _EggsTabSectionState._primary,
+                ),
+              ),
+              if (loading) ...[
+                const Spacer(),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _EggsTabSectionState._primary,
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 12),
-          // Three tiles always rendered side-by-side. `Expanded` lets
-          // each tile pick up an equal share of the row width, even on
-          // narrow phones, and the inner text wraps within the tile.
-          //
-          // IntrinsicHeight + stretch makes the three cards visually
-          // line up at the same height without forcing an infinite
-          // vertical constraint (the ListView this lives inside is
-          // unbounded — stretch alone would crash).
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -375,6 +527,7 @@ class _LogForm extends StatelessWidget {
     required this.submitting,
     required this.houses,
     required this.controllers,
+    required this.householdCtrl,
     required this.onChanged,
     required this.onSave,
   });
@@ -385,6 +538,7 @@ class _LogForm extends StatelessWidget {
   final bool submitting;
   final List<LayerHouseView> houses;
   final Map<String, TextEditingController> controllers;
+  final TextEditingController householdCtrl;
   final VoidCallback onChanged;
   final VoidCallback onSave;
 
@@ -497,8 +651,6 @@ class _LogForm extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          // Per-house inputs — one row each, full-width on mobile, paired
-          // on wider screens.
           LayoutBuilder(
             builder: (context, c) {
               final perRow = c.maxWidth >= 700
@@ -538,6 +690,19 @@ class _LogForm extends StatelessWidget {
                 ],
               );
             },
+          ),
+          const SizedBox(height: 12),
+          _Field(
+            label: '🏠  Household Used (eggs) — optional',
+            child: TextField(
+              controller: householdCtrl,
+              enabled: !submitting,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (_) => onChanged(),
+              decoration: _decoration(hint: '0', suffix: 'eggs'),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
           ),
           const SizedBox(height: 14),
           Row(
@@ -648,12 +813,14 @@ class _Field extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------
-// Recent logs (last 5 days from the per-house history slice)
+// Recent logs — last 5 records for today, or the single record
+// for a past date.
 // ---------------------------------------------------------------
 
 class _RecentLogs extends StatelessWidget {
-  const _RecentLogs({required this.history});
+  const _RecentLogs({required this.history, this.singleDay = false});
   final legacy.ProductionHistory history;
+  final bool singleDay;
 
   @override
   Widget build(BuildContext context) {
@@ -662,6 +829,9 @@ class _RecentLogs extends StatelessWidget {
     if (rows.isEmpty) {
       return const SizedBox.shrink();
     }
+    final countLabel = singleDay
+        ? '${rows.length} entr${rows.length == 1 ? 'y' : 'ies'}'
+        : 'last ${rows.length}';
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -685,7 +855,7 @@ class _RecentLogs extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                'last ${rows.length}',
+                countLabel,
                 style: const TextStyle(
                   fontSize: 11,
                   color: _EggsTabSectionState._txt3,
@@ -748,9 +918,14 @@ class _LogRow extends StatelessWidget {
                 ),
               ),
               Text(
-                'opening ${fmt.format(record.openingStock)} · '
-                'feed ${_fmt(record.feedKg)}kg · '
-                'dead ${record.deadRemoved}',
+                record.householdUsed > 0
+                    ? 'avail ${fmt.format(record.availableEggs)} · '
+                        'household ${record.householdUsed} · '
+                        'opening ${fmt.format(record.openingStock)} · '
+                        'dead ${record.deadRemoved}'
+                    : 'opening ${fmt.format(record.openingStock)} · '
+                        'feed ${_fmt(record.feedKg)}kg · '
+                        'dead ${record.deadRemoved}',
                 style: const TextStyle(
                   fontSize: 11,
                   color: _EggsTabSectionState._txt2,

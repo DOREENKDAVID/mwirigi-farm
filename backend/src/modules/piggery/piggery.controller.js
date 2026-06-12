@@ -6,6 +6,7 @@ import {
   trendQuerySchema,
   sowSearchSchema,
   farrowingQuerySchema,
+  releasePenSchema,
   farmersChoiceDeliverySchema,
 } from "./piggery.validation.js";
 
@@ -302,19 +303,34 @@ export const updatePen = async (req, res) => {
     if (body.age !== undefined) patch.age = optStr(body.age);
     if (body.saleReady !== undefined) patch.saleReady = body.saleReady === true;
     if (body.saleWindow !== undefined) patch.saleWindow = optStr(body.saleWindow);
-    const row = await piggeryService.updateFattenPen(req.params.id, patch);
+    const row = await piggeryService.updateFattenPen(req.params.id, patch, req.user?.id);
     res.json(row);
   } catch (err) {
+    if (err.message === "Pen not found") return res.status(404).json({ error: err.message });
     res.status(400).json({ error: err.message });
   }
 };
 
 export const deletePen = async (req, res) => {
   try {
-    await piggeryService.softDeleteFattenPen(req.params.id);
+    await piggeryService.softDeleteFattenPen(req.params.id, req.user?.id);
     res.json({ success: true });
   } catch (err) {
+    if (err.message === "Pen not found") return res.status(404).json({ error: err.message });
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const releasePen = async (req, res) => {
+  try {
+    const body = releasePenSchema.parse(req.body);
+    const result = await piggeryService.releasePen(req.params.id, body, req.user?.id);
+    res.json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Pen not found") return res.status(404).json({ error: err.message });
+    if (err.message === "Pen has already been released") return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
   }
 };
 

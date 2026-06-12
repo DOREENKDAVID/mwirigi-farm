@@ -95,6 +95,25 @@ export const farrowingQuerySchema = z.object({
 // amount omitted and reconcile later.
 const FC_CATEGORIES = ["Beaconners", "Fatteners", "Winners", "Mixed"];
 
+// POST /api/piggery/pens/:id/release
+// finalWeight is computed server-side: totalWeight - (30kg × count)
+const RELEASE_DESTINATIONS = ["FARMERS_CHOICE", "LOCAL_SALE", "OTHER"];
+
+export const releasePenSchema = z.object({
+  totalWeight: z.number().positive("Total live weight must be > 0"),
+  destination: z.enum(RELEASE_DESTINATIONS),
+  // Farmers Choice fields (required when destination === FARMERS_CHOICE)
+  ref: z.string().trim().max(80).optional(),
+  category: z.enum(FC_CATEGORIES).optional(),
+  ageRange: z.string().trim().max(40).optional(),
+  driver: z.string().trim().max(80).optional(),
+  // Financial — optional for both FC and LOCAL_SALE
+  amount: z.number().nonnegative().optional(),
+  // Free-text note shown for OTHER / LOCAL_SALE destinations
+  destinationNote: z.string().trim().max(200).optional(),
+  notes: z.string().trim().max(500).optional(),
+});
+
 export const farmersChoiceDeliverySchema = z.object({
   date: z.coerce.date().optional(),
   ref: z.string().trim().min(1, "Reference is required").max(80),

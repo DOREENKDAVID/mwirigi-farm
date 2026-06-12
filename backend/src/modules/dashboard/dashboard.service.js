@@ -2,6 +2,7 @@
 import prisma from "../../prisma/client.js";
 import { listReminders } from "../reminders/reminders.service.js";
 import { listTreatments } from "../health/health.service.js";
+import { getTodayNetSummary } from "../dairy/dairy.service.js";
 import { deltaPct, resolveRange } from "../../utils/period.js";
 
 // helper: status logic
@@ -156,6 +157,7 @@ export const getOverview = async ({ period, startDate, endDate } = {}) => {
     managers,
     reminders,
     activeTreatments,
+    dairyNetSummary,
   ] = await Promise.all([
     prisma.farmConfig.findFirst().catch(() => null),
     prisma.milkRecord.aggregate({
@@ -164,7 +166,7 @@ export const getOverview = async ({ period, startDate, endDate } = {}) => {
     }),
     prisma.layerProduction.findMany({
       where: { date: { gte: todayStart, lte: todayEnd } },
-      select: { openingStock: true, eggsCollected: true },
+      select: { openingStock: true, eggsCollected: true, householdUsed: true },
     }),
     prisma.farrowingRecord.aggregate({
       where: {
@@ -212,6 +214,7 @@ export const getOverview = async ({ period, startDate, endDate } = {}) => {
     }),
     listReminders().catch(() => []),
     listTreatments({ activeOnly: true }).catch(() => []),
+    getTodayNetSummary().catch(() => null),
   ]);
 
   // ---------- top-line KPIs ----------
@@ -224,15 +227,25 @@ export const getOverview = async ({ period, startDate, endDate } = {}) => {
   const feedlotTarget = FALLBACK_TARGETS.feedlotTarget;
 
   const milkToday = Math.round(milkTodayAgg._sum.litres ?? 0);
-  const totalEggsToday = layerToday.reduce(
-    (s, r) => s + r.eggsCollected,
+  // Net sellable milk = gross minus deductions (calves + household + bucket).
+  // Falls back to gross when the dairy net summary is unavailable.
+  const milkSold = dairyNetSummary
+    ? Math.round(dairyNetSummary.dayNet)
+    : milkToday;
+
+  const totalEggsToday = layerToday.reduce((s, r) => s + r.eggsCollected, 0);
+  const householdEggsToday = layerToday.reduce(
+    (s, r) => s + (r.householdUsed ?? 0),
     0,
   );
-  const eggCrates = Math.round(totalEggsToday / EGGS_PER_TRAY);
-  const layersFlock = layerToday.reduce(
-    (s, r) => s + r.openingStock,
+  const eggCrates = Math.floor(totalEggsToday / EGGS_PER_TRAY);
+  // Net sellable crates = floor(available eggs / 30). Floor because only
+  // complete crates ship — the remainder is loose eggs, not a partial crate.
+  const cratesSold = Math.max(
     0,
+    Math.floor((totalEggsToday - householdEggsToday) / EGGS_PER_TRAY),
   );
+  const layersFlock = layerToday.reduce((s, r) => s + r.openingStock, 0);
   const pigletsMTD = pigletsMtdAgg._sum.pigletsBorn ?? 0;
 
   // ---------- alerts (top 5 reminders + every active sick treatment) ----------
@@ -421,8 +434,10 @@ export const getOverview = async ({ period, startDate, endDate } = {}) => {
 
   return {
     milkToday,
+    milkSold,
     milkTarget,
     eggCrates,
+    cratesSold,
     eggTarget: cratesTarget,
     pigletsMTD,
     pigletTarget,

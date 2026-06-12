@@ -40,12 +40,21 @@ class _HealthData {
   final ProtocolReference reference;
 }
 
+// Vaccination filter state
+enum _VaccPeriod { all, today, week, month, year }
+enum _VaccStatus { all, due, overdue, done }
+
 class _HealthPageState extends State<HealthPage> {
   static const _primary = Color(0xFF27500A);
   static const _txt2 = Color(0xFF6B7770);
 
   Future<_HealthData>? _future;
   HealthTab _active = HealthTab.overview;
+
+  // Vaccination filters
+  _VaccPeriod _vaccPeriod = _VaccPeriod.all;
+  String? _vaccUnit; // null = All
+  _VaccStatus _vaccStatus = _VaccStatus.all;
 
   @override
   void initState() {
@@ -150,6 +159,55 @@ class _HealthPageState extends State<HealthPage> {
     );
   }
 
+  // ----------------- Vaccination filter logic -----------------
+
+  List<VaccinationRow> _filterVaccinations(List<VaccinationRow> rows) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return rows.where((r) {
+      // Period filter — applied to lastDoneAt
+      if (_vaccPeriod != _VaccPeriod.all) {
+        final done = r.lastDoneAt;
+        if (done == null) return false;
+        final doneDay = DateTime(done.year, done.month, done.day);
+        switch (_vaccPeriod) {
+          case _VaccPeriod.today:
+            if (doneDay != today) return false;
+          case _VaccPeriod.week:
+            if (doneDay.isBefore(today.subtract(const Duration(days: 6)))) {
+              return false;
+            }
+          case _VaccPeriod.month:
+            if (done.year != now.year || done.month != now.month) return false;
+          case _VaccPeriod.year:
+            if (done.year != now.year) return false;
+          case _VaccPeriod.all:
+            break;
+        }
+      }
+
+      // Unit filter
+      if (_vaccUnit != null && r.unit != _vaccUnit) return false;
+
+      // Status filter
+      switch (_vaccStatus) {
+        case _VaccStatus.due:
+          if (!{'DUE_NOW', 'DUE_WINDOW_OPEN', 'DUE_SOON'}.contains(r.status)) {
+            return false;
+          }
+        case _VaccStatus.overdue:
+          if (r.status != 'OVERDUE') return false;
+        case _VaccStatus.done:
+          if (r.status != 'DONE') return false;
+        case _VaccStatus.all:
+          break;
+      }
+
+      return true;
+    }).toList();
+  }
+
   // ----------------- Pill body dispatch -----------------
 
   List<Widget> _tabBody(_HealthData data) {
@@ -182,8 +240,17 @@ class _HealthPageState extends State<HealthPage> {
             onTap: _openLogVaccine,
           ),
           const SizedBox(height: 10),
+          _VaccFilterBar(
+            period: _vaccPeriod,
+            unit: _vaccUnit,
+            status: _vaccStatus,
+            onPeriod: (p) => setState(() => _vaccPeriod = p),
+            onUnit: (u) => setState(() => _vaccUnit = u),
+            onStatus: (s) => setState(() => _vaccStatus = s),
+          ),
+          const SizedBox(height: 10),
           VaccinationScheduleTable(
-            rows: data.vaccinations,
+            rows: _filterVaccinations(data.vaccinations),
             onEdit: _openEditVaccine,
           ),
         ];
@@ -534,6 +601,156 @@ class _GlanceCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// Vaccination filter bar
+// =====================================================================
+
+class _VaccFilterBar extends StatelessWidget {
+  const _VaccFilterBar({
+    required this.period,
+    required this.unit,
+    required this.status,
+    required this.onPeriod,
+    required this.onUnit,
+    required this.onStatus,
+  });
+
+  final _VaccPeriod period;
+  final String? unit;
+  final _VaccStatus status;
+  final ValueChanged<_VaccPeriod> onPeriod;
+  final ValueChanged<String?> onUnit;
+  final ValueChanged<_VaccStatus> onStatus;
+
+  static const _primary = Color(0xFF27500A);
+
+  static const _periods = <_VaccPeriod, String>{
+    _VaccPeriod.all: 'All time',
+    _VaccPeriod.today: 'Today',
+    _VaccPeriod.week: 'This week',
+    _VaccPeriod.month: 'This month',
+    _VaccPeriod.year: 'This year',
+  };
+
+  static const _units = <String>[
+    'Dairy',
+    'Layers',
+    'Piggery',
+    'Feedlot',
+    'Doopers',
+  ];
+
+  static const _statuses = <_VaccStatus, String>{
+    _VaccStatus.all: 'All',
+    _VaccStatus.due: 'Due',
+    _VaccStatus.overdue: 'Overdue',
+    _VaccStatus.done: 'Done',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final entry in _periods.entries) ...[
+                _Pill(
+                  label: entry.value,
+                  active: period == entry.key,
+                  onTap: () => onPeriod(entry.key),
+                ),
+                const SizedBox(width: 6),
+              ],
+              const SizedBox(width: 4),
+              _Pill(
+                label: 'All units',
+                active: unit == null,
+                onTap: () => onUnit(null),
+              ),
+              for (final u in _units) ...[
+                const SizedBox(width: 6),
+                _Pill(
+                  label: u,
+                  active: unit == u,
+                  onTap: () => onUnit(u),
+                ),
+              ],
+              const SizedBox(width: 12),
+              for (final entry in _statuses.entries) ...[
+                _Pill(
+                  label: entry.value,
+                  active: status == entry.key,
+                  onTap: () => onStatus(entry.key),
+                  accent: _statusAccent(entry.key),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color? _statusAccent(_VaccStatus s) {
+    switch (s) {
+      case _VaccStatus.overdue:
+        return const Color(0xFFB52C2B);
+      case _VaccStatus.due:
+        return const Color(0xFF854F0B);
+      case _VaccStatus.done:
+        return _primary;
+      default:
+        return null;
+    }
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.accent,
+  });
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFF27500A);
+    final bg = active ? (accent ?? primary) : Colors.white;
+    final fg = active ? Colors.white : Colors.black87;
+    final border = active ? (accent ?? primary) : const Color(0x33000000);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: fg,
+          ),
+        ),
       ),
     );
   }

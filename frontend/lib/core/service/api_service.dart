@@ -390,6 +390,11 @@ class ApiService {
         body: {'email': email}, auth: false));
   }
 
+  static Future<Map<String, dynamic>> resendOtp(String email) async {
+    return _asMap(await _post('/auth/resend-otp',
+        body: {'email': email}, auth: false));
+  }
+
   // POST /auth/reset-password  body: { email, enteredOtp, newPassword }
   static Future<Map<String, dynamic>> resetPassword({
     required String email,
@@ -676,12 +681,22 @@ class ApiService {
     return _asMap(await _get('/layers/reports/production$qs'));
   }
 
-  // GET /layers/production/:houseId?days=7 -> { house, records: [...] }
+  // GET /layers/production/:houseId?days=7          → last N days from today
+  // GET /layers/production/:houseId?date=ISO&days=7 → single calendar day
+  // When [date] is supplied the backend ignores [days] and returns only the
+  // records logged for that exact day. Used by the Eggs pill's history view.
   static Future<Map<String, dynamic>> getLayersProductionForHouse(
     String houseId, {
     int days = 7,
-  }) async =>
-      _asMap(await _get('/layers/production/$houseId?days=$days'));
+    DateTime? date,
+  }) async {
+    final params = <String, String>{'days': '$days'};
+    if (date != null) params['date'] = date.toIso8601String();
+    final qs = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return _asMap(await _get('/layers/production/$houseId?$qs'));
+  }
 
   // POST /layers/production body: { houseId, openingStock, eggsCollected, feedKg?, deadRemoved?, remarks?, date? }
   // Server computes trays / percentLaying / closingStock / dayAge.
@@ -691,6 +706,58 @@ class ApiService {
     Map<String, dynamic> data,
   ) async =>
       _asMap(await _post('/layers/production', body: data));
+
+  // ============== SALES (/api/sales) ==============
+  //
+  // Covers both Dairy (milk) and Layers (egg) product sales.
+  // Every POST auto-creates a linked Revenue row in Finance.
+
+  // GET /api/sales?module=LAYERS&startDate=...&endDate=...&limit=50&offset=0
+  static Future<Map<String, dynamic>> getSales({
+    String? module,
+    String? buyerType,
+    String? paymentMode,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final params = <String, String>{
+      'limit': '$limit',
+      'offset': '$offset',
+    };
+    if (module != null && module.isNotEmpty) params['module'] = module;
+    if (buyerType != null && buyerType.isNotEmpty) params['buyerType'] = buyerType;
+    if (paymentMode != null && paymentMode.isNotEmpty) params['paymentMode'] = paymentMode;
+    if (startDate != null) params['startDate'] = startDate.toIso8601String();
+    if (endDate != null) params['endDate'] = endDate.toIso8601String();
+    final qs = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return _asMap(await _get('/sales?$qs'));
+  }
+
+  // GET /api/sales/summary?module=LAYERS → { count, totalQuantity, totalRevenue }
+  static Future<Map<String, dynamic>> getSalesSummary(String module) async =>
+      _asMap(await _get('/sales/summary?module=${Uri.encodeQueryComponent(module)}'));
+
+  // POST /api/sales → ProductSale row (Finance revenue auto-created)
+  static Future<Map<String, dynamic>> createSale(
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/sales', body: data));
+
+  // PATCH /api/sales/:id → updated ProductSale
+  static Future<Map<String, dynamic>> updateSale(
+    String id,
+    Map<String, dynamic> patch,
+  ) async =>
+      _asMap(await _patch('/sales/$id', body: patch));
+
+  // DELETE /api/sales/:id → 204
+  static Future<void> deleteSale(String id) async {
+    await _delete('/sales/$id');
+  }
 
   // ============== FINANCE (/api/finance) ==============
   //
@@ -708,6 +775,24 @@ class ApiService {
     return _asMap(await _get('/finance/dashboard$qs'));
   }
 
+  // GET /finance/revenue?unit=&category=&from=&to=&page=&limit=
+  // Returns { rows: [...], total, page, limit }
+  static Future<Map<String, dynamic>> getFinanceRevenue({
+    String? unit,
+    String? category,
+    String? from,
+    String? to,
+    int page = 1,
+    int limit = 100,
+  }) async {
+    final params = <String>['page=$page', 'limit=$limit'];
+    if (unit != null) params.add('unit=$unit');
+    if (category != null) params.add('category=$category');
+    if (from != null) params.add('from=$from');
+    if (to != null) params.add('to=$to');
+    return _asMap(await _get('/finance/revenue?${params.join('&')}'));
+  }
+
   // ============== REPORTS CATALOG (/api/reports/catalog) ==============
   //
   // Enterprise reports: /catalog lists what the user can access,
@@ -722,6 +807,28 @@ class ApiService {
 
   static Uri reportCsvUri(String key) =>
       _uri('/reports/catalog/$key.csv');
+
+  // ============== ACTIVITY LOG (/api/activity-log) ==============
+
+  static Future<Map<String, dynamic>> getActivityLog({
+    String? module,
+    String? action,
+    String? actorId,
+    DateTime? from,
+    DateTime? to,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final params = <String>[];
+    if (module != null) params.add('module=${Uri.encodeQueryComponent(module)}');
+    if (action != null) params.add('entity=${Uri.encodeQueryComponent(action)}');
+    if (actorId != null) params.add('actorId=${Uri.encodeQueryComponent(actorId)}');
+    if (from != null) params.add('from=${Uri.encodeQueryComponent(from.toIso8601String())}');
+    if (to != null) params.add('to=${Uri.encodeQueryComponent(to.toIso8601String())}');
+    params.add('limit=$limit');
+    params.add('offset=$offset');
+    return _asMap(await _get('/activity-log?${params.join('&')}'));
+  }
 
   // ============== REMINDERS (/api/reminders) ==============
   //
@@ -900,6 +1007,10 @@ class ApiService {
   static Future<void> deletePiggeryPen(String id) async {
     await _delete('/piggery/pens/$id');
   }
+
+  static Future<Map<String, dynamic>> releasePiggeryPen(
+          String id, Map<String, dynamic> body) async =>
+      _asMap(_unwrap(await _post('/piggery/pens/$id/release', body: body)));
 
   // GET /piggery/inventory
   static Future<List<dynamic>> getPiggeryInventory() async =>
@@ -1133,8 +1244,17 @@ class ApiService {
       _asMap(await _get('/staff/dashboard'));
 
   // GET /staff -> [{ id, fullName, email, role, ... }]
-  static Future<List<dynamic>> getStaffList() async =>
-      _asList(await _get('/staff'));
+  // includeReleased=true fetches active + released staff (for Employees tab).
+  static Future<List<dynamic>> getStaffList({
+    bool includeReleased = false,
+    String? status,
+  }) async {
+    final params = <String>[];
+    if (includeReleased) params.add('includeInactive=true');
+    if (status != null) params.add('status=${Uri.encodeQueryComponent(status)}');
+    final qs = params.isEmpty ? '' : '?${params.join('&')}';
+    return _asList(await _get('/staff$qs'));
+  }
 
   // POST /staff (CEO/ADMIN) -> { staff, tempPassword }
   // Renamed from `createStaff` to avoid collision with the older
@@ -1155,6 +1275,13 @@ class ApiService {
   static Future<void> deactivateStaff(String id) async {
     await _delete('/staff/$id');
   }
+
+  // POST /staff/:id/release (CEO/ADMIN) — structured termination workflow
+  static Future<Map<String, dynamic>> releaseStaffMember(
+    String id,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _post('/staff/$id/release', body: data));
 
   // POST /staff/attendance — admin marks attendance for a user
   static Future<Map<String, dynamic>> markStaffAttendance(

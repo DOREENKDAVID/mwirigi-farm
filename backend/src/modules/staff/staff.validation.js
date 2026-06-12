@@ -41,6 +41,7 @@ export const updateStaffSchema = z
   .object({
     role: z.enum(ROLES).optional(),
     department: z.string().max(50).nullable().optional(),
+    jobTitle: z.string().max(80).nullable().optional(),
     phoneNumber: z.string().max(20).nullable().optional(),
     nationalId: z.string().max(20).nullable().optional(),
     salaryType: z.enum(SALARY_TYPES).nullable().optional(),
@@ -51,6 +52,22 @@ export const updateStaffSchema = z
   .refine((d) => Object.keys(d).length > 0, {
     message: "At least one field must be provided",
   });
+
+// POST /api/staff/:id/release — structured termination workflow
+export const RELEASE_REASONS = [
+  "CONTRACT_ENDED",
+  "RESIGNED",
+  "DISMISSED",
+  "RETIRED",
+  "SEASONAL_ENDED",
+  "OTHER",
+];
+
+export const releaseStaffSchema = z.object({
+  releaseDate: z.coerce.date(),
+  releaseReason: z.enum(RELEASE_REASONS),
+  releaseNotes: z.string().max(500).optional().nullable(),
+});
 
 // POST /api/staff/attendance — admin sets attendance for a user
 export const markAttendanceSchema = z.object({

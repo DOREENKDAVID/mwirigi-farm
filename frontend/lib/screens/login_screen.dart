@@ -94,7 +94,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       // GoogleSignIn opens the platform sign-in flow. On Android this
       // requires google-services.json + a configured OAuth client ID.
-      final account = await GoogleSignIn().signIn();
+      final account = await GoogleSignIn(
+        serverClientId:
+            '1039139293103-nqot727og0o1a2m7tglkqr6s9ca3ou86.apps.googleusercontent.com',
+      ).signIn();
       if (account == null) {
         // User cancelled the picker.
         if (mounted) setState(() => _oauthBusy = false);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/service/api_service.dart';
+import '../widgets/brand_logo.dart';
 import 'password_reset_otp_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -64,6 +65,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Center(child: BrandLogo(height: 80)),
+                  const SizedBox(height: 24),
                   const Text(
                     'Forgot your password?',
                     style: TextStyle(

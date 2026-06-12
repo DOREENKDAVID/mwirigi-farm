@@ -231,7 +231,9 @@ class _KpiRow extends StatelessWidget {
       KpiCard(
         label: 'Crates today',
         value: _formatNum(layers.cratesToday),
-        sub: '$cratesPct% of $_target target',
+        sub: layers.householdUsedToday > 0
+            ? '$cratesPct% of $_target · avail ${_formatNum(layers.availableTraysToday)} crates'
+            : '$cratesPct% of $_target target',
       ),
       KpiCard(
         label: 'Mortality today',

@@ -7,9 +7,12 @@
 //                                · per-house breakdown)
 //   • "Download PDF" in the app-bar action
 
+import 'dart:typed_data';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/models/layers_report.dart';
 import '../../core/service/api_service.dart';
@@ -100,18 +103,27 @@ class _LayersReportsPageState extends State<LayersReportsPage> {
     _refetch();
   }
 
-  Future<void> _downloadPdf() async {
+  Future<void> _downloadPdf() async => _exportPdf(share: false);
+  Future<void> _sharePdf() async => _exportPdf(share: true);
+
+  Future<void> _exportPdf({required bool share}) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final report = await (_future ?? _fetch());
       final houseLabel = _houseId == null
           ? null
           : _houses.where((h) => h.id == _houseId).firstOrNull?.name;
-      await previewLayersReportPdf(
+      const name = 'Mwirigi-Layers-Production-Report';
+      final bytes = await buildLayersReportPdf(
         report: report,
         periodLabel: _period == _Period.custom ? _customLabel() : _period.label,
         houseLabel: houseLabel,
       );
+      if (share) {
+        await Printing.sharePdf(bytes: bytes, filename: '$name.pdf');
+      } else {
+        await Printing.layoutPdf(name: name, onLayout: (_) async => bytes);
+      }
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
@@ -140,13 +152,19 @@ class _LayersReportsPageState extends State<LayersReportsPage> {
           TextButton.icon(
             onPressed: _downloadPdf,
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-            label: const Text('Download PDF'),
+            label: const Text('Download'),
             style: TextButton.styleFrom(
               foregroundColor: _primary,
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _sharePdf,
+            icon: const Icon(Icons.share_outlined, size: 18),
+            label: const Text('Share'),
+            style: TextButton.styleFrom(
+              foregroundColor: _primary,
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(width: 4),

@@ -11,9 +11,12 @@
 // switches on `_type`. Each report has its own Future field so we don't
 // refetch unrelated reports when the user flips a filter pill.
 
+import 'dart:typed_data';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/models/cow.dart';
 import '../../core/models/dairy_ops.dart';
@@ -198,59 +201,54 @@ class _DairyReportsPageState extends State<DairyReportsPage> {
     );
   }
 
-  /// Download a PDF of the *active* report type with the current
-  /// filter selections baked in. The PDF preview sheet is the
-  /// `printing` plugin's standard print/save UI on each platform.
-  Future<void> _downloadPdf() async {
+  Future<void> _downloadPdf() async => _exportPdf(share: false);
+  Future<void> _sharePdf() async => _exportPdf(share: true);
+
+  Future<void> _exportPdf({required bool share}) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
+      Uint8List bytes;
+      String name;
       switch (_type) {
         case DairyReportType.milk:
           final r = await (_milkFuture ?? _fetchMilk());
-          await previewDairyMilkReportPdf(
-            report: r,
-            filters: _currentFilterLabels(r.period.label),
-          );
-          break;
+          name = 'Mwirigi-Dairy-Milk-Report';
+          bytes = await buildDairyMilkReportPdf(
+              report: r, filters: _currentFilterLabels(r.period.label));
         case DairyReportType.reproduction:
           final r = await (_reproFuture ?? _fetchRepro());
-          await previewDairyReproductionReportPdf(
-            report: r,
-            filters: _currentFilterLabels(r.period.label),
-          );
-          break;
+          name = 'Mwirigi-Dairy-Reproduction-Report';
+          bytes = await buildDairyReproductionReportPdf(
+              report: r, filters: _currentFilterLabels(r.period.label));
         case DairyReportType.health:
           final r = await (_healthFuture ?? _fetchHealth());
-          await previewDairyHealthReportPdf(
-            report: r,
-            filters: _currentFilterLabels(r.period.label),
-          );
-          break;
+          name = 'Mwirigi-Dairy-Health-Report';
+          bytes = await buildDairyHealthReportPdf(
+              report: r, filters: _currentFilterLabels(r.period.label));
         case DairyReportType.vaccinations:
           final r = await (_vaccinationFuture ?? _fetchVaccinations());
-          await previewDairyVaccinationReportPdf(
-            report: r,
-            filters: _currentFilterLabels(r.period.label),
-          );
-          break;
+          name = 'Mwirigi-Dairy-Vaccination-Report';
+          bytes = await buildDairyVaccinationReportPdf(
+              report: r, filters: _currentFilterLabels(r.period.label));
         case DairyReportType.calves:
         case DairyReportType.worker:
         case DairyReportType.inventory:
           messenger.showSnackBar(const SnackBar(
-            content: Text('Export for this report is coming in Phase 2.5.'),
+            content: Text('Export for this report type is coming in Phase 2.5.'),
           ));
           return;
       }
+      if (share) {
+        await Printing.sharePdf(bytes: bytes, filename: '$name.pdf');
+      } else {
+        await Printing.layoutPdf(name: name, onLayout: (_) async => bytes);
+      }
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'PDF export failed: '
-            '${e.toString().replaceFirst('Exception: ', '')}',
-          ),
-        ),
-      );
+      messenger.showSnackBar(SnackBar(
+        content: Text('PDF export failed: '
+            '${e.toString().replaceFirst('Exception: ', '')}'),
+      ));
     }
   }
 
@@ -283,18 +281,22 @@ class _DairyReportsPageState extends State<DairyReportsPage> {
         foregroundColor: _primary,
         elevation: 0.5,
         actions: [
-          // Tooltip + label so the affordance is discoverable; the
-          // icon alone read as "share" on iOS feedback.
           TextButton.icon(
             onPressed: _downloadPdf,
             icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-            label: const Text('Download PDF'),
+            label: const Text('Download'),
             style: TextButton.styleFrom(
               foregroundColor: _primary,
-              textStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: _sharePdf,
+            icon: const Icon(Icons.share_outlined, size: 18),
+            label: const Text('Share'),
+            style: TextButton.styleFrom(
+              foregroundColor: _primary,
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(width: 4),

@@ -12,6 +12,7 @@ import '../../core/service/api_service.dart';
 import '../dairy/dairy_reports_page.dart';
 import '../health/health_reports_page.dart';
 import '../layers/layers_reports_page.dart';
+import 'activity_report_page.dart';
 import 'report_preview_page.dart';
 
 class ReportsPage extends StatefulWidget {
@@ -24,22 +25,35 @@ class _ReportsPageState extends State<ReportsPage> {
   static const _primary = Color(0xFF27500A);
   static const _txt2 = Color(0xFF6B7770);
 
-  // Render order — matches the HTML reference layout.
   static const _categoryOrder = [
     'Daily & Production',
     'Health & Animal',
     'Inventory & Operations',
     'Financial & Strategic',
+    'Activities & Audit',
   ];
 
-  // Short labels + emojis for the pill row. The full category name is
-  // still the source of truth for grouping — the pills are display-only.
   static const _pillLabels = <String, (String, String)>{
     'Daily & Production': ('📅', 'Daily'),
     'Health & Animal': ('🐮', 'Health'),
     'Inventory & Operations': ('📦', 'Inventory'),
     'Financial & Strategic': ('💰', 'Financial'),
+    'Activities & Audit': ('📋', 'Activities'),
   };
+
+  // Hardcoded synthetic card for the Activities category — not backed
+  // by the server catalog since it routes into a local page.
+  static final _activityCard = ReportListItem(
+    key: 'activity_log',
+    label: 'Activity Log',
+    description: 'Full audit trail of all farm changes — '
+        'who did what, when, with before/after details.',
+    icon: '📋',
+    iconBg: '#EAF3DE',
+    category: 'Activities & Audit',
+    formats: const ['PDF', 'Share'],
+    dashboardKey: 'activity',
+  );
 
   late Future<List<ReportListItem>> _future;
   String? _selectedCat;
@@ -84,6 +98,9 @@ class _ReportsPageState extends State<ReportsPage> {
           for (final i in items) {
             groups.putIfAbsent(i.category, () => []).add(i);
           }
+          // Inject the hardcoded Activities card — it's local-only and
+          // never comes from the backend catalog.
+          groups.putIfAbsent('Activities & Audit', () => []).add(_activityCard);
           final orderedCats = [
             ..._categoryOrder.where(groups.containsKey),
             ...groups.keys.where((k) => !_categoryOrder.contains(k)),
@@ -160,6 +177,14 @@ class _ReportsPageState extends State<ReportsPage> {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const HealthReportsPage(),
+                        ),
+                      );
+                      return;
+                    }
+                    if (r.dashboardKey == 'activity') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ActivityReportPage(),
                         ),
                       );
                       return;

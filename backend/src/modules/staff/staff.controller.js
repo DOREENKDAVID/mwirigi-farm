@@ -2,6 +2,7 @@ import * as staffService from "./staff.service.js";
 import {
   createStaffSchema,
   updateStaffSchema,
+  releaseStaffSchema,
   markAttendanceSchema,
   createTaskSchema,
   updateTaskSchema,
@@ -36,7 +37,11 @@ export const createStaff = async (req, res) => {
 export const listStaff = async (req, res) => {
   try {
     const includeInactive = req.query.includeInactive === "true";
-    res.json(await staffService.listStaff({ includeInactive }));
+    // ?status=ACTIVE | RELEASED | (absent = all when includeInactive=true)
+    const status = ["ACTIVE", "RELEASED"].includes(req.query.status)
+      ? req.query.status
+      : null;
+    res.json(await staffService.listStaff({ includeInactive, status }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -72,6 +77,28 @@ export const deleteStaff = async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     res.status(500).json({ error: err.message });
+  }
+};
+
+// POST /api/staff/:id/release
+export const releaseStaff = async (req, res) => {
+  try {
+    const body = releaseStaffSchema.parse(req.body);
+    const result = await staffService.releaseStaff(
+      req.params.id,
+      body,
+      req.user?.id,
+    );
+    res.json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Staff not found") {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message === "Staff is already released") {
+      return res.status(409).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
   }
 };
 

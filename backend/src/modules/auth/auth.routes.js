@@ -12,6 +12,7 @@ import {
   createStaffController,
   googleLogin,
   appleLogin,
+  resendOtpController,
 } from "./auth.controller.js";
 
 import {validate } from "../../middleware/validate.middleware.js";
@@ -74,6 +75,7 @@ authRouter.post(
 );
 
 authRouter.post("/verify-email", otpLimiter, validate(otpSchema), verifyEmailController);
+authRouter.post("/resend-otp", otpLimiter, validate(forgotPasswordSchema), resendOtpController);
 
 authRouter.post("/forgot-password", otpLimiter, validate(forgotPasswordSchema), forgotPasswordController);
 

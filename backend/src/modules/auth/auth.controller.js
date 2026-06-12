@@ -6,6 +6,7 @@ import {
   logoutUser,
   forgotPasswordService,
   createStaffUser,
+  resendOtp,
 } from "./auth.service.js";
 import { loginWithGoogle, loginWithApple } from "./oauth.service.js";
 
@@ -125,6 +126,16 @@ export const forgotPasswordController = async (req, res) => {
   try {
     await forgotPasswordService(req.body.email);
     res.status(200).json({ message: "Reset OTP sent to email" });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Resend OTP (email verification or password reset)
+export const resendOtpController = async (req, res) => {
+  try {
+    await resendOtp(req.body.email);
+    res.status(200).json({ message: "A new code has been sent to your email" });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

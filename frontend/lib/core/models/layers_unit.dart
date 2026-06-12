@@ -41,6 +41,8 @@ class LayerHouseView {
     required this.feedKg,
     required this.phasingOut,
     required this.status,
+    this.householdUsed = 0,
+    this.availableEggs = 0,
   });
 
   final String id;
@@ -53,8 +55,12 @@ class LayerHouseView {
   final num feedKg;
   final bool phasingOut;
   final String status; // PHASING_OUT | CONTINUING
+  final int householdUsed;
+  final int availableEggs;
 
   factory LayerHouseView.fromJson(Map<String, dynamic> j) {
+    final eggsToday = _toInt(j['eggsToday'] ?? (_toNum(j['cratesToday']) * 30).round());
+    final household = _toInt(j['householdUsed']);
     return LayerHouseView(
       id: (j['id'] ?? '').toString(),
       name: (j['name'] ?? '').toString(),
@@ -66,6 +72,8 @@ class LayerHouseView {
       feedKg: _toNum(j['feedKg']),
       phasingOut: j['phasingOut'] == true,
       status: (j['status'] ?? 'CONTINUING').toString(),
+      householdUsed: household,
+      availableEggs: _toInt(j['availableEggs'] ?? (eggsToday - household).clamp(0, double.maxFinite).round()),
     );
   }
 }
@@ -77,23 +85,37 @@ class LayersSection {
     required this.cratesToday,
     required this.mortalityToday,
     required this.houses,
+    this.householdUsedToday = 0,
+    this.availableEggsToday = 0,
   });
 
   final int totalBirds;
   final num cratesToday;
   final int mortalityToday;
   final List<LayerHouseView> houses;
+  final int householdUsedToday;
+  final int availableEggsToday;
+
+  num get availableTraysToday => availableEggsToday / 30;
 
   factory LayersSection.fromJson(Map<String, dynamic> j) {
     final hl = (j['houses'] as List? ?? const [])
         .whereType<Map>()
         .map((m) => LayerHouseView.fromJson(m.cast<String, dynamic>()))
         .toList();
+    final householdSum = _toInt(
+      j['householdUsedToday'] ?? hl.fold<int>(0, (s, h) => s + h.householdUsed),
+    );
+    final availableSum = _toInt(
+      j['availableEggsToday'] ?? hl.fold<int>(0, (s, h) => s + h.availableEggs),
+    );
     return LayersSection(
       totalBirds: _toInt(j['totalBirds']),
       cratesToday: _toNum(j['cratesToday']),
       mortalityToday: _toInt(j['mortalityToday']),
       houses: hl,
+      householdUsedToday: householdSum,
+      availableEggsToday: availableSum,
     );
   }
 }

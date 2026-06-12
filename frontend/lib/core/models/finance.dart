@@ -134,6 +134,51 @@ class UnitPnl {
       );
 }
 
+class RevenueRow {
+  RevenueRow({
+    required this.id,
+    required this.unit,
+    required this.category,
+    required this.amount,
+    this.quantity,
+    this.unitLabel,
+    required this.date,
+    this.notes,
+    this.createdAt,
+  });
+
+  final String id;
+  final String unit;
+  final String category;
+  final double amount;
+  final double? quantity;
+  final String? unitLabel;
+  final DateTime date;
+  final String? notes;
+  final DateTime? createdAt;
+
+  factory RevenueRow.fromJson(Map<String, dynamic> j) => RevenueRow(
+        id: (j['id'] ?? '').toString(),
+        unit: (j['unit'] ?? '').toString(),
+        category: (j['category'] ?? '').toString(),
+        amount: _toDouble(j['amount']),
+        quantity: j['quantity'] == null ? null : _toDouble(j['quantity']),
+        unitLabel: j['unitLabel']?.toString(),
+        date: _parseDate(j['date']) ?? DateTime.now(),
+        notes: j['notes']?.toString(),
+        createdAt: _parseDate(j['createdAt']),
+      );
+}
+
+DateTime? _parseDate(dynamic v) {
+  if (v == null) return null;
+  try {
+    return DateTime.parse(v.toString());
+  } catch (_) {
+    return null;
+  }
+}
+
 int _toInt(dynamic v) {
   if (v is int) return v;
   if (v is num) return v.toInt();

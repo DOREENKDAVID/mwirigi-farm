@@ -208,13 +208,15 @@ class _DesktopTable extends StatelessWidget {
                   child: StatusBadge(status: r.status),
                 ),
               ),
-              // Edit button — only for DB rows that have a record
-              if (r.source == 'DB' && r.lastRecordId != null && onEdit != null)
+              // Edit button — all DB rows (creates first record if none logged)
+              if (r.source == 'DB' && onEdit != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: IconButton(
                     icon: const Icon(Icons.edit_outlined, size: 16),
-                    tooltip: 'Edit record',
+                    tooltip: r.lastRecordId == null
+                        ? 'Log first vaccination'
+                        : 'Edit record',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     splashRadius: 16,
@@ -263,13 +265,13 @@ class _MobileCards extends StatelessWidget {
                       ),
                     ),
                     StatusBadge(status: r.status),
-                    if (r.source == 'DB' &&
-                        r.lastRecordId != null &&
-                        onEdit != null) ...[
+                    if (r.source == 'DB' && onEdit != null) ...[
                       const SizedBox(width: 4),
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 16),
-                        tooltip: 'Edit record',
+                        tooltip: r.lastRecordId == null
+                            ? 'Log first vaccination'
+                            : 'Edit record',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         splashRadius: 16,

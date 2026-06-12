@@ -81,6 +81,7 @@ export const listVaccinations = async () => {
       lastRecordId: p.records[0]?.id ?? null,
       lastRecordNotes: p.records[0]?.notes ?? null,
       lastRecordNextDue: p.records[0]?.nextDueOverride?.toISOString() ?? null,
+      lastRecordAdministeredBy: p.records[0]?.administeredBy ?? null,
     };
   });
 
@@ -175,6 +176,7 @@ export const createVaccinationRecord = async (input, userId) => {
           administeredAt: input.administeredAt,
           nextDueOverride: input.nextDueOverride ?? null,
           notes: input.notes ?? null,
+          administeredBy: input.administeredBy ?? null,
           recordedById: userId ?? null,
         },
       });
@@ -215,6 +217,7 @@ export const createVaccinationRecord = async (input, userId) => {
         administeredAt: input.administeredAt,
         nextDueOverride: input.nextDueOverride ?? null,
         notes: input.notes ?? null,
+        administeredBy: input.administeredBy ?? null,
         recordedById: userId ?? null,
       },
     });
@@ -259,6 +262,10 @@ export const updateVaccinationRecord = async (recordId, patch, userId) => {
             ? patch.nextDueOverride
             : record.nextDueOverride,
         notes: patch.notes !== undefined ? patch.notes : record.notes,
+        administeredBy:
+          patch.administeredBy !== undefined
+            ? patch.administeredBy
+            : record.administeredBy,
       },
     });
     await writeAuditLog(tx, {

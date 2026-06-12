@@ -21,7 +21,6 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../models/dairy_report.dart';
 
@@ -58,44 +57,44 @@ class DairyReportFilterLabels {
 
 // --- Public entry points ---------------------------------------------
 
-Future<Uint8List> previewDairyMilkReportPdf({
+Future<Uint8List> buildDairyMilkReportPdf({
   required MilkProductionReport report,
   required DairyReportFilterLabels filters,
   String? generatedBy,
 }) async {
   final doc = pw.Document();
   doc.addPage(_milkPage(report, filters, generatedBy));
-  return _preview(doc, 'Mwirigi-Dairy-Milk-Report');
+  return doc.save();
 }
 
-Future<Uint8List> previewDairyReproductionReportPdf({
+Future<Uint8List> buildDairyReproductionReportPdf({
   required ReproductionReport report,
   required DairyReportFilterLabels filters,
   String? generatedBy,
 }) async {
   final doc = pw.Document();
   doc.addPage(_reproductionPage(report, filters, generatedBy));
-  return _preview(doc, 'Mwirigi-Dairy-Reproduction-Report');
+  return doc.save();
 }
 
-Future<Uint8List> previewDairyHealthReportPdf({
+Future<Uint8List> buildDairyHealthReportPdf({
   required HealthReport report,
   required DairyReportFilterLabels filters,
   String? generatedBy,
 }) async {
   final doc = pw.Document();
   doc.addPage(_healthPage(report, filters, generatedBy));
-  return _preview(doc, 'Mwirigi-Dairy-Health-Report');
+  return doc.save();
 }
 
-Future<Uint8List> previewDairyVaccinationReportPdf({
+Future<Uint8List> buildDairyVaccinationReportPdf({
   required VaccinationReport report,
   required DairyReportFilterLabels filters,
   String? generatedBy,
 }) async {
   final doc = pw.Document();
   doc.addPage(_vaccinationPage(report, filters, generatedBy));
-  return _preview(doc, 'Mwirigi-Dairy-Vaccination-Report');
+  return doc.save();
 }
 
 // --- Page builders, one per report type ------------------------------
@@ -751,13 +750,3 @@ pw.Widget _footer(pw.Context context) => pw.Container(
       ),
     );
 
-// --- Preview plumbing ------------------------------------------------
-
-Future<Uint8List> _preview(pw.Document doc, String namePrefix) async {
-  final bytes = await doc.save();
-  await Printing.layoutPdf(
-    name: namePrefix,
-    onLayout: (_) async => bytes,
-  );
-  return bytes;
-}
