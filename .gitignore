@@ -119,3 +119,6 @@ android/app/build/
 
 # Windows
 Thumbs.db
+
+google-services.json
+google-services.plist
