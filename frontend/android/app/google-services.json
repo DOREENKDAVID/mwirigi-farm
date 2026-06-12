@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1039139293103",
+    "project_id": "mwirigi-farm",
+    "storage_bucket": "mwirigi-farm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1039139293103:android:4baf0af1bfd60ba10f115a",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1039139293103-nqot727og0o1a2m7tglkqr6s9ca3ou86.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqBJlp9OnV_Igy5Peo-1f4AQ7ul9KcybI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1039139293103-nqot727og0o1a2m7tglkqr6s9ca3ou86.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
