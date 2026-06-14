@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/health.dart';
 import '../../core/service/api_service.dart';
-import 'status_badge.dart';
 
 /// Edit (or create the first) VaccinationRecord for a DB protocol row.
 ///
@@ -20,6 +19,15 @@ class EditVaccineDialog extends StatefulWidget {
 class _EditVaccineDialogState extends State<EditVaccineDialog> {
   static const _primary = Color(0xFF27500A);
 
+  static const _statusOptions = ['DONE', 'DUE_NOW', 'OVERDUE'];
+  static const _statusLabels = {'DONE': 'Done', 'DUE_NOW': 'Due', 'OVERDUE': 'Overdue'};
+
+  static String _mapStatus(String s) {
+    if (s == 'DONE') return 'DONE';
+    if (s == 'OVERDUE') return 'OVERDUE';
+    return 'DUE_NOW';
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _animalsController = TextEditingController();
   final _administeredByController = TextEditingController();
@@ -27,6 +35,7 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
 
   late DateTime _dateDone;
   DateTime? _nextDueOverride;
+  late String _statusOverride;
   bool _submitting = false;
 
   bool get _isCreate => widget.row.lastRecordId == null;
@@ -40,6 +49,7 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
     _notesController.text = widget.row.lastRecordNotes ?? '';
     _dateDone = widget.row.lastDoneAt ?? DateTime.now();
     _nextDueOverride = widget.row.lastRecordNextDue;
+    _statusOverride = _mapStatus(widget.row.status);
   }
 
   @override
@@ -78,29 +88,33 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
     setState(() => _submitting = true);
     try {
       if (_isCreate) {
-        await ApiService.createHealthVaccination({
-          'protocolId': widget.row.protocolId,
+        final body = <String, dynamic>{
           'animalCount': animalCount,
           'administeredAt': _dateDone.toIso8601String(),
-          if (_nextDueOverride != null)
-            'nextDueOverride': _nextDueOverride!.toIso8601String()
-          else
-            'nextDueOverride': null,
+          'nextDueOverride': _nextDueOverride?.toIso8601String(),
+          'statusOverride': _statusOverride,
           if (administeredBy.isNotEmpty) 'administeredBy': administeredBy,
           if (notes.isNotEmpty) 'notes': notes,
-        });
+        };
+        // Brooder rows have no protocolId — send brooderId + vaccineName + dayOffset.
+        if (widget.row.protocolId != null) {
+          body['protocolId'] = widget.row.protocolId;
+        } else {
+          body['brooderId'] = widget.row.brooderId;
+          body['vaccineName'] = widget.row.vaccine;
+          body['dayOffset'] = widget.row.dayOffsetStart;
+        }
+        await ApiService.createHealthVaccination(body);
       } else {
         await ApiService.updateHealthVaccinationRecord(
           widget.row.lastRecordId!,
           {
             'animalCount': animalCount,
             'administeredAt': _dateDone.toIso8601String(),
-            if (_nextDueOverride != null)
-              'nextDueOverride': _nextDueOverride!.toIso8601String()
-            else
-              'nextDueOverride': null,
+            'nextDueOverride': _nextDueOverride?.toIso8601String(),
+            'statusOverride': _statusOverride,
             'administeredBy': administeredBy.isNotEmpty ? administeredBy : null,
-            if (notes.isNotEmpty) 'notes': notes else 'notes': null,
+            'notes': notes.isNotEmpty ? notes : null,
           },
         );
       }
@@ -148,7 +162,7 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Status + Unit row
+                // Animal type + Status row
                 Row(
                   children: [
                     Expanded(
@@ -169,11 +183,30 @@ class _EditVaccineDialogState extends State<EditVaccineDialog> {
                     Expanded(
                       child: InputDecorator(
                         decoration: const InputDecoration(
-                          labelText: 'Current Status',
+                          labelText: 'Status',
                           border: OutlineInputBorder(),
                           isDense: true,
+                          contentPadding: EdgeInsets.fromLTRB(12, 8, 4, 8),
                         ),
-                        child: StatusBadge(status: widget.row.status),
+                        child: DropdownButton<String>(
+                          value: _statusOverride,
+                          isExpanded: true,
+                          underline: const SizedBox.shrink(),
+                          isDense: true,
+                          items: _statusOptions
+                              .map((s) => DropdownMenuItem(
+                                    value: s,
+                                    child: Text(
+                                      _statusLabels[s]!,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: _submitting
+                              ? null
+                              : (v) => setState(
+                                  () => _statusOverride = v ?? _statusOverride),
+                        ),
                       ),
                     ),
                   ],

@@ -105,6 +105,10 @@ export const listVaccinations = async () => {
     dayOffsetStart: r.dayOffsetStart,
     dayOffsetEnd: r.dayOffsetEnd,
     milestone: r.milestone,
+    lastRecordId: r.lastRecordId ?? null,
+    lastRecordNotes: r.lastRecordNotes ?? null,
+    lastRecordNextDue: r.lastRecordNextDue ?? null,
+    lastRecordAdministeredBy: r.lastRecordAdministeredBy ?? null,
   }));
 
   // Sort: actionable rows first, then by daysUntilDue.
@@ -175,6 +179,7 @@ export const createVaccinationRecord = async (input, userId) => {
           animalCount: input.animalCount,
           administeredAt: input.administeredAt,
           nextDueOverride: input.nextDueOverride ?? null,
+          statusOverride: input.statusOverride ?? null,
           notes: input.notes ?? null,
           administeredBy: input.administeredBy ?? null,
           recordedById: userId ?? null,
@@ -216,6 +221,7 @@ export const createVaccinationRecord = async (input, userId) => {
         animalCount: input.animalCount,
         administeredAt: input.administeredAt,
         nextDueOverride: input.nextDueOverride ?? null,
+        statusOverride: input.statusOverride ?? null,
         notes: input.notes ?? null,
         administeredBy: input.administeredBy ?? null,
         recordedById: userId ?? null,
@@ -261,6 +267,10 @@ export const updateVaccinationRecord = async (recordId, patch, userId) => {
           patch.nextDueOverride !== undefined
             ? patch.nextDueOverride
             : record.nextDueOverride,
+        statusOverride:
+          patch.statusOverride !== undefined
+            ? patch.statusOverride
+            : record.statusOverride,
         notes: patch.notes !== undefined ? patch.notes : record.notes,
         administeredBy:
           patch.administeredBy !== undefined

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/models/piggery.dart';
 import '../../core/service/api_service.dart';
 import 'edit_sow_dialog.dart';
+import 'release_pig_dialog.dart';
 
 /// Sow Register card. Search input + 6-column table. Pencil/trash icons
 /// open the edit dialog and delete-confirm flow respectively.
@@ -112,7 +113,7 @@ class SowRegisterTable extends StatelessWidget {
                       DataCell(Text('${s.litterCount}')),
                       DataCell(Text(_fmtDate(s.lastFarrowed))),
                       DataCell(Text(_fmtDate(s.dueDate))),
-                      DataCell(_ActionIcons(sow: s, onChanged: onChanged)),
+                      DataCell(_SowRowActions(sow: s, onChanged: onChanged)),
                     ]),
                 ],
               ),
@@ -165,8 +166,8 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-class _ActionIcons extends StatelessWidget {
-  const _ActionIcons({required this.sow, required this.onChanged});
+class _SowRowActions extends StatelessWidget {
+  const _SowRowActions({required this.sow, required this.onChanged});
 
   final Sow sow;
   final VoidCallback onChanged;
@@ -182,6 +183,26 @@ class _ActionIcons extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${sow.tag} updated')),
+        );
+      }
+    }
+  }
+
+  Future<void> _release(BuildContext context) async {
+    final released = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReleasePigDialog(
+        pigId: sow.id,
+        pigTag: sow.tag,
+        category: 'SOW',
+      ),
+    );
+    if (released == true) {
+      onChanged();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${sow.tag} released')),
         );
       }
     }
@@ -234,24 +255,22 @@ class _ActionIcons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Edit',
-          onPressed: () => _edit(context),
-          icon: const Icon(Icons.edit_outlined, size: 16),
-          color: const Color(0xFF27500A),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-        ),
-        IconButton(
-          tooltip: 'Delete',
-          onPressed: () => _delete(context),
-          icon: const Icon(Icons.delete_outline, size: 16),
-          color: const Color(0xFFE24B4A),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 18, color: Colors.black54),
+      padding: EdgeInsets.zero,
+      tooltip: 'Actions',
+      onSelected: (v) {
+        if (v == 'edit') _edit(context);
+        if (v == 'release') _release(context);
+        if (v == 'delete') _delete(context);
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'edit',    child: Text('Edit Sow')),
+        PopupMenuItem(value: 'release', child: Text('Release / Sell')),
+        PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: Color(0xFFE24B4A))),
         ),
       ],
     );

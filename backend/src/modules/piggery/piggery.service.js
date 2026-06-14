@@ -1,6 +1,17 @@
 import prisma from "../../prisma/client.js";
 import { writeAuditLog } from "../../utils/audit.js";
 
+// ── Fixed farm identity (single-farm system) ──────────────────────────
+export const MWIRIGI_FARM_ID = "00000000-0000-0000-0000-000000000001";
+
+export const ensureFarm = async () => {
+  await prisma.farm.upsert({
+    where:  { id: MWIRIGI_FARM_ID },
+    create: { id: MWIRIGI_FARM_ID, name: "Mwirigi Farm" },
+    update: {},
+  });
+};
+
 const startOfDay = (d) => {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -239,7 +250,7 @@ export const listHouses = async () => {
 
 // GET /api/piggery/sows?search=&house=&status=
 export const listSows = async ({ search, house, status } = {}) => {
-  const where = { category: "SOW", deletedAt: null };
+  const where = { category: "SOW", deletedAt: null, releasedAt: null };
   if (search && search.trim()) {
     where.tag = { contains: search.trim(), mode: "insensitive" };
   }
@@ -299,7 +310,7 @@ export const listSows = async ({ search, house, status } = {}) => {
 // GET /api/piggery/boars
 export const listBoars = async () => {
   return prisma.pig.findMany({
-    where: { category: "BOAR", deletedAt: null },
+    where: { category: "BOAR", deletedAt: null, releasedAt: null },
     orderBy: { tag: "asc" },
     select: {
       id: true,
@@ -309,6 +320,8 @@ export const listBoars = async () => {
       breed: true,
       age: true,
       role: true,
+      servicedSowId: true,
+      servicedSow: { select: { id: true, tag: true } },
     },
   });
 };
@@ -528,6 +541,47 @@ export const logFarrowing = async (input) => {
 };
 
 //////////////////////////////////////////////////////
+// UPDATE FARROWING RECORD
+//////////////////////////////////////////////////////
+
+export const updateFarrowingRecord = async (id, patch) => {
+  const existing = await prisma.farrowingRecord.findUnique({ where: { id } });
+  if (!existing) throw new Error("Farrowing record not found");
+
+  const data = {};
+  if (patch.date        !== undefined) data.date        = patch.date;
+  if (patch.service     !== undefined) data.service     = patch.service;
+  if (patch.winners     !== undefined) data.winners     = patch.winners;
+  if (patch.fatteners   !== undefined) data.fatteners   = patch.fatteners;
+  if (patch.beaconners  !== undefined) data.beaconners  = patch.beaconners;
+  if (patch.remarks     !== undefined) data.remarks     = patch.remarks;
+  if (patch.pigletsDead !== undefined) {
+    data.pigletsDead = patch.pigletsDead;
+    // Recompute pigletsAlive and pigletsBorn from the existing totals
+    const alive =
+      (patch.winners   ?? existing.winners   ?? 0) +
+      (patch.fatteners ?? existing.fatteners ?? 0) +
+      (patch.beaconners?? existing.beaconners?? 0);
+    data.pigletsAlive = alive;
+    data.pigletsBorn  = alive + patch.pigletsDead;
+  } else if (
+    patch.winners !== undefined ||
+    patch.fatteners !== undefined ||
+    patch.beaconners !== undefined
+  ) {
+    // Category totals changed but dead didn't — recompute alive/born
+    const alive =
+      (patch.winners   ?? existing.winners   ?? 0) +
+      (patch.fatteners ?? existing.fatteners ?? 0) +
+      (patch.beaconners?? existing.beaconners?? 0);
+    data.pigletsAlive = alive;
+    data.pigletsBorn  = alive + existing.pigletsDead;
+  }
+
+  return prisma.farrowingRecord.update({ where: { id }, data });
+};
+
+//////////////////////////////////////////////////////
 // UPDATE / SOFT DELETE
 //////////////////////////////////////////////////////
 
@@ -548,6 +602,7 @@ export const updatePig = async (id, patch) => {
     "age",
     "role",
     "note",
+    "servicedSowId",
   ]) {
     if (k in patch) data[k] = patch[k];
   }
@@ -737,74 +792,55 @@ export const releasePen = async (id, input, actorId = null) => {
   const releaseDate = new Date();
   const amount = input.amount ?? 0;
 
+  if (input.destination === "FARMERS_CHOICE") {
+    throw new Error(
+      "Farmers Choice releases must go through the approval workflow. Use POST /pens/:id/request-release instead.",
+    );
+  }
+
   return prisma.$transaction(async (tx) => {
     let revenueId = null;
 
-    if (input.destination === "FARMERS_CHOICE") {
-      if (amount > 0) {
-        const rev = await tx.revenue.create({
-          data: {
-            unit: "Piggery",
-            category: "ANIMAL_SALES",
-            amount,
-            quantity: pen.count,
-            unitLabel: "head",
-            date: releaseDate,
-            notes: [
-              `FC release pen ${pen.pen}`,
-              input.ref ? `ref ${input.ref}` : null,
-              `${pen.count} pigs · ${finalWeight.toFixed(1)}kg net`,
-              input.driver ? `driver ${input.driver}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-            createdById: actorId ?? null,
-          },
-        });
-        revenueId = rev.id;
-      }
-      await tx.farmersChoiceDelivery.create({
-        data: {
-          date: releaseDate,
-          ref: input.ref?.trim() || `PEN-${pen.pen}`,
-          pens: pen.pen,
-          count: pen.count,
-          category: input.category ?? "Beaconners",
-          ageRange: input.ageRange ?? pen.age ?? null,
-          driver: input.driver?.trim() || "TBC",
-          notes: [
-            `Released from pen ${pen.pen} (House ${pen.house})`,
-            `Live ${input.totalWeight}kg · net ${finalWeight.toFixed(1)}kg`,
-            input.notes ?? null,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-          revenueId,
-          recordedById: actorId ?? null,
-        },
-      });
-    } else if (input.destination === "LOCAL_SALE" && amount > 0) {
+    if (input.destination === "LOCAL_SALE" && amount > 0) {
       const rev = await tx.revenue.create({
         data: {
-          unit: "Piggery",
-          category: "ANIMAL_SALES",
+          unit:      "Piggery",
+          category:  "ANIMAL_SALES",
           amount,
-          quantity: pen.count,
+          quantity:  pen.count,
           unitLabel: "head",
-          date: releaseDate,
+          date:      releaseDate,
           notes: [
             `Local sale pen ${pen.pen} (House ${pen.house})`,
             `${pen.count} pigs · ${finalWeight.toFixed(1)}kg net`,
             input.destinationNote ?? null,
             input.notes ?? null,
-          ]
-            .filter(Boolean)
-            .join(" · "),
+          ].filter(Boolean).join(" · "),
           createdById: actorId ?? null,
         },
       });
       revenueId = rev.id;
     }
+
+    // Create a DispatchLog for LOCAL_SALE and OTHER so all exits have a record.
+    await tx.dispatchLog.create({
+      data: {
+        farmId:      MWIRIGI_FARM_ID,
+        pens:        pen.pen,
+        count:       pen.count,
+        category:    "Mixed",
+        ageRange:    pen.age ?? null,
+        destination: input.destination,
+        amount:      amount > 0 ? amount : null,
+        notes: [
+          input.destinationNote ?? null,
+          input.notes ?? null,
+        ].filter(Boolean).join(" · ") || null,
+        revenueId,
+        createdById: actorId ?? null,
+        date:        releaseDate,
+      },
+    });
 
     // Race-condition guard: the WHERE clause includes releasedAt: null so if
     // a concurrent request already released this pen, updateMany returns
@@ -862,6 +898,374 @@ export const releasePen = async (id, input, actorId = null) => {
       releasedAt: releaseDate,
     };
   });
+};
+
+// =====================================================================
+// RELEASE PIG (Sow / Boar)
+// =====================================================================
+// Marks an individual sow or boar as released (sold, culled, died, etc.).
+// Optionally creates a Revenue row (PIG_SALES) when a sale amount is given.
+export const releasePig = async (id, input, actorId = null) => {
+  const pig = await prisma.pig.findUnique({ where: { id } });
+  if (!pig || pig.deletedAt) throw new Error("Pig not found");
+  if (pig.releasedAt) throw new Error("Pig has already been released");
+
+  const releaseDate = input.releaseDate ? new Date(input.releaseDate) : new Date();
+  const amount = Number(input.releaseAmount ?? 0);
+
+  return prisma.$transaction(async (tx) => {
+    let revenueId = null;
+    if (amount > 0) {
+      const rev = await tx.revenue.create({
+        data: {
+          unit:        "Piggery",
+          category:    "PIG_SALES",
+          amount,
+          quantity:    1,
+          unitLabel:   "head",
+          date:        releaseDate,
+          notes:       `${pig.category === "SOW" ? "Sow" : "Boar"} ${pig.tag} · ${input.releaseReason ?? "SOLD"}`,
+          createdById: actorId ?? null,
+        },
+      });
+      revenueId = rev.id;
+    }
+
+    // Race-condition guard: only updates if still active.
+    const guard = await tx.pig.updateMany({
+      where: { id, releasedAt: null, deletedAt: null },
+      data: {
+        releasedAt:    releaseDate,
+        releaseReason: input.releaseReason ?? "OTHER",
+        releaseNotes:  input.releaseNotes  ?? null,
+        releaseAmount: amount > 0 ? amount : null,
+      },
+    });
+    if (guard.count === 0) throw new Error("Pig has already been released");
+
+    await writeAuditLog(tx, {
+      entity:   "Pig",
+      entityId: id,
+      action:   "RELEASE",
+      module:   "Piggery",
+      actorId:  actorId ?? null,
+      snapshot: {
+        tag:           pig.tag,
+        category:      pig.category,
+        releaseReason: input.releaseReason,
+        releaseAmount: amount > 0 ? amount : null,
+        releasedAt:    releaseDate,
+      },
+    });
+
+    return { tag: pig.tag, category: pig.category, releaseReason: input.releaseReason, releasedAt: releaseDate, revenueId };
+  });
+};
+
+// =====================================================================
+// PEN RELEASE APPROVAL WORKFLOW
+// =====================================================================
+
+// Step 1 — Worker submits a Farmers Choice release request.
+// Pen is locked (pendingReleaseId set); not yet marked as releasedAt.
+export const requestPenRelease = async (penId, input, actorId = null) => {
+  const pen = await prisma.fattenPen.findUnique({ where: { id: penId } });
+  if (!pen || pen.deletedAt) throw new Error("Pen not found");
+  if (pen.releasedAt)        throw new Error("Pen has already been released");
+  if (pen.pendingReleaseId)  throw new Error("A release request is already pending for this pen");
+
+  return prisma.$transaction(async (tx) => {
+    const req = await tx.releaseRequest.create({
+      data: {
+        penId,
+        farmId:        MWIRIGI_FARM_ID,
+        count:         pen.count,
+        category:      input.category ?? "Beaconners",
+        ageRange:      input.ageRange ?? pen.age ?? null,
+        originalCount: pen.count,
+        originalAge:   pen.age ?? null,
+        status:        "PENDING",
+        requestedById: actorId ?? null,
+      },
+    });
+
+    await tx.fattenPen.update({
+      where: { id: penId },
+      data:  { pendingReleaseId: req.id },
+    });
+
+    await writeAuditLog(tx, {
+      entity:   "FattenPen",
+      entityId: penId,
+      action:   "RELEASE_REQUEST",
+      module:   "Piggery",
+      actorId:  actorId ?? null,
+      snapshot: { pen: pen.pen, house: pen.house, count: pen.count, category: req.category, requestId: req.id },
+    });
+
+    return req;
+  });
+};
+
+// Step 2a — Manager approves a pending request.
+// Pen becomes fully released; request joins a PendingDispatch batch for its category.
+export const approveReleaseRequest = async (requestId, actorId = null) => {
+  const req = await prisma.releaseRequest.findUnique({
+    where:   { id: requestId },
+    include: { pen: true },
+  });
+  if (!req)                    throw new Error("Release request not found");
+  if (req.status !== "PENDING") throw new Error(`Cannot approve — request is ${req.status}`);
+
+  return prisma.$transaction(async (tx) => {
+    // Find or create an ACCUMULATING PendingDispatch for this farm + category.
+    let batch = await tx.pendingDispatch.findFirst({
+      where: { farmId: MWIRIGI_FARM_ID, category: req.category, status: "ACCUMULATING" },
+    });
+    if (!batch) {
+      batch = await tx.pendingDispatch.create({
+        data: { farmId: MWIRIGI_FARM_ID, category: req.category, ageRange: req.ageRange, status: "ACCUMULATING" },
+      });
+    }
+
+    await tx.releaseRequest.update({
+      where: { id: requestId },
+      data: {
+        status:           "APPROVED",
+        approvedById:     actorId ?? null,
+        approvedAt:       new Date(),
+        pendingDispatchId: batch.id,
+      },
+    });
+
+    // Mark pen as released (drops out of active fattening/finishing lists).
+    await tx.fattenPen.update({
+      where: { id: req.penId },
+      data: {
+        releasedAt:        new Date(),
+        releaseDestination:"FARMERS_CHOICE",
+        pendingReleaseId:  null,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      entity:   "ReleaseRequest",
+      entityId: requestId,
+      action:   "APPROVE",
+      module:   "Piggery",
+      actorId:  actorId ?? null,
+      snapshot: { pen: req.pen.pen, count: req.count, category: req.category, batchId: batch.id },
+    });
+
+    return { requestId, batchId: batch.id, pen: req.pen.pen };
+  });
+};
+
+// Step 2b — Manager rejects a pending request.
+// Pen is restored to its original state.
+export const rejectReleaseRequest = async (requestId, input, actorId = null) => {
+  const req = await prisma.releaseRequest.findUnique({
+    where:   { id: requestId },
+    include: { pen: true },
+  });
+  if (!req)                    throw new Error("Release request not found");
+  if (req.status !== "PENDING") throw new Error(`Cannot reject — request is ${req.status}`);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.releaseRequest.update({
+      where: { id: requestId },
+      data: {
+        status:         "REJECTED",
+        rejectedById:   actorId ?? null,
+        rejectedAt:     new Date(),
+        rejectionNotes: input.notes ?? null,
+      },
+    });
+
+    // Restore pen to its pre-request state.
+    await tx.fattenPen.update({
+      where: { id: req.penId },
+      data: {
+        pendingReleaseId: null,
+        count:            req.originalCount,
+        age:              req.originalAge ?? undefined,
+        releasedAt:       null,
+      },
+    });
+
+    await writeAuditLog(tx, {
+      entity:   "ReleaseRequest",
+      entityId: requestId,
+      action:   "REJECT",
+      module:   "Piggery",
+      actorId:  actorId ?? null,
+      snapshot: { pen: req.pen.pen, reason: input.notes, restoredCount: req.originalCount },
+    });
+
+    return { requestId, pen: req.pen.pen };
+  });
+};
+
+// Step 3 — List pending release requests (for the Farmers pill).
+export const listReleaseRequests = async (status) => {
+  const where = { farmId: MWIRIGI_FARM_ID };
+  if (status) where.status = status;
+  const rows = await prisma.releaseRequest.findMany({
+    where,
+    include: { pen: { select: { pen: true, house: true, count: true, age: true } } },
+    orderBy: { requestedAt: "desc" },
+  });
+  return rows.map((r) => ({
+    id:               r.id,
+    penId:            r.penId,
+    penLabel:         r.pen.pen,
+    house:            r.pen.house,
+    count:            r.count,
+    category:         r.category,
+    ageRange:         r.ageRange,
+    status:           r.status,
+    requestedAt:      r.requestedAt,
+    approvedAt:       r.approvedAt,
+    rejectedAt:       r.rejectedAt,
+    rejectionNotes:   r.rejectionNotes,
+    pendingDispatchId: r.pendingDispatchId,
+  }));
+};
+
+// Step 4 — List accumulating dispatch batches.
+export const listPendingDispatches = async () => {
+  const batches = await prisma.pendingDispatch.findMany({
+    where: { farmId: MWIRIGI_FARM_ID, status: "ACCUMULATING" },
+    include: {
+      requests: {
+        where:   { status: "APPROVED" },
+        include: { pen: { select: { pen: true, house: true } } },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  return batches.map((b) => ({
+    id:         b.id,
+    category:   b.category,
+    ageRange:   b.ageRange,
+    status:     b.status,
+    createdAt:  b.createdAt,
+    pens:       b.requests.map((r) => r.pen.pen),
+    totalCount: b.requests.reduce((s, r) => s + r.count, 0),
+    requestIds: b.requests.map((r) => r.id),
+  }));
+};
+
+// Step 5 — Manager confirms dispatch (submits the truck form).
+// Creates DispatchLog, closes the batch, marks all requests DISPATCHED.
+// If amount > 0, creates a Revenue row automatically.
+export const confirmDispatch = async (pendingDispatchId, input, actorId = null) => {
+  const batch = await prisma.pendingDispatch.findUnique({
+    where:   { id: pendingDispatchId },
+    include: {
+      requests: {
+        where:   { status: "APPROVED" },
+        include: { pen: { select: { pen: true } } },
+      },
+    },
+  });
+  if (!batch)                          throw new Error("Pending dispatch not found");
+  if (batch.status !== "ACCUMULATING") throw new Error("Dispatch has already been confirmed");
+  if (batch.requests.length === 0)     throw new Error("No approved requests in this batch");
+
+  const totalCount = batch.requests.reduce((s, r) => s + r.count, 0);
+  const pens       = batch.requests.map((r) => r.pen.pen).join(", ");
+  const amount     = Number(input.amount ?? 0);
+  const dispDate   = input.date ? new Date(input.date) : new Date();
+
+  return prisma.$transaction(async (tx) => {
+    let revenueId = null;
+    if (amount > 0) {
+      const rev = await tx.revenue.create({
+        data: {
+          unit:      "Piggery",
+          category:  "ANIMAL_SALES",
+          amount,
+          quantity:  totalCount,
+          unitLabel: "head",
+          date:      dispDate,
+          notes: [
+            `FC dispatch pens ${pens}`,
+            `${totalCount} pigs`,
+            input.ref ? `ref ${input.ref}` : null,
+            input.driver ? `driver ${input.driver}` : null,
+          ].filter(Boolean).join(" · "),
+          createdById: actorId ?? null,
+        },
+      });
+      revenueId = rev.id;
+    }
+
+    const dispatch = await tx.dispatchLog.create({
+      data: {
+        farmId:            MWIRIGI_FARM_ID,
+        pendingDispatchId,
+        date:              dispDate,
+        ref:               input.ref?.trim()    || null,
+        pens,
+        count:             totalCount,
+        category:          batch.category,
+        ageRange:          input.ageRange ?? batch.ageRange ?? null,
+        driver:            input.driver?.trim() || null,
+        amount:            amount > 0 ? amount : null,
+        notes:             input.notes?.trim()  || null,
+        destination:       "FARMERS_CHOICE",
+        revenueId,
+        createdById:       actorId ?? null,
+      },
+    });
+
+    // Mark all requests as DISPATCHED, link to DispatchLog.
+    await tx.releaseRequest.updateMany({
+      where: { pendingDispatchId, status: "APPROVED" },
+      data:  { status: "DISPATCHED", dispatchLogId: dispatch.id },
+    });
+
+    // Close the batch.
+    await tx.pendingDispatch.update({
+      where: { id: pendingDispatchId },
+      data:  { status: "DISPATCHED" },
+    });
+
+    await writeAuditLog(tx, {
+      entity:   "DispatchLog",
+      entityId: dispatch.id,
+      action:   "DISPATCH",
+      module:   "Piggery",
+      actorId:  actorId ?? null,
+      snapshot: { pens, count: totalCount, category: batch.category, amount, ref: input.ref },
+    });
+
+    return { dispatchId: dispatch.id, pens, count: totalCount, revenueId };
+  });
+};
+
+// List completed dispatch logs (dispatch history view).
+export const listDispatchLogs = async () => {
+  const rows = await prisma.dispatchLog.findMany({
+    where:   { farmId: MWIRIGI_FARM_ID },
+    orderBy: { date: "desc" },
+  });
+  return rows.map((r) => ({
+    id:          r.id,
+    date:        r.date,
+    ref:         r.ref,
+    pens:        r.pens,
+    count:       r.count,
+    category:    r.category,
+    ageRange:    r.ageRange,
+    driver:      r.driver,
+    amount:      r.amount,
+    notes:       r.notes,
+    destination: r.destination,
+    revenueId:   r.revenueId,
+    hasRevenue:  !!r.revenueId,
+  }));
 };
 
 // =====================================================================

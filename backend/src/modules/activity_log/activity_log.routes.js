@@ -6,11 +6,10 @@ const router = express.Router();
 
 // GET /api/activity-log
 // Query params: entity, entityId, module, actorId, from, to, limit, offset
-// Roles: CEO, ADMIN (read-only audit visibility)
 router.get(
   "/",
   authMiddleware,
-  authorizeRoles(["CEO", "ADMIN"]),
+  authorizeRoles("CEO", "ADMIN", "LAYERS_MANAGER", "DAIRY_MANAGER", "VET", "STAFF_MANAGER", "PIGGERY_MANAGER", "FEEDLOT_MANAGER"),
   async (req, res) => {
     try {
       const { entity, entityId, module, actorId, from, to, limit, offset } =

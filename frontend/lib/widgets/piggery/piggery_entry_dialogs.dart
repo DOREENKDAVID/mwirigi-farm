@@ -523,9 +523,15 @@ class _AddBoarDialogState extends State<AddBoarDialog> {
 }
 
 class EditBoarDialog extends StatefulWidget {
-  const EditBoarDialog({super.key, required this.boar, this.houses = const []});
+  const EditBoarDialog({
+    super.key,
+    required this.boar,
+    this.houses = const [],
+    this.sows = const [],
+  });
   final Boar boar;
   final List<PigHouse> houses;
+  final List<Sow> sows;
   @override
   State<EditBoarDialog> createState() => _EditBoarDialogState();
 }
@@ -537,12 +543,14 @@ class _EditBoarDialogState extends State<EditBoarDialog> {
   late final TextEditingController _ageController;
   late final TextEditingController _roleController;
   String? _house;
+  String? _servicedSowId;
   bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
     _house = widget.boar.house;
+    _servicedSowId = widget.boar.servicedSowId;
     _penController = TextEditingController(text: widget.boar.pen ?? '');
     _breedController = TextEditingController(text: widget.boar.breed ?? '');
     _ageController = TextEditingController(text: widget.boar.age ?? '');
@@ -576,6 +584,7 @@ class _EditBoarDialogState extends State<EditBoarDialog> {
         'role': _roleController.text.trim().isEmpty
             ? null
             : _roleController.text.trim(),
+        'servicedSowId': _servicedSowId,
       });
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -673,6 +682,32 @@ class _EditBoarDialogState extends State<EditBoarDialog> {
               minLines: 2,
               maxLines: 3,
               decoration: _input(),
+            ),
+            const SizedBox(height: 14),
+            const _Label('Sow Serviced'),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String?>(
+              initialValue: _servicedSowId,
+              decoration: _input(),
+              isExpanded: true,
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(
+                    'Select sow…',
+                    style: TextStyle(color: Color(0xFF9E9E9E)),
+                  ),
+                ),
+                for (final s in widget.sows)
+                  DropdownMenuItem<String?>(
+                    value: s.id,
+                    child: Text(
+                      s.tag,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _servicedSowId = v),
             ),
             const SizedBox(height: 22),
             Row(
@@ -1760,33 +1795,37 @@ class _ReleasePenDialogState extends State<ReleasePenDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _submitting = true);
     try {
-      final tw = double.parse(_totalWeightCtrl.text.trim());
-      final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
-      final result = await ApiService.releasePiggeryPen(widget.pen.id, {
-        'totalWeight': tw,
-        'destination': _destination,
-        if (_destination == 'FARMERS_CHOICE') ...{
-          if (_refCtrl.text.trim().isNotEmpty) 'ref': _refCtrl.text.trim(),
+      if (_destination == 'FARMERS_CHOICE') {
+        // Approval flow: create a pending release request.
+        // Weight, driver, ref, amount are captured at dispatch-confirm time.
+        await ApiService.requestPenRelease(widget.pen.id, {
           'category': _fcCategory,
           if (_ageRangeCtrl.text.trim().isNotEmpty)
             'ageRange': _ageRangeCtrl.text.trim(),
-          if (_driverCtrl.text.trim().isNotEmpty)
-            'driver': _driverCtrl.text.trim(),
-          if (amount > 0) 'amount': amount,
-        },
-        if (_destination == 'LOCAL_SALE') ...{
-          if (amount > 0) 'amount': amount,
-          if (_destNoteCtrl.text.trim().isNotEmpty)
-            'destinationNote': _destNoteCtrl.text.trim(),
-        },
-        if (_destination == 'OTHER') ...{
-          if (_destNoteCtrl.text.trim().isNotEmpty)
-            'destinationNote': _destNoteCtrl.text.trim(),
-        },
-        if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
-      });
-      if (!mounted) return;
-      Navigator.of(context).pop(result);
+        });
+        if (!mounted) return;
+        Navigator.of(context).pop({'requested': true});
+      } else {
+        // Direct flow: LOCAL_SALE or OTHER — release immediately.
+        final tw     = double.parse(_totalWeightCtrl.text.trim());
+        final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
+        final result = await ApiService.releasePiggeryPen(widget.pen.id, {
+          'totalWeight': tw,
+          'destination': _destination,
+          if (_destination == 'LOCAL_SALE') ...{
+            if (amount > 0) 'amount': amount,
+            if (_destNoteCtrl.text.trim().isNotEmpty)
+              'destinationNote': _destNoteCtrl.text.trim(),
+          },
+          if (_destination == 'OTHER') ...{
+            if (_destNoteCtrl.text.trim().isNotEmpty)
+              'destinationNote': _destNoteCtrl.text.trim(),
+          },
+          if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+        });
+        if (!mounted) return;
+        Navigator.of(context).pop(result);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -1809,7 +1848,7 @@ class _ReleasePenDialogState extends State<ReleasePenDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Read-only info strip
+            // Read-only pen info
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -1818,103 +1857,57 @@ class _ReleasePenDialogState extends State<ReleasePenDialog> {
               ),
               child: Row(
                 children: [
-                  _InfoChip(
-                      label: 'Pen', value: widget.pen.pen),
+                  _InfoChip(label: 'Pen',   value: widget.pen.pen),
                   const SizedBox(width: 20),
-                  _InfoChip(
-                      label: 'Count',
-                      value: '${widget.pen.count} pigs'),
-                  const SizedBox(width: 20),
-                  _InfoChip(
+                  _InfoChip(label: 'Count', value: '${widget.pen.count} pigs'),
+                  if (_destination != 'FARMERS_CHOICE') ...[
+                    const SizedBox(width: 20),
+                    _InfoChip(
                       label: 'Dead-wt deduction',
-                      value: '${deadWeight.toStringAsFixed(0)} kg'),
+                      value: '${deadWeight.toStringAsFixed(0)} kg',
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 14),
-            // Total live weight
-            const _Label('Total live weight (kg) *'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _totalWeightCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: _input(hint: 'e.g. 850').copyWith(
-                suffixText: _finalWeight == null
-                    ? null
-                    : 'net ${_finalWeight!.toStringAsFixed(1)} kg',
-                suffixStyle: const TextStyle(
-                    color: _primary, fontWeight: FontWeight.w700),
-              ),
-              onChanged: _recalc,
-              validator: (v) {
-                final n = double.tryParse(v?.trim() ?? '');
-                if (n == null || n <= 0) return 'Enter a weight > 0 kg';
-                return null;
-              },
-            ),
-            const SizedBox(height: 14),
-            // Destination
+            // Destination — pick this first; FC path hides weight
             const _Label('Destination *'),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               initialValue: _destination,
               decoration: _input(),
               items: const [
-                DropdownMenuItem(
-                    value: 'FARMERS_CHOICE', child: Text('Farmers Choice')),
-                DropdownMenuItem(
-                    value: 'LOCAL_SALE', child: Text('Local Sale')),
-                DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                DropdownMenuItem(value: 'FARMERS_CHOICE', child: Text('Farmers Choice')),
+                DropdownMenuItem(value: 'LOCAL_SALE',     child: Text('Local Sale')),
+                DropdownMenuItem(value: 'OTHER',          child: Text('Other')),
               ],
-              onChanged: (v) => setState(() => _destination = v!),
+              onChanged: (v) => setState(() { _destination = v!; _finalWeight = null; }),
             ),
-            // FC-specific fields
+
+            // ── FARMERS CHOICE — approval-flow ──────────────────────────────
             if (_destination == 'FARMERS_CHOICE') ...[
-              const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _Label('FC Reference'),
-                        const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _refCtrl,
-                          decoration: _input(hint: 'FC-2026-041'),
-                        ),
-                      ],
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF3E8),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 14, color: _primary),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Submitting creates a Release Request visible in the Farmers pill. '
+                        'The manager approves it and confirms the driver, weight, and amount at dispatch time.',
+                        style: TextStyle(fontSize: 11, color: _primary),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _Label('Category'),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          initialValue: _fcCategory,
-                          decoration: _input(),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'Beaconners',
-                                child: Text('Beaconners')),
-                            DropdownMenuItem(
-                                value: 'Fatteners', child: Text('Fatteners')),
-                            DropdownMenuItem(
-                                value: 'Winners', child: Text('Winners')),
-                            DropdownMenuItem(
-                                value: 'Mixed', child: Text('Mixed')),
-                          ],
-                          onChanged: (v) =>
-                              setState(() => _fcCategory = v ?? _fcCategory),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -1924,11 +1917,18 @@ class _ReleasePenDialogState extends State<ReleasePenDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _Label('Driver'),
+                        const _Label('Category *'),
                         const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _driverCtrl,
-                          decoration: _input(hint: 'Driver name'),
+                        DropdownButtonFormField<String>(
+                          initialValue: _fcCategory,
+                          decoration: _input(),
+                          items: const [
+                            DropdownMenuItem(value: 'Beaconners', child: Text('Beaconners')),
+                            DropdownMenuItem(value: 'Fatteners',  child: Text('Fatteners')),
+                            DropdownMenuItem(value: 'Winners',    child: Text('Winners')),
+                            DropdownMenuItem(value: 'Mixed',      child: Text('Mixed')),
+                          ],
+                          onChanged: (v) => setState(() => _fcCategory = v ?? _fcCategory),
                         ),
                       ],
                     ),
@@ -1942,76 +1942,87 @@ class _ReleasePenDialogState extends State<ReleasePenDialog> {
                         const SizedBox(height: 6),
                         TextFormField(
                           controller: _ageRangeCtrl,
-                          decoration:
-                              _input(hint: widget.pen.age ?? '5-6 mo'),
+                          decoration: _input(hint: widget.pen.age ?? '5-6 mo'),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
+            ],
+
+            // ── LOCAL SALE / OTHER — direct release ──────────────────────────
+            if (_destination != 'FARMERS_CHOICE') ...[
               const SizedBox(height: 14),
-              const _Label('Amount received (Ksh) — optional'),
+              const _Label('Total live weight (kg) *'),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: _input(hint: '0'),
+                controller: _totalWeightCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: _input(hint: 'e.g. 850').copyWith(
+                  suffixText: _finalWeight == null
+                      ? null
+                      : 'net ${_finalWeight!.toStringAsFixed(1)} kg',
+                  suffixStyle: const TextStyle(color: _primary, fontWeight: FontWeight.w700),
+                ),
+                onChanged: _recalc,
+                validator: (v) {
+                  final n = double.tryParse(v?.trim() ?? '');
+                  if (n == null || n <= 0) return 'Enter a weight > 0 kg';
+                  return null;
+                },
+              ),
+              if (_destination == 'LOCAL_SALE') ...[
+                const SizedBox(height: 14),
+                const _Label('Amount received (Ksh)'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: _input(hint: '0'),
+                ),
+                const SizedBox(height: 14),
+                const _Label('Buyer / destination note'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _destNoteCtrl,
+                  decoration: _input(hint: 'Name, location…'),
+                ),
+              ],
+              if (_destination == 'OTHER') ...[
+                const SizedBox(height: 14),
+                const _Label('Destination note'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _destNoteCtrl,
+                  decoration: _input(hint: 'Describe where the pigs went…'),
+                ),
+              ],
+              const SizedBox(height: 14),
+              const _Label('Notes'),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _notesCtrl,
+                minLines: 2,
+                maxLines: 3,
+                decoration: _input(hint: 'Additional observations…'),
               ),
             ],
-            // Local Sale fields
-            if (_destination == 'LOCAL_SALE') ...[
-              const SizedBox(height: 14),
-              const _Label('Amount received (Ksh)'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: _input(hint: '0'),
-              ),
-              const SizedBox(height: 14),
-              const _Label('Buyer / destination note'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _destNoteCtrl,
-                decoration: _input(hint: 'Name, location…'),
-              ),
-            ],
-            // Other fields
-            if (_destination == 'OTHER') ...[
-              const SizedBox(height: 14),
-              const _Label('Destination note'),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _destNoteCtrl,
-                decoration: _input(hint: 'Describe where the pigs went…'),
-              ),
-            ],
-            // Notes (always)
-            const SizedBox(height: 14),
-            const _Label('Notes'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller: _notesCtrl,
-              minLines: 2,
-              maxLines: 3,
-              decoration: _input(hint: 'Additional observations…'),
-            ),
+
             const SizedBox(height: 22),
             Row(
               children: [
                 Expanded(
                   child: _PrimaryBtn(
                     onPressed: _submitting ? null : _submit,
-                    label: 'Confirm Release',
+                    label: _destination == 'FARMERS_CHOICE'
+                        ? 'Submit Request'
+                        : 'Confirm Release',
                   ),
                 ),
                 const SizedBox(width: 10),
                 _CancelBtn(
-                  onPressed:
-                      _submitting ? null : () => Navigator.of(context).pop(),
+                  onPressed: _submitting ? null : () => Navigator.of(context).pop(),
                 ),
               ],
             ),

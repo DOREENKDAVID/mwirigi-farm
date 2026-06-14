@@ -102,89 +102,86 @@ class _SalesPageState extends State<SalesPage> {
         final loading = snap.connectionState == ConnectionState.waiting;
         final data = snap.data;
 
-        return RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-            children: [
-              // ── KPI strip ──────────────────────────────────────────────
-              if (data != null) _SummaryStrip(summary: data.summary, unitLabel: widget.module == 'LAYERS' ? 'crates' : 'L'),
-              // ── Log Sale action ────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
-                child: FilledButton.icon(
-                  onPressed: _openLogSale,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Log Sale'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF27500A),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                  ),
+        // SalesPage is embedded inside a parent ListView — use Column so
+        // content sizes to its children instead of collapsing to zero.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── KPI strip ──────────────────────────────────────────────
+            if (data != null) _SummaryStrip(summary: data.summary, unitLabel: widget.module == 'LAYERS' ? 'crates' : 'L'),
+            // ── Log Sale action ────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(top: 14, bottom: 4),
+              child: FilledButton.icon(
+                onPressed: _openLogSale,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Log Sale'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF27500A),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ),
-              if (loading)
-                const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (snap.hasError)
+            ),
+            if (loading)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (snap.hasError)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: _ErrorCard(
+                  message: snap.error.toString().replaceFirst('Exception: ', ''),
+                  onRetry: _refresh,
+                ),
+              )
+            else if (data != null) ...[
+              // ── list ─────────────────────────────────────────────────
+              if (data.list.rows.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: _ErrorCard(
-                    message: snap.error.toString().replaceFirst('Exception: ', ''),
-                    onRetry: _refresh,
+                  padding: const EdgeInsets.symmetric(vertical: 60),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.sell_outlined, size: 40, color: Color(0xFFAAAAAA)),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No $unitName sales recorded yet.',
+                          style: const TextStyle(fontSize: 13, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap + Log Sale to record your first sale.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54.withAlpha(150)),
+                        ),
+                      ],
+                    ),
                   ),
                 )
-              else if (data != null) ...[
-                // ── list ─────────────────────────────────────────────────
-                if (data.list.rows.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 60),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.sell_outlined, size: 40, color: Color(0xFFAAAAAA)),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No $unitName sales recorded yet.',
-                            style: const TextStyle(fontSize: 13, color: Colors.black54),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Tap + Log Sale to record your first sale.',
-                            style: TextStyle(fontSize: 12, color: Colors.black54.withAlpha(150)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  for (final sale in data.list.rows) ...[
-                    const SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _SaleCard(
-                        sale: sale,
-                        onDelete: () => _confirmDelete(sale),
-                        onEdit: () async {
-                          final saved = await showDialog<bool>(
-                            context: context,
-                            builder: (_) => LogSaleDialog(
-                              module: widget.module,
-                              existing: sale,
-                            ),
-                          );
-                          if (saved == true) _refresh();
-                        },
-                      ),
-                    ),
-                  ],
-              ],
+              else
+                for (final sale in data.list.rows) ...[
+                  const SizedBox(height: 10),
+                  _SaleCard(
+                    sale: sale,
+                    onDelete: () => _confirmDelete(sale),
+                    onEdit: () async {
+                      final saved = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => LogSaleDialog(
+                          module: widget.module,
+                          existing: sale,
+                        ),
+                      );
+                      if (saved == true) _refresh();
+                    },
+                  ),
+                ],
             ],
-          ),
+          ],
         );
       },
     );
@@ -209,7 +206,7 @@ class _SummaryStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmtCcy = NumberFormat.currency(locale: 'en_KE', symbol: 'KES ');
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      margin: const EdgeInsets.only(top: 4, bottom: 0),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,

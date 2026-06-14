@@ -133,7 +133,7 @@ const buildVaccinationView = (brooder, records) => {
 
     let status;
     if (record) {
-      status = "DONE";
+      status = record.statusOverride ?? "DONE";
     } else if (dayDelta < -window) {
       status = "UPCOMING";
     } else if (dayDelta > step.windowDays) {
@@ -286,10 +286,14 @@ export const getBrooderScheduleRows = async () => {
 
   const view = buildVaccinationView(brooder, brooder.vaccinationRecords);
   const today = startOfDay(new Date());
+  const recordByOffset = new Map(
+    brooder.vaccinationRecords.map((r) => [r.dayOffset, r]),
+  );
 
   return view.map((v) => {
     const scheduledDate = new Date(v.scheduledDate);
     const doneDate = v.doneDate ? new Date(v.doneDate) : null;
+    const rec = recordByOffset.get(v.dayOffset) ?? null;
 
     // Display strings — match the HTML's "Mar 2026 (Day 12)" / "Day 56-63 (now)"
     // patterns exactly.
@@ -333,6 +337,11 @@ export const getBrooderScheduleRows = async () => {
       dayOffsetStart: v.dayOffset,
       dayOffsetEnd: v.dayOffset + (v.windowDays || 0),
       milestone: v.milestone,
+      // Latest record identifiers — needed by the health edit dialog.
+      lastRecordId: rec?.id ?? null,
+      lastRecordNotes: rec?.notes ?? null,
+      lastRecordNextDue: rec?.nextDueOverride?.toISOString() ?? null,
+      lastRecordAdministeredBy: rec?.administeredBy ?? null,
     };
   });
 };

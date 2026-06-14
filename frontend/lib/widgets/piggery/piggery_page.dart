@@ -9,12 +9,14 @@ import '../dairy/report_sick_dialog.dart';
 import '../dashboard/kpi_card.dart';
 import '../dashboard/kpi_grid.dart';
 import '../reminders/unit_reminders_card.dart';
-import 'fc_dispatch_log_card.dart';
+import 'farmers_tab.dart';
+import 'edit_farrowing_dialog.dart';
 import 'log_farrowing_dialog.dart';
 import 'monthly_piglet_chart.dart';
 import 'piggery_entry_dialogs.dart';
 import 'piggery_inventory_card.dart';
 import 'piggery_pill_tabs.dart';
+import 'release_pig_dialog.dart';
 import 'sow_register_table.dart';
 
 /// Piggery module — pill-driven layout matching Dairy / Layers / Feedlot.
@@ -161,6 +163,22 @@ class _PiggeryPageState extends State<PiggeryPage> {
     }
   }
 
+  Future<void> _openEditFarrowing(FarrowingRecordView record) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => EditFarrowingDialog(record: record),
+    );
+    if (saved == true) {
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Farrowing record updated')),
+        );
+      }
+    }
+  }
+
   Future<void> _openReportSick() async {
     final saved = await showDialog<bool>(
       context: context,
@@ -200,13 +218,26 @@ class _PiggeryPageState extends State<PiggeryPage> {
     if (saved == true) await _afterSave('Boar added');
   }
 
-  Future<void> _openEditBoar(Boar b, List<PigHouse> houses) async {
+  Future<void> _openEditBoar(Boar b, List<PigHouse> houses, List<Sow> sows) async {
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => EditBoarDialog(boar: b, houses: houses),
+      builder: (_) => EditBoarDialog(boar: b, houses: houses, sows: sows),
     );
     if (saved == true) await _afterSave('${b.tag} updated');
+  }
+
+  Future<void> _openReleaseBoar(Boar b) async {
+    final released = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ReleasePigDialog(
+        pigId: b.id,
+        pigTag: b.tag,
+        category: 'BOAR',
+      ),
+    );
+    if (released == true) await _afterSave('${b.tag} released');
   }
 
   Future<void> _openAddLitter(List<Sow> sows) async {
@@ -439,7 +470,8 @@ class _PiggeryPageState extends State<PiggeryPage> {
           const SizedBox(height: 10),
           _BoarsTable(
             boars: data.boars,
-            onEdit: (b) => _openEditBoar(b, data.houses),
+            onEdit: (b) => _openEditBoar(b, data.houses, data.sows),
+            onRelease: (b) => _openReleaseBoar(b),
             onDelete: (b) => _deleteEntity(
               entityName: 'boar',
               label: b.tag,
@@ -538,7 +570,10 @@ class _PiggeryPageState extends State<PiggeryPage> {
             onTap: () => _openLogFarrowing(data.sows),
           ),
           const SizedBox(height: 10),
-          _FarrowingTable(records: data.farrowing),
+          _FarrowingTable(
+            records: data.farrowing,
+            onEdit: _openEditFarrowing,
+          ),
           const SizedBox(height: 16),
           MonthlyPigletChart(points: data.trend),
         ];
@@ -548,7 +583,7 @@ class _PiggeryPageState extends State<PiggeryPage> {
         // The pill label is "Farmers" — Vaccinations have moved fully
         // into the Health module (cross-unit) so this slot now hosts
         // the Farmers Choice dispatch log: one row per FC truck-load.
-        return const [FcDispatchLogCard()];
+        return const [FarmersTab()];
       case PiggeryTab.feed:
         return const [
           _ModuleLinkCard(
@@ -1176,10 +1211,12 @@ class _BoarsTable extends StatelessWidget {
   const _BoarsTable({
     required this.boars,
     required this.onEdit,
+    required this.onRelease,
     required this.onDelete,
   });
   final List<Boar> boars;
   final ValueChanged<Boar> onEdit;
+  final ValueChanged<Boar> onRelease;
   final ValueChanged<Boar> onDelete;
 
   @override
@@ -1242,10 +1279,25 @@ class _BoarsTable extends StatelessWidget {
                       DataCell(Text(b.house ?? '—')),
                       DataCell(Text(b.breed ?? '—')),
                       DataCell(Text(b.age ?? '—')),
-                      DataCell(_BoarRoleText(role: b.role ?? '')),
-                      DataCell(_RowActions(
-                        onEdit: () => onEdit(b),
-                        onDelete: () => onDelete(b),
+                      DataCell(_BoarRoleText(role: b.role ?? '', servicedSowTag: b.servicedSowTag)),
+                      DataCell(PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, size: 18, color: Colors.black54),
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Actions',
+                        onSelected: (v) {
+                          if (v == 'edit') onEdit(b);
+                          if (v == 'release') onRelease(b);
+                          if (v == 'delete') onDelete(b);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit',    child: Text('Edit Boar')),
+                          PopupMenuItem(value: 'release', child: Text('Release / Sell')),
+                          PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete', style: TextStyle(color: Color(0xFFE24B4A))),
+                          ),
+                        ],
                       )),
                     ]),
                 ],
@@ -1258,8 +1310,9 @@ class _BoarsTable extends StatelessWidget {
 }
 
 class _BoarRoleText extends StatelessWidget {
-  const _BoarRoleText({required this.role});
+  const _BoarRoleText({required this.role, this.servicedSowTag});
   final String role;
+  final String? servicedSowTag;
   @override
   Widget build(BuildContext context) {
     Color? color;
@@ -1271,12 +1324,38 @@ class _BoarRoleText extends StatelessWidget {
       weight = FontWeight.w700;
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 260),
-      child: Text(
-        role,
-        style: TextStyle(fontSize: 12, color: color, fontWeight: weight),
-        overflow: TextOverflow.ellipsis,
-        maxLines: 2,
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            role,
+            style: TextStyle(fontSize: 12, color: color, fontWeight: weight),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+          if (servicedSowTag != null) ...[
+            const SizedBox(height: 3),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3DE),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFB6CFA0)),
+              ),
+              child: Text(
+                'Serviced → $servicedSowTag',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: _PiggeryPageState._primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1610,6 +1689,23 @@ class _SaleTag extends StatelessWidget {
   final FattenPen pen;
   @override
   Widget build(BuildContext context) {
+    if (pen.isPendingRelease) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3CD),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Text(
+          '⏳ Pending',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF8A5A0A),
+          ),
+        ),
+      );
+    }
     if (pen.isReleased) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1667,8 +1763,9 @@ class _SaleTag extends StatelessWidget {
 // =====================================================================
 
 class _FarrowingTable extends StatelessWidget {
-  const _FarrowingTable({required this.records});
+  const _FarrowingTable({required this.records, this.onEdit});
   final List<FarrowingRecordView> records;
+  final void Function(FarrowingRecordView)? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1725,6 +1822,7 @@ class _FarrowingTable extends StatelessWidget {
                   DataColumn(label: Text('BEA'), numeric: true),
                   DataColumn(label: Text('ALIVE'), numeric: true),
                   DataColumn(label: Text('DEAD'), numeric: true),
+                  DataColumn(label: Text('')),
                 ],
                 rows: [
                   for (final r in records)
@@ -1757,6 +1855,18 @@ class _FarrowingTable extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       )),
+                      DataCell(
+                        onEdit != null
+                            ? IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    size: 16, color: Color(0xFF6B7770)),
+                                tooltip: 'Edit record',
+                                onPressed: () => onEdit!(r),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                     ]),
                 ],
               ),

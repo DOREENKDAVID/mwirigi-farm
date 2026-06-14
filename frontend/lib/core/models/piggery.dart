@@ -150,6 +150,8 @@ class Sow {
     this.litterId,
     this.pigletCount,
     this.born,
+    this.releasedAt,
+    this.releaseReason,
   });
 
   final String id;
@@ -166,6 +168,8 @@ class Sow {
   final String? litterId;
   final int? pigletCount;
   final DateTime? born;
+  final DateTime? releasedAt;
+  final String? releaseReason;
 
   factory Sow.fromJson(Map<String, dynamic> j) {
     return Sow(
@@ -183,6 +187,8 @@ class Sow {
       litterId: _str(j['litterId']),
       pigletCount: j['pigletCount'] == null ? null : _toInt(j['pigletCount']),
       born: _parseDate(j['born']),
+      releasedAt: _parseDate(j['releasedAt']),
+      releaseReason: _str(j['releaseReason']),
     );
   }
 }
@@ -196,6 +202,10 @@ class Boar {
     this.breed,
     this.age,
     this.role,
+    this.releasedAt,
+    this.releaseReason,
+    this.servicedSowId,
+    this.servicedSowTag,
   });
 
   final String id;
@@ -205,8 +215,13 @@ class Boar {
   final String? breed;
   final String? age;
   final String? role;
+  final DateTime? releasedAt;
+  final String? releaseReason;
+  final String? servicedSowId;
+  final String? servicedSowTag;
 
   factory Boar.fromJson(Map<String, dynamic> j) {
+    final sowMap = j['servicedSow'];
     return Boar(
       id: (j['id'] ?? '').toString(),
       tag: (j['tag'] ?? '').toString(),
@@ -215,6 +230,10 @@ class Boar {
       breed: _str(j['breed']),
       age: _str(j['age']),
       role: _str(j['role']),
+      releasedAt: _parseDate(j['releasedAt']),
+      releaseReason: _str(j['releaseReason']),
+      servicedSowId: _str(j['servicedSowId']),
+      servicedSowTag: sowMap is Map ? _str(sowMap['tag']) : null,
     );
   }
 }
@@ -305,6 +324,7 @@ class FattenPen {
     this.releaseDestination,
     this.releaseNotes,
     this.revenueId,
+    this.pendingReleaseId,
   });
 
   final String id;
@@ -321,8 +341,10 @@ class FattenPen {
   final String? releaseDestination;
   final String? releaseNotes;
   final String? revenueId;
+  final String? pendingReleaseId;
 
-  bool get isReleased => releasedAt != null;
+  bool get isReleased        => releasedAt != null;
+  bool get isPendingRelease  => pendingReleaseId != null && releasedAt == null;
 
   factory FattenPen.fromJson(Map<String, dynamic> j) {
     return FattenPen(
@@ -340,8 +362,139 @@ class FattenPen {
       releaseDestination: _str(j['releaseDestination']),
       releaseNotes: _str(j['releaseNotes']),
       revenueId: _str(j['revenueId']),
+      pendingReleaseId: _str(j['pendingReleaseId']),
     );
   }
+}
+
+// ── Approval workflow models ─────────────────────────────────────────
+
+class PenReleaseRequest {
+  PenReleaseRequest({
+    required this.id,
+    required this.penId,
+    required this.penLabel,
+    required this.house,
+    required this.count,
+    required this.category,
+    required this.status,
+    required this.requestedAt,
+    this.ageRange,
+    this.approvedAt,
+    this.rejectedAt,
+    this.rejectionNotes,
+    this.pendingDispatchId,
+  });
+
+  final String   id;
+  final String   penId;
+  final String   penLabel;
+  final String   house;
+  final int      count;
+  final String   category;
+  final String?  ageRange;
+  final String   status; // PENDING | APPROVED | REJECTED | DISPATCHED
+  final DateTime requestedAt;
+  final DateTime? approvedAt;
+  final DateTime? rejectedAt;
+  final String?  rejectionNotes;
+  final String?  pendingDispatchId;
+
+  factory PenReleaseRequest.fromJson(Map<String, dynamic> j) => PenReleaseRequest(
+    id:                (j['id'] ?? '').toString(),
+    penId:             (j['penId'] ?? '').toString(),
+    penLabel:          (j['penLabel'] ?? j['pen'] ?? '').toString(),
+    house:             (j['house'] ?? '').toString(),
+    count:             _toInt(j['count']),
+    category:          (j['category'] ?? 'Beaconners').toString(),
+    ageRange:          _str(j['ageRange']),
+    status:            (j['status'] ?? 'PENDING').toString(),
+    requestedAt:       _parseDate(j['requestedAt']) ?? DateTime.now(),
+    approvedAt:        _parseDate(j['approvedAt']),
+    rejectedAt:        _parseDate(j['rejectedAt']),
+    rejectionNotes:    _str(j['rejectionNotes']),
+    pendingDispatchId: _str(j['pendingDispatchId']),
+  );
+}
+
+class PendingDispatchBatch {
+  PendingDispatchBatch({
+    required this.id,
+    required this.category,
+    required this.status,
+    required this.createdAt,
+    required this.pens,
+    required this.totalCount,
+    required this.requestIds,
+    this.ageRange,
+  });
+
+  final String   id;
+  final String   category;
+  final String?  ageRange;
+  final String   status;
+  final DateTime createdAt;
+  final List<String> pens;
+  final int          totalCount;
+  final List<String> requestIds;
+
+  factory PendingDispatchBatch.fromJson(Map<String, dynamic> j) => PendingDispatchBatch(
+    id:         (j['id'] ?? '').toString(),
+    category:   (j['category'] ?? '').toString(),
+    ageRange:   _str(j['ageRange']),
+    status:     (j['status'] ?? 'ACCUMULATING').toString(),
+    createdAt:  _parseDate(j['createdAt']) ?? DateTime.now(),
+    pens:       (j['pens'] as List? ?? []).map((e) => e.toString()).toList(),
+    totalCount: _toInt(j['totalCount']),
+    requestIds: (j['requestIds'] as List? ?? []).map((e) => e.toString()).toList(),
+  );
+}
+
+class DispatchLogEntry {
+  DispatchLogEntry({
+    required this.id,
+    required this.date,
+    required this.pens,
+    required this.count,
+    required this.category,
+    required this.destination,
+    this.ref,
+    this.ageRange,
+    this.driver,
+    this.amount,
+    this.notes,
+    this.revenueId,
+  });
+
+  final String  id;
+  final DateTime date;
+  final String? ref;
+  final String  pens;
+  final int     count;
+  final String  category;
+  final String? ageRange;
+  final String? driver;
+  final double? amount;
+  final String? notes;
+  final String  destination;
+  final String? revenueId;
+
+  bool get hasRevenue => revenueId != null;
+
+  factory DispatchLogEntry.fromJson(Map<String, dynamic> j) => DispatchLogEntry(
+    id:          (j['id'] ?? '').toString(),
+    date:        _parseDate(j['date']) ?? DateTime.now(),
+    ref:         _str(j['ref']),
+    pens:        (j['pens'] ?? '').toString(),
+    count:       _toInt(j['count']),
+    category:    (j['category'] ?? '').toString(),
+    ageRange:    _str(j['ageRange']),
+    driver:      _str(j['driver']),
+    amount:      j['amount'] == null ? null : _toNum(j['amount']).toDouble(),
+    notes:       _str(j['notes']),
+    destination: (j['destination'] ?? 'FARMERS_CHOICE').toString(),
+    revenueId:   _str(j['revenueId']),
+  );
 }
 
 class FarrowingRecordView {

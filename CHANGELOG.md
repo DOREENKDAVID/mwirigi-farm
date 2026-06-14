@@ -144,3 +144,102 @@
 - Initialized remote repository at `https://github.com/DOREENKDAVID/mwirigi-farm`
 - Resolved merge conflicts from remote initialization (kept all local changes)
 - Pushed full codebase to `master`
+
+---
+
+## 14 June 2026
+
+### 1. Piggery — Sow & Boar Release / Sell Workflow
+
+**Backend**
+- Added `releasedAt DateTime?`, `releaseReason String?`, `releaseNotes String?`, `releaseAmount Float?` to the `Pig` model in `schema.prisma`; schema pushed to NeonDB (`prisma db push`)
+- `listSows` and `listBoars` queries now filter `releasedAt: null` so released animals drop out of active registers immediately
+- New service function `releasePig(id, input, actorId)` in `piggery.service.js`:
+  - Pre-flight check: pig must exist, not soft-deleted, not already released
+  - Atomic Prisma `$transaction`: creates `Revenue` row (`unit: "Piggery"`, `category: "PIG_SALES"`) when `releaseAmount > 0`, then `updateMany` with race-condition guard, then writes audit log
+- New Zod schema `releasePigSchema` in `piggery.validation.js` (releaseReason enum, optional amount / notes / date)
+- New controller `releasePig` in `piggery.controller.js` with 404 / 409 / 400 error handling
+- New route `POST /api/piggery/pigs/:id/release` (roles: CEO, PIGGERY_MANAGER)
+
+**Flutter**
+- Added `releasedAt` and `releaseReason` fields to `Sow` and `Boar` models in `piggery.dart`
+- New `ApiService.releasePig(id, body)` method hitting the new route
+- New `release_pig_dialog.dart` — reason dropdown (Sold / Culled / Died / Old Age / Injured / Other), optional sale amount field (shown only when Sold), release date picker, notes; confirm button styled red
+- `sow_register_table.dart`: replaced Edit + Delete icon buttons (`_ActionIcons`) with a **3-dot `PopupMenuButton`** (`_SowRowActions`) offering Edit Sow / Release-Sell / Delete
+- `piggery_page.dart`:
+  - Added `_openReleaseBoar(Boar b)` method
+  - Added `onRelease` parameter to `_BoarsTable`
+  - Replaced `_RowActions` in the boars DataTable with an inline `PopupMenuButton` (Edit Boar / Release-Sell / Delete)
+  - Wired `onRelease: (b) => _openReleaseBoar(b)` in the tab switch
+
+**Finance integration**
+- Revenue created on pig release (`unit: "Piggery"`, `category: "PIG_SALES"`) automatically appears in the Finance → Revenue → Piggery KPI pill and revenue table — no additional wiring needed
+
+**Activity Report integration**
+- `writeAuditLog` called on every pig release (`entity: "Pig"`, `action: "RELEASE"`, `module: "Piggery"`) — events surface in the Activity Report under the Piggery module filter
+- Added `RELEASE` to the action filter dropdown in `activity_report_page.dart` ("Released" label, purple badge `#5B2CA6`) so releases can be filtered specifically
+
+### 2. Piggery — FC Pen Release Approval Workflow (State Machine)
+
+Full request → approval → dispatch state machine for Farmers Choice pen deliveries, replacing the previous direct-release flow.
+
+**Prisma schema additions** (pushed to NeonDB)
+
+- `FattenPen` — added `pendingReleaseId String?` (plain string, tracks active in-flight request; cleared on approve/reject)
+- New `Farm` model — single-row farm entity seeded at app startup with fixed UUID `00000000-0000-0000-0000-000000000001`
+- New `ReleaseRequest` model — captures a worker's FC pen release request; status: `PENDING → APPROVED → DISPATCHED` (or `REJECTED`); stores `originalCount` and `originalAge` snapshots for restoration on rejection
+- New `PendingDispatch` model — aggregation batch per `(farmId, category)`; status: `ACCUMULATING → DISPATCHED`; multiple batches can coexist for different categories
+- New `DispatchLog` model — immutable record of a completed FC truck dispatch; optional link to `Revenue`; replaces `FarmersChoiceDelivery` going forward
+
+**Backend service (`piggery.service.js`)**
+
+- `ensureFarm()` — idempotent upsert called at app startup from `app.js`
+- `releasePen()` — now throws for `FARMERS_CHOICE` ("use the approval workflow"); creates `DispatchLog` directly for `LOCAL_SALE` / `OTHER`
+- `requestPenRelease(penId, input, actorId)` — creates `ReleaseRequest(PENDING)`, sets `pen.pendingReleaseId`; audit log action `RELEASE_REQUEST`
+- `approveReleaseRequest(requestId, actorId)` — finds or creates an `ACCUMULATING` `PendingDispatch` for `farmId + category`; sets `pen.releasedAt`, clears `pendingReleaseId`; audit log action `APPROVE`
+- `rejectReleaseRequest(requestId, input, actorId)` — sets status `REJECTED`, restores `pen.count` and `pen.age` from snapshots, clears `pendingReleaseId`; audit log action `REJECT`
+- `listReleaseRequests(status)` — returns requests with embedded pen data
+- `listPendingDispatches()` — returns `ACCUMULATING` batches with derived `pens[]`, `totalCount`, `requestIds[]`
+- `confirmDispatch(pendingDispatchId, input, actorId)` — atomic transaction: creates `DispatchLog`, optionally creates `Revenue(unit:"Piggery", category:"ANIMAL_SALES")`, marks all requests `DISPATCHED`, closes the batch; audit log action `DISPATCH`
+- `listDispatchLogs()` — reads from `DispatchLog` ordered newest first
+
+**Backend API (new routes)**
+
+| Method | Path | Roles |
+|--------|------|-------|
+| `POST` | `/api/piggery/pens/:id/request-release` | CEO, PIGGERY_MANAGER |
+| `GET` | `/api/piggery/release-requests` | CEO, PIGGERY_MANAGER |
+| `PATCH` | `/api/piggery/release-requests/:id/approve` | CEO, PIGGERY_MANAGER |
+| `PATCH` | `/api/piggery/release-requests/:id/reject` | CEO, PIGGERY_MANAGER |
+| `GET` | `/api/piggery/pending-dispatches` | CEO, PIGGERY_MANAGER |
+| `POST` | `/api/piggery/dispatch/confirm` | CEO, PIGGERY_MANAGER |
+| `GET` | `/api/piggery/dispatch-logs` | CEO, PIGGERY_MANAGER |
+
+**Flutter models (`piggery.dart`)**
+
+- `FattenPen` — added `pendingReleaseId String?` and computed getter `bool get isPendingRelease => pendingReleaseId != null && releasedAt == null`
+- New `PenReleaseRequest` class with all request fields + `fromJson`
+- New `PendingDispatchBatch` class with `pens List<String>`, `totalCount`, `requestIds List<String>` + `fromJson`
+- New `DispatchLogEntry` class with all dispatch fields, `bool get hasRevenue` + `fromJson`
+
+**Flutter services & dialogs**
+
+- 7 new `ApiService` methods wired to the 7 new backend endpoints
+- `ReleasePenDialog` restructured: destination shown first; FC path shows a lean request form (category + ageRange, no weight/amount — deferred to dispatch confirm); Local Sale / Other path shows the existing direct-release form. Button label: "Submit Request" for FC, "Confirm Release" for others
+- New `DispatchConfirmDialog` — pre-filled from `PendingDispatchBatch` (read-only chip strip: pens / head / category); manager enters date, FC reference, driver, age range, amount; calls `ApiService.confirmDispatch()`; creates Revenue and closes the batch
+
+**Flutter Farmers pill (`piggery_page.dart`)**
+
+- Replaced `FcDispatchLogCard` with new `FarmersTab` widget
+- Pen status badge priority: **⏳ Pending** (amber) > **Released** (blue) > **⚡ Sale-ready** (green) > Active
+
+**`FarmersTab` layout (three sections)**
+
+1. **Pending Requests** — loads `GET /release-requests?status=PENDING`; each request shows pen label, count, category, house, requested-at timestamp; Approve (green) and Reject (red outlined) action buttons; Reject opens an inline notes dialog; restores pen state on rejection
+2. **Ready to Dispatch** — loads `GET /pending-dispatches`; each batch card shows total head, category, list of pens; tap → opens `DispatchConfirmDialog`; on confirm, revenue auto-created if amount > 0, batch closes and history refreshes
+3. **Dispatch History** — loads `GET /dispatch-logs`; rendered as a scrollable `DataTable` (Date / Ref / Pens / Count / Category / Age / Driver / Amount); reference cell colour-coded: green pill if Revenue exists, amber if amount was zero; "Log dispatch" button for manual FC entries via `LogFcDispatchDialog`
+
+**Finance & audit integration**
+
+- `confirmDispatch` auto-creates `Revenue(unit:"Piggery", category:"ANIMAL_SALES")` when amount > 0 — surfaces immediately in Finance → Revenue → Piggery pill and KPI strip
+- All state transitions write to `AuditLog` (reusing the existing `writeAuditLog` helper) — events appear in the Activity Report under the Piggery module filter with action labels `RELEASE_REQUEST`, `APPROVE`, `REJECT`, and `DISPATCH`

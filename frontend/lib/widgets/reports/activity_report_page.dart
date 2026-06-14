@@ -38,11 +38,12 @@ class _ActivityReportPageState extends State<ActivityReportPage> {
   String? _action;  // null = All
 
   static const _modules = ['Dairy', 'Layers', 'Health', 'Staff', 'Piggery'];
-  static const _actions = ['CREATE', 'UPDATE', 'DELETE'];
+  static const _actions = ['CREATE', 'UPDATE', 'DELETE', 'RELEASE'];
   static const _actionLabels = {
-    'CREATE': 'Created',
-    'UPDATE': 'Updated',
-    'DELETE': 'Deleted',
+    'CREATE':  'Created',
+    'UPDATE':  'Updated',
+    'DELETE':  'Deleted',
+    'RELEASE': 'Released',
   };
 
   Future<_Result>? _future;
@@ -543,23 +544,19 @@ class _ActivityTile extends StatelessWidget {
 
   Color _badgeBg(String action) {
     switch (action) {
-      case 'CREATE':
-        return const Color(0xFFEAF3DE);
-      case 'DELETE':
-        return const Color(0xFFFFEEEE);
-      default:
-        return const Color(0xFFFAEEDA);
+      case 'CREATE':  return const Color(0xFFEAF3DE);
+      case 'DELETE':  return const Color(0xFFFFEEEE);
+      case 'RELEASE': return const Color(0xFFEEE8FF);
+      default:        return const Color(0xFFFAEEDA);
     }
   }
 
   Color _badgeFg(String action) {
     switch (action) {
-      case 'CREATE':
-        return const Color(0xFF27500A);
-      case 'DELETE':
-        return const Color(0xFFB52C2B);
-      default:
-        return const Color(0xFF854F0B);
+      case 'CREATE':  return const Color(0xFF27500A);
+      case 'DELETE':  return const Color(0xFFB52C2B);
+      case 'RELEASE': return const Color(0xFF5B2CA6);
+      default:        return const Color(0xFF854F0B);
     }
   }
 }

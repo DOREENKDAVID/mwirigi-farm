@@ -73,6 +73,8 @@ class VaccinationRow {
     required this.animals,
     required this.status,
     this.protocolId,
+    this.brooderId,
+    this.dayOffsetStart,
     this.species,
     this.type,
     this.lastDone,
@@ -92,6 +94,8 @@ class VaccinationRow {
   final String id;
   final String source; // "DB" | "BROODER"
   final String? protocolId;
+  final String? brooderId;
+  final int? dayOffsetStart;
   final String vaccine;
   final String unit;
   final String? species;
@@ -119,6 +123,8 @@ class VaccinationRow {
       id: (j['id'] ?? '').toString(),
       source: (j['source'] ?? 'DB').toString(),
       protocolId: j['protocolId']?.toString(),
+      brooderId: j['brooderId']?.toString(),
+      dayOffsetStart: j['dayOffsetStart'] == null ? null : _toInt(j['dayOffsetStart']),
       vaccine: (j['vaccine'] ?? '').toString(),
       unit: (j['unit'] ?? '').toString(),
       species: j['species']?.toString(),

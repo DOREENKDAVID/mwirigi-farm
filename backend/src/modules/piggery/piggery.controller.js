@@ -3,10 +3,16 @@ import {
   createPigSchema,
   updatePigSchema,
   farrowingSchema,
+  updateFarrowingSchema,
   trendQuerySchema,
   sowSearchSchema,
   farrowingQuerySchema,
   releasePenSchema,
+  releasePigSchema,
+  requestReleaseSchema,
+  approveRequestSchema,
+  rejectRequestSchema,
+  confirmDispatchSchema,
   farmersChoiceDeliverySchema,
 } from "./piggery.validation.js";
 
@@ -124,6 +130,20 @@ export const logFarrowing = async (req, res) => {
     res.status(201).json(record);
   } catch (err) {
     if (handleZodError(res, err)) return;
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const updateFarrowing = async (req, res) => {
+  try {
+    const patch = updateFarrowingSchema.parse(req.body);
+    const record = await piggeryService.updateFarrowingRecord(req.params.id, patch);
+    res.json(record);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Farrowing record not found") {
+      return res.status(404).json({ error: err.message });
+    }
     res.status(400).json({ error: err.message });
   }
 };
@@ -334,6 +354,19 @@ export const releasePen = async (req, res) => {
   }
 };
 
+export const releasePig = async (req, res) => {
+  try {
+    const body = releasePigSchema.parse(req.body);
+    const result = await piggeryService.releasePig(req.params.id, body, req.user?.id);
+    res.json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Pig not found") return res.status(404).json({ error: err.message });
+    if (err.message === "Pig has already been released") return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+};
+
 // ===== Inventory =====
 
 export const listInventory = async (_req, res) => {
@@ -414,6 +447,84 @@ export const deleteFcDelivery = async (req, res) => {
   try {
     await piggeryService.softDeleteFarmersChoiceDelivery(req.params.id);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ===== Pen Release Approval Workflow =====
+
+export const requestPenRelease = async (req, res) => {
+  try {
+    const body = requestReleaseSchema.parse(req.body);
+    const result = await piggeryService.requestPenRelease(req.params.id, body, req.user?.id);
+    res.status(201).json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Pen not found") return res.status(404).json({ error: err.message });
+    if (err.message.includes("already pending") || err.message.includes("already been released"))
+      return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const listReleaseRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+    res.json(await piggeryService.listReleaseRequests(status));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const approveRequest = async (req, res) => {
+  try {
+    const result = await piggeryService.approveReleaseRequest(req.params.id, req.user?.id);
+    res.json(result);
+  } catch (err) {
+    if (err.message === "Release request not found") return res.status(404).json({ error: err.message });
+    if (err.message.includes("Cannot approve")) return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const rejectRequest = async (req, res) => {
+  try {
+    const body = rejectRequestSchema.parse(req.body);
+    const result = await piggeryService.rejectReleaseRequest(req.params.id, body, req.user?.id);
+    res.json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Release request not found") return res.status(404).json({ error: err.message });
+    if (err.message.includes("Cannot reject")) return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const listPendingDispatches = async (_req, res) => {
+  try {
+    res.json(await piggeryService.listPendingDispatches());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const confirmDispatch = async (req, res) => {
+  try {
+    const body = confirmDispatchSchema.parse(req.body);
+    const result = await piggeryService.confirmDispatch(body.pendingDispatchId, body, req.user?.id);
+    res.status(201).json(result);
+  } catch (err) {
+    if (handleZodError(res, err)) return;
+    if (err.message === "Pending dispatch not found") return res.status(404).json({ error: err.message });
+    if (err.message.includes("already been confirmed")) return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const listDispatchLogs = async (_req, res) => {
+  try {
+    res.json(await piggeryService.listDispatchLogs());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

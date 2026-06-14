@@ -206,24 +206,32 @@ const computeRecurring = ({ protocol, records, today }) => {
 // ---------------------------------------------------------------------
 export const computeProtocolView = ({ protocol, records, today }) => {
   const t = today ?? startOfDay(new Date());
+  let view;
   if (protocol.type === "ANNUAL") {
-    return computeAnnual({ protocol, records, today: t });
+    view = computeAnnual({ protocol, records, today: t });
+  } else if (protocol.type === "RECURRING") {
+    view = computeRecurring({ protocol, records, today: t });
+  } else {
+    // BROODER_DAY rows are NOT stored in DB; if one ever is, fall through.
+    view = {
+      status: "UPCOMING",
+      lastDone: null,
+      lastDoneAt: null,
+      nextDue: null,
+      nextDueAt: null,
+      daysUntilDue: null,
+      cycleStart: null,
+      cycleEnd: null,
+    };
   }
-  if (protocol.type === "RECURRING") {
-    return computeRecurring({ protocol, records, today: t });
+  // Apply manual status override from the latest record if set.
+  const latest = records.slice().sort(
+    (a, b) => new Date(b.administeredAt) - new Date(a.administeredAt),
+  )[0];
+  if (latest?.statusOverride) {
+    return { ...view, status: latest.statusOverride };
   }
-  // BROODER_DAY rows are NOT stored in DB; if one ever is, fall through
-  // to UPCOMING so we don't crash.
-  return {
-    status: "UPCOMING",
-    lastDone: null,
-    lastDoneAt: null,
-    nextDue: null,
-    nextDueAt: null,
-    daysUntilDue: null,
-    cycleStart: null,
-    cycleEnd: null,
-  };
+  return view;
 };
 
 // ---------------------------------------------------------------------

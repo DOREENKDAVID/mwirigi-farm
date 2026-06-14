@@ -70,6 +70,22 @@ export const updatePigSchema = z
     age: z.string().max(40).nullable().optional(),
     role: z.string().max(120).nullable().optional(),
     note: z.string().max(500).nullable().optional(),
+    servicedSowId: z.string().uuid().nullable().optional(),
+  })
+  .refine((d) => Object.keys(d).length > 0, {
+    message: "At least one field must be provided",
+  });
+
+// PATCH /api/piggery/farrowing/:id — edit an existing farrowing record.
+export const updateFarrowingSchema = z
+  .object({
+    date:        z.coerce.date().optional(),
+    service:     z.coerce.date().nullable().optional(),
+    winners:     z.number().int().min(0).max(30).nullable().optional(),
+    fatteners:   z.number().int().min(0).max(30).nullable().optional(),
+    beaconners:  z.number().int().min(0).max(30).nullable().optional(),
+    pigletsDead: z.number().int().min(0).max(30).optional(),
+    remarks:     z.string().max(500).nullable().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, {
     message: "At least one field must be provided",
@@ -99,6 +115,16 @@ const FC_CATEGORIES = ["Beaconners", "Fatteners", "Winners", "Mixed"];
 // finalWeight is computed server-side: totalWeight - (30kg × count)
 const RELEASE_DESTINATIONS = ["FARMERS_CHOICE", "LOCAL_SALE", "OTHER"];
 
+const PIG_RELEASE_REASONS = ["SOLD", "CULLED", "DIED", "OLD_AGE", "INJURED", "OTHER"];
+
+// POST /api/piggery/pigs/:id/release
+export const releasePigSchema = z.object({
+  releaseReason:  z.enum(PIG_RELEASE_REASONS).default("OTHER"),
+  releaseAmount:  z.number().nonnegative().optional(),
+  releaseNotes:   z.string().trim().max(500).optional(),
+  releaseDate:    z.coerce.date().optional(),
+});
+
 export const releasePenSchema = z.object({
   totalWeight: z.number().positive("Total live weight must be > 0"),
   destination: z.enum(RELEASE_DESTINATIONS),
@@ -112,6 +138,32 @@ export const releasePenSchema = z.object({
   // Free-text note shown for OTHER / LOCAL_SALE destinations
   destinationNote: z.string().trim().max(200).optional(),
   notes: z.string().trim().max(500).optional(),
+});
+
+// POST /api/piggery/pens/:id/request-release
+// Farmers Choice approval-flow: worker locks the pen and creates a request.
+export const requestReleaseSchema = z.object({
+  category: z.enum(FC_CATEGORIES).default("Beaconners"),
+  ageRange: z.string().trim().max(40).optional(),
+});
+
+// PATCH /api/piggery/release-requests/:id/approve (no body needed)
+export const approveRequestSchema = z.object({}).passthrough();
+
+// PATCH /api/piggery/release-requests/:id/reject
+export const rejectRequestSchema = z.object({
+  notes: z.string().trim().max(500).optional(),
+});
+
+// POST /api/piggery/dispatch/confirm
+export const confirmDispatchSchema = z.object({
+  pendingDispatchId: z.string().uuid("Invalid batch ID"),
+  date:     z.coerce.date().optional(),
+  ref:      z.string().trim().max(80).optional(),
+  driver:   z.string().trim().max(80).optional(),
+  ageRange: z.string().trim().max(40).optional(),
+  amount:   z.number().nonnegative().optional(),
+  notes:    z.string().trim().max(500).optional(),
 });
 
 export const farmersChoiceDeliverySchema = z.object({

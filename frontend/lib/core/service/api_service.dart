@@ -1012,6 +1012,10 @@ class ApiService {
           String id, Map<String, dynamic> body) async =>
       _asMap(_unwrap(await _post('/piggery/pens/$id/release', body: body)));
 
+  static Future<Map<String, dynamic>> releasePig(
+          String id, Map<String, dynamic> body) async =>
+      _asMap(_unwrap(await _post('/piggery/pigs/$id/release', body: body)));
+
   // GET /piggery/inventory
   static Future<List<dynamic>> getPiggeryInventory() async =>
       _asList(await _get('/piggery/inventory'));
@@ -1050,12 +1054,53 @@ class ApiService {
     await _delete('/piggery/fc-deliveries/$id');
   }
 
+  // ── Pen Release Approval Workflow ─────────────────────────────────
+
+  // POST /piggery/pens/:id/request-release — locks pen, creates ReleaseRequest
+  static Future<Map<String, dynamic>> requestPenRelease(
+          String penId, Map<String, dynamic> body) async =>
+      _asMap(_unwrap(await _post('/piggery/pens/$penId/request-release', body: body)));
+
+  // GET /piggery/release-requests?status=PENDING
+  static Future<List<dynamic>> getReleaseRequests({String? status}) async =>
+      _asList(await _get('/piggery/release-requests${status != null ? '?status=$status' : ''}'));
+
+  // PATCH /piggery/release-requests/:id/approve
+  static Future<Map<String, dynamic>> approveReleaseRequest(String id) async =>
+      _asMap(await _patch('/piggery/release-requests/$id/approve', body: {}));
+
+  // PATCH /piggery/release-requests/:id/reject
+  static Future<Map<String, dynamic>> rejectReleaseRequest(
+          String id, {String? notes}) async =>
+      _asMap(await _patch('/piggery/release-requests/$id/reject',
+          body: {if (notes != null && notes.isNotEmpty) 'notes': notes}));
+
+  // GET /piggery/pending-dispatches
+  static Future<List<dynamic>> getPendingDispatches() async =>
+      _asList(await _get('/piggery/pending-dispatches'));
+
+  // POST /piggery/dispatch/confirm
+  static Future<Map<String, dynamic>> confirmDispatch(
+          Map<String, dynamic> body) async =>
+      _asMap(_unwrap(await _post('/piggery/dispatch/confirm', body: body)));
+
+  // GET /piggery/dispatch-logs — replaces fc-deliveries for dispatch history
+  static Future<List<dynamic>> getDispatchLogs() async =>
+      _asList(await _get('/piggery/dispatch-logs'));
+
   // POST /piggery/farrowing
   // Body: { sowId, pigletsBorn, pigletsAlive, pigletsDead, date? }
   static Future<Map<String, dynamic>> logFarrowing(
     Map<String, dynamic> data,
   ) async =>
       _asMap(await _post('/piggery/farrowing', body: data));
+
+  // PATCH /piggery/farrowing/:id — edit an existing farrowing record
+  static Future<Map<String, dynamic>> updateFarrowing(
+    String id,
+    Map<String, dynamic> data,
+  ) async =>
+      _asMap(await _patch('/piggery/farrowing/$id', body: data));
 
   // POST /piggery/pigs (CEO/PIGGERY_MANAGER) — register a new pig
   static Future<Map<String, dynamic>> createPig(

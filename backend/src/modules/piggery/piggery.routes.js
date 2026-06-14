@@ -41,10 +41,24 @@ router.post(
 );
 
 router.patch(
+  "/farrowing/:id",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER", "VET"),
+  controller.updateFarrowing,
+);
+
+router.patch(
   "/pigs/:id",
   authMiddleware,
   authorizeRoles("CEO", "PIGGERY_MANAGER"),
   controller.updatePig,
+);
+
+router.post(
+  "/pigs/:id/release",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.releasePig,
 );
 
 router.delete(
@@ -160,6 +174,47 @@ router.delete(
   authMiddleware,
   authorizeRoles("CEO", "ADMIN"),
   controller.deleteFcDelivery,
+);
+
+// ------- Pen Release Approval Workflow -------
+router.post(
+  "/pens/:id/request-release",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.requestPenRelease,
+);
+router.get(
+  "/release-requests",
+  authMiddleware,
+  controller.listReleaseRequests,
+);
+router.patch(
+  "/release-requests/:id/approve",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.approveRequest,
+);
+router.patch(
+  "/release-requests/:id/reject",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.rejectRequest,
+);
+router.get(
+  "/pending-dispatches",
+  authMiddleware,
+  controller.listPendingDispatches,
+);
+router.post(
+  "/dispatch/confirm",
+  authMiddleware,
+  authorizeRoles("CEO", "PIGGERY_MANAGER"),
+  controller.confirmDispatch,
+);
+router.get(
+  "/dispatch-logs",
+  authMiddleware,
+  controller.listDispatchLogs,
 );
 
 export default router;

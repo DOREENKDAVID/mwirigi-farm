@@ -167,10 +167,44 @@ class _EggsTabSectionState extends State<EggsTabSection> {
         setState(() {
           _dateHistories =
               results.whereType<legacy.ProductionHistory>().toList();
+          _prefillFormFromHistories();
         });
       }
     } finally {
       if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  // Pre-fills the log form controllers from whatever history is currently
+  // loaded for _date. Called after a date-change fetch completes so the
+  // form shows the existing values instead of sitting blank.
+  void _prefillFormFromHistories() {
+    // Clear first so stale values don't linger if a house has no record.
+    for (final c in _crateCtrls.values) {
+      c.clear();
+    }
+    _householdCtrl.clear();
+
+    final source = _isToday ? widget.histories : _dateHistories;
+    for (final history in source) {
+      final record = history.records
+          .where((r) =>
+              r.date.year == _date.year &&
+              r.date.month == _date.month &&
+              r.date.day == _date.day)
+          .firstOrNull;
+      if (record == null) continue;
+
+      final ctrl = _crateCtrls[history.house.id];
+      if (ctrl != null && record.eggsCollected > 0) {
+        final crates = (record.eggsCollected / _eggsPerCrate).round();
+        ctrl.text = '$crates';
+      }
+      // householdUsed is attributed to one record per day — pick it up
+      // from whichever house logged it.
+      if (record.householdUsed > 0 && _householdCtrl.text.isEmpty) {
+        _householdCtrl.text = '${record.householdUsed}';
+      }
     }
   }
 
@@ -202,6 +236,12 @@ class _EggsTabSectionState extends State<EggsTabSection> {
         picked.day == now.day;
     if (!pickedIsToday) {
       await _loadHistoriesForDate(picked);
+    } else {
+      // Switching back to today — re-sync from parent and pre-fill.
+      setState(() {
+        _dateHistories = widget.histories;
+        _prefillFormFromHistories();
+      });
     }
   }
 

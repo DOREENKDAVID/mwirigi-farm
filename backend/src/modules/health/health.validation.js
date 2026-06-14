@@ -45,6 +45,7 @@ export const createVaccinationSchema = z
     nextDueOverride: dateSchema.nullable().optional(),
     notes: z.string().max(500).optional().nullable(),
     administeredBy: z.string().max(80).optional().nullable(),
+    statusOverride: z.enum(["DONE", "DUE_NOW", "OVERDUE"]).optional().nullable(),
   })
   .superRefine((d, ctx) => {
     const isProtocol = !!d.protocolId;
@@ -114,6 +115,7 @@ export const updateVaccinationRecordSchema = z.object({
   nextDueOverride: dateSchema.nullable().optional(),
   notes: z.string().max(500).optional().nullable(),
   administeredBy: z.string().max(80).optional().nullable(),
+  statusOverride: z.enum(["DONE", "DUE_NOW", "OVERDUE"]).optional().nullable(),
 });
 
 // ----- PATCH /api/health/treatments/:id -----

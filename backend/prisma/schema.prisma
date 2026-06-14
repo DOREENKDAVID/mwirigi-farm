@@ -826,7 +826,18 @@ model Pig {
   role        String? // boars: "Active", "CASTRATED", "Young — coming into service"
   note        String?
 
+  // Release / sale fields — set when sow/boar leaves the farm.
+  releasedAt    DateTime?
+  releaseReason String?   // SOLD | CULLED | DIED | OLD_AGE | INJURED | OTHER
+  releaseNotes  String?
+  releaseAmount Float?
+
   deletedAt DateTime?
+  // Boar → sow service link (optional; boar records the sow currently serviced)
+  servicedSowId String?
+  servicedSow   Pig?   @relation("BoarServicedSow", fields: [servicedSowId], references: [id], onDelete: SetNull)
+  serviceBoars  Pig[]  @relation("BoarServicedSow")
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -919,6 +930,11 @@ model FattenPen {
   releaseNotes         String?
   revenueId            String?   @unique // back-link to auto-created Revenue row
 
+  // Approval workflow: set to ReleaseRequest.id while a request is PENDING.
+  // Cleared when request is approved (releasedAt takes over) or rejected.
+  pendingReleaseId String?
+  releaseRequests  ReleaseRequest[]
+
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -978,6 +994,125 @@ model PiggeryInventoryItem {
 
   @@index([category])
   @@index([deletedAt])
+}
+
+// =====================================================================
+// PEN RELEASE APPROVAL WORKFLOW
+// =====================================================================
+
+// Single farm record — seeded once at startup.
+model Farm {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  releaseRequests   ReleaseRequest[]
+  pendingDispatches PendingDispatch[]
+  dispatchLogs      DispatchLog[]
+
+  @@map("farms")
+}
+
+// One row per pen-release request. Status machine:
+//   PENDING → APPROVED (added to PendingDispatch) → DISPATCHED (DispatchLog created)
+//   PENDING → REJECTED (pen restored)
+model ReleaseRequest {
+  id    String @id @default(uuid())
+
+  penId String
+  pen   FattenPen @relation(fields: [penId], references: [id])
+
+  farmId String
+  farm   Farm   @relation(fields: [farmId], references: [id])
+
+  count    Int
+  category String  @default("Beaconners")
+  ageRange String?
+
+  // Snapshot of pen state at request time — used to restore on rejection.
+  originalCount Int
+  originalAge   String?
+
+  // PENDING | APPROVED | REJECTED | DISPATCHED
+  status String @default("PENDING")
+
+  requestedById String?
+  requestedAt   DateTime @default(now())
+
+  approvedById String?
+  approvedAt   DateTime?
+
+  rejectedById   String?
+  rejectedAt     DateTime?
+  rejectionNotes String?
+
+  // Set to ACCUMULATING PendingDispatch when approved.
+  pendingDispatchId String?
+  pendingDispatch   PendingDispatch? @relation("PendingDispatchRequests", fields: [pendingDispatchId], references: [id])
+
+  // Set to DispatchLog when dispatched.
+  dispatchLogId String?
+  dispatchLog   DispatchLog? @relation("DispatchLogRequests", fields: [dispatchLogId], references: [id])
+
+  @@index([status])
+  @@index([farmId])
+  @@map("release_requests")
+}
+
+// Staging area that accumulates approved requests before dispatch.
+// One per category per batch. Status: ACCUMULATING → DISPATCHED.
+model PendingDispatch {
+  id     String @id @default(uuid())
+  farmId String
+  farm   Farm   @relation(fields: [farmId], references: [id])
+
+  category String
+  ageRange String?
+
+  // ACCUMULATING | DISPATCHED
+  status String @default("ACCUMULATING")
+
+  requests    ReleaseRequest[] @relation("PendingDispatchRequests")
+  dispatchLog DispatchLog?     @relation("PendingDispatchLog")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([farmId, status])
+  @@map("pending_dispatches")
+}
+
+// Final confirmed dispatch record. Replaces FarmersChoiceDelivery.
+// Created when manager submits the dispatch form.
+model DispatchLog {
+  id     String @id @default(uuid())
+  farmId String
+  farm   Farm   @relation(fields: [farmId], references: [id])
+
+  // Set for FC approval-flow dispatches; null for direct (LOCAL_SALE/OTHER).
+  pendingDispatchId String?         @unique
+  pendingDispatch   PendingDispatch? @relation("PendingDispatchLog", fields: [pendingDispatchId], references: [id])
+
+  date        DateTime @default(now())
+  ref         String?
+  pens        String   // "E1, E11" — derived from linked requests or entered directly
+  count       Int
+  category    String
+  ageRange    String?
+  driver      String?
+  amount      Float?
+  notes       String?
+  destination String   @default("FARMERS_CHOICE")
+
+  requests ReleaseRequest[] @relation("DispatchLogRequests")
+
+  revenueId   String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([farmId])
+  @@index([date])
+  @@map("dispatch_logs")
 }
 
 // ===================================================
@@ -1442,6 +1577,10 @@ model VaccinationRecord {
   // Optional manual override for the next-due date. Otherwise derived
   // from protocol.type + protocol.allowedMonths or recurrenceMonths.
   nextDueOverride DateTime?
+
+  // Optional manual status override. When set, the status engine returns
+  // this value directly instead of computing from dates.
+  statusOverride String?
 
   notes          String?
   administeredBy String?

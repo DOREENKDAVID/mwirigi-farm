@@ -208,8 +208,8 @@ class _DesktopTable extends StatelessWidget {
                   child: StatusBadge(status: r.status),
                 ),
               ),
-              // Edit button — all DB rows (creates first record if none logged)
-              if (r.source == 'DB' && onEdit != null)
+              // Edit button on every row (creates first record if none logged)
+              if (onEdit != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: IconButton(
@@ -265,7 +265,7 @@ class _MobileCards extends StatelessWidget {
                       ),
                     ),
                     StatusBadge(status: r.status),
-                    if (r.source == 'DB' && onEdit != null) ...[
+                    if (onEdit != null) ...[
                       const SizedBox(width: 4),
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 16),

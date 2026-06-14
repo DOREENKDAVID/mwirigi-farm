@@ -1,3 +1,4 @@
+import { ensureFarm } from "./modules/piggery/piggery.service.js";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
 import reportsRoutes from "./modules/reports/reports.routes.js";
 import dairyRoutes from "./modules/dairy/dairy.routes.js";
@@ -41,6 +42,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/uploads", uploadsRoutes);
 app.use("/api/activity-log", activityLogRoutes);
 app.use("/api/sales", salesRoutes);
+
+// Seed the single Farm row on startup.
+ensureFarm().catch((e) => console.error("Farm seed failed:", e));
 
 app.get("/", (req, res) => {
   res.json({ message: "Mwirigi Farm API is running" });
